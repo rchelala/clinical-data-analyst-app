@@ -84,9 +84,15 @@ export function PbixExplorerTab() {
   );
 
   const removeFile = useCallback((fileName: string) => {
-    setLoadedFiles((prev) => prev.filter((f) => f.fileName !== fileName));
+    setLoadedFiles((prev) => {
+      const remaining = prev.filter((f) => f.fileName !== fileName);
+      const remainingTypes = new Set(
+        remaining.flatMap((f) => f.dashboard.pages.flatMap((p) => p.visuals.map((v) => v.type)))
+      );
+      setSearchType((currentType) => (remainingTypes.has(currentType) ? currentType : ""));
+      return remaining;
+    });
     setSelectedPage("");
-    setSearchType("");
   }, []);
 
   const removeError = useCallback((name: string) => {
@@ -135,6 +141,11 @@ export function PbixExplorerTab() {
     return [...counts.entries()].sort((a, b) => a[0].localeCompare(b[0]));
   }, [titleTypeFiltered]);
 
+  const totalPageCount = useMemo(
+    () => new Set(allRows.map((r) => r.page)).size,
+    [allRows]
+  );
+
   // Final rows — all three filters applied
   const filteredRows = useMemo(
     () => titleTypeFiltered.filter((r) => selectedPage === "" || r.page === selectedPage),
@@ -154,7 +165,7 @@ export function PbixExplorerTab() {
     a.href = url;
     a.download = "pbix-visuals.csv";
     a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 100);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }, [filteredRows]);
 
   return (
@@ -195,6 +206,7 @@ export function PbixExplorerTab() {
           accept=".pbix"
           multiple
           className="hidden"
+          disabled={isProcessing}
           onChange={handleFileInput}
         />
       </div>
@@ -312,7 +324,7 @@ export function PbixExplorerTab() {
             </thead>
             <tbody>
               {filteredRows.map((row, i) => (
-                <tr key={i} className="border-b border-theme hover:bg-panel transition-colors">
+                <tr key={`${row.file}|${row.page}|${row.type}|${row.title}|${i}`} className="border-b border-theme hover:bg-panel transition-colors">
                   <td className="py-2 px-2 font-medium text-primary">
                     {row.title || <span className="text-slate-400 italic">Untitled</span>}
                   </td>
@@ -331,8 +343,8 @@ export function PbixExplorerTab() {
         <div className="flex items-center justify-between px-6 py-2 border-t border-theme bg-panel text-xs text-secondary flex-shrink-0">
           <span>
             Showing {filteredRows.length} of {allRows.length} visuals across {loadedFiles.length}{" "}
-            {loadedFiles.length === 1 ? "file" : "files"}, {pageChips.length}{" "}
-            {pageChips.length === 1 ? "page" : "pages"}
+            {loadedFiles.length === 1 ? "file" : "files"}, {totalPageCount}{" "}
+            {totalPageCount === 1 ? "page" : "pages"}
           </span>
           <button
             onClick={handleCsvExport}

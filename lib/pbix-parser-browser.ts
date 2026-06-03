@@ -75,5 +75,5 @@ export async function parsePbixFileClient(file: File): Promise<PbixDashboard> {
     return { name: pageName, visuals };
   });
 
-  return { reportName, pages };
+  return { reportName, pages, measures: [], modelMeasuresAvailable: false };
 }

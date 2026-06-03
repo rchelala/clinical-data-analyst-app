@@ -1,0 +1,100 @@
+<h2>PBIX Visual Explorer — Full Tab Layout</h2>
+<p class="subtitle">This is the proposed layout for the new tab. The tab renders entirely client-side — no file is uploaded to a server.</p>
+
+<div class="mockup">
+  <div class="mockup-header">PBIX Visual Explorer tab</div>
+  <div class="mockup-body" style="padding:0;font-size:12px;">
+
+    <!-- Drop zone -->
+    <div style="margin:14px;border:2px dashed #94a3b8;border-radius:8px;padding:20px;text-align:center;background:#f8fafc;color:#64748b;">
+      <div style="font-size:20px;margin-bottom:6px;">📂</div>
+      <div style="font-weight:600;margin-bottom:2px;">Drop .pbix files here</div>
+      <div style="font-size:11px;color:#94a3b8;">or click to browse — multiple files supported</div>
+    </div>
+
+    <!-- Loaded files strip (shown once files are dropped) -->
+    <div style="display:flex;gap:6px;padding:0 14px 10px;flex-wrap:wrap;">
+      <div style="display:flex;align-items:center;gap:4px;background:#dbeafe;border:1px solid #93c5fd;border-radius:20px;padding:3px 10px;color:#1e40af;font-size:11px;">
+        📊 MAW Report <span style="cursor:pointer;color:#60a5fa;margin-left:2px;">✕</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:4px;background:#dbeafe;border:1px solid #93c5fd;border-radius:20px;padding:3px 10px;color:#1e40af;font-size:11px;">
+        📊 Finance Report <span style="cursor:pointer;color:#60a5fa;margin-left:2px;">✕</span>
+      </div>
+    </div>
+
+    <!-- Search bar row -->
+    <div style="display:flex;gap:8px;padding:0 14px 10px;">
+      <input class="mock-input" style="flex:1;font-size:12px;" placeholder="Search visual title… e.g. Provider" />
+      <select class="mock-input" style="width:160px;font-size:12px;">
+        <option>All types</option>
+        <option>Card</option>
+        <option>Slicer</option>
+        <option>Bar Chart</option>
+        <option>Table</option>
+      </select>
+    </div>
+
+    <!-- Page filter chips -->
+    <div style="display:flex;gap:6px;padding:0 14px 10px;flex-wrap:wrap;">
+      <span style="background:#3b82f6;color:white;border-radius:12px;padding:2px 10px;font-size:11px;cursor:pointer;">All (47)</span>
+      <span style="background:#f3f4f6;color:#6b7280;border-radius:12px;padding:2px 10px;font-size:11px;cursor:pointer;">Overview (8)</span>
+      <span style="background:#f3f4f6;color:#6b7280;border-radius:12px;padding:2px 10px;font-size:11px;cursor:pointer;">Provider Detail (6)</span>
+      <span style="background:#f3f4f6;color:#6b7280;border-radius:12px;padding:2px 10px;font-size:11px;cursor:pointer;">Finance (5)</span>
+      <span style="background:#f3f4f6;color:#6b7280;border-radius:12px;padding:2px 10px;font-size:11px;cursor:pointer;">Summary (4)</span>
+    </div>
+
+    <!-- Results table -->
+    <div style="padding:0 14px 14px;">
+      <table style="width:100%;border-collapse:collapse;font-size:11px;">
+        <thead>
+          <tr style="border-bottom:2px solid #e5e7eb;color:#6b7280;text-transform:uppercase;font-size:10px;letter-spacing:0.05em;">
+            <th style="text-align:left;padding:5px 6px;font-weight:600;">Title</th>
+            <th style="text-align:left;padding:5px 6px;font-weight:600;">Type</th>
+            <th style="text-align:left;padding:5px 6px;font-weight:600;">Page</th>
+            <th style="text-align:left;padding:5px 6px;font-weight:600;">File</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="border-bottom:1px solid #f3f4f6;">
+            <td style="padding:5px 6px;font-weight:500;">Provider Count</td>
+            <td style="padding:5px 6px;color:#6b7280;">Card</td>
+            <td style="padding:5px 6px;color:#6b7280;">Overview</td>
+            <td style="padding:5px 6px;color:#6b7280;">MAW Report</td>
+          </tr>
+          <tr style="border-bottom:1px solid #f3f4f6;">
+            <td style="padding:5px 6px;font-weight:500;">Provider Filter</td>
+            <td style="padding:5px 6px;color:#6b7280;">Slicer</td>
+            <td style="padding:5px 6px;color:#6b7280;">Overview</td>
+            <td style="padding:5px 6px;color:#6b7280;">MAW Report</td>
+          </tr>
+          <tr style="border-bottom:1px solid #f3f4f6;">
+            <td style="padding:5px 6px;font-weight:500;">Top Providers</td>
+            <td style="padding:5px 6px;color:#6b7280;">Bar Chart</td>
+            <td style="padding:5px 6px;color:#6b7280;">Provider Detail</td>
+            <td style="padding:5px 6px;color:#6b7280;">MAW Report</td>
+          </tr>
+          <tr style="border-bottom:1px solid #f3f4f6;">
+            <td style="padding:5px 6px;font-weight:500;">Provider Spend</td>
+            <td style="padding:5px 6px;color:#6b7280;">Line Chart</td>
+            <td style="padding:5px 6px;color:#6b7280;">Finance</td>
+            <td style="padding:5px 6px;color:#6b7280;">Finance Report</td>
+          </tr>
+          <tr>
+            <td style="padding:5px 6px;color:#94a3b8;font-style:italic;" colspan="4">… 43 more rows</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Footer summary -->
+    <div style="border-top:1px solid #e5e7eb;padding:6px 14px;color:#94a3b8;font-size:10px;display:flex;justify-content:space-between;">
+      <span>Showing 4 of 47 visuals across 2 files, 5 pages</span>
+      <span style="color:#3b82f6;cursor:pointer;">Copy results as CSV</span>
+    </div>
+
+  </div>
+</div>
+
+<p style="margin-top:16px;font-size:12px;color:#6b7280;">
+  <strong>Key behaviors:</strong> Searching "Provider" in the title field filters the table live as you type. The type dropdown narrows by visual type. Page chips let you drill into a specific page. Files can be individually removed with ✕.
+</p>

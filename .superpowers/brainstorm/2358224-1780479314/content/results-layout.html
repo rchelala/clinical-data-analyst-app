@@ -1,0 +1,101 @@
+<h2>How should search results be displayed?</h2>
+<p class="subtitle">You've searched for "Provider" across a .pbix file with 8 pages. Which layout feels most useful?</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup" style="font-size:12px;">
+        <div class="mockup-header">Results: 5 visuals match "Provider"</div>
+        <div class="mockup-body" style="padding:8px;">
+          <div style="background:#e8f4fd;border-left:3px solid #3b82f6;padding:6px 8px;margin-bottom:6px;border-radius:2px;">
+            <div style="font-weight:600;font-size:11px;color:#1e40af;margin-bottom:4px;">📄 Overview Page</div>
+            <div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid #dbeafe;">
+              <span>Provider Count</span><span style="color:#6b7280;font-size:11px;">Card</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:3px 0;">
+              <span>Provider Filter</span><span style="color:#6b7280;font-size:11px;">Slicer</span>
+            </div>
+          </div>
+          <div style="background:#e8f4fd;border-left:3px solid #3b82f6;padding:6px 8px;border-radius:2px;">
+            <div style="font-weight:600;font-size:11px;color:#1e40af;margin-bottom:4px;">📄 Detail Page</div>
+            <div style="display:flex;justify-content:space-between;padding:3px 0;">
+              <span>Provider Breakdown</span><span style="color:#6b7280;font-size:11px;">Bar Chart</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Grouped by Page</h3>
+      <p>Results nested under the page they belong to. Easy to see which pages have the most matches.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup" style="font-size:12px;">
+        <div class="mockup-header">Results: 5 visuals match "Provider"</div>
+        <div class="mockup-body" style="padding:8px;">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;">
+            <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:4px;padding:6px;text-align:center;">
+              <div style="font-size:10px;color:#6b7280;">CARD</div>
+              <div style="font-weight:600;font-size:11px;margin:2px 0;">Provider Count</div>
+              <div style="font-size:10px;color:#9ca3af;">Overview Page</div>
+            </div>
+            <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:4px;padding:6px;text-align:center;">
+              <div style="font-size:10px;color:#6b7280;">SLICER</div>
+              <div style="font-weight:600;font-size:11px;margin:2px 0;">Provider Filter</div>
+              <div style="font-size:10px;color:#9ca3af;">Overview Page</div>
+            </div>
+            <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:4px;padding:6px;text-align:center;">
+              <div style="font-size:10px;color:#6b7280;">BAR CHART</div>
+              <div style="font-weight:600;font-size:11px;margin:2px 0;">Provider Breakdown</div>
+              <div style="font-size:10px;color:#9ca3af;">Detail Page</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Card Grid</h3>
+      <p>Each matching visual as its own card showing type, title, and page. Scannable at a glance.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup" style="font-size:12px;">
+        <div class="mockup-header">Results: 5 visuals match "Provider"</div>
+        <div class="mockup-body" style="padding:8px;">
+          <div style="display:flex;gap:8px;margin-bottom:6px;">
+            <div style="background:#dbeafe;color:#1e40af;border-radius:12px;padding:2px 8px;font-size:10px;">All (5)</div>
+            <div style="background:#f3f4f6;color:#6b7280;border-radius:12px;padding:2px 8px;font-size:10px;">Overview (2)</div>
+            <div style="background:#f3f4f6;color:#6b7280;border-radius:12px;padding:2px 8px;font-size:10px;">Detail (3)</div>
+          </div>
+          <table style="width:100%;border-collapse:collapse;font-size:11px;">
+            <tr style="border-bottom:1px solid #e5e7eb;color:#6b7280;">
+              <th style="text-align:left;padding:3px 0;font-weight:500;">Title</th>
+              <th style="text-align:left;padding:3px 0;font-weight:500;">Type</th>
+              <th style="text-align:left;padding:3px 0;font-weight:500;">Page</th>
+            </tr>
+            <tr style="border-bottom:1px solid #f3f4f6;">
+              <td style="padding:3px 0;">Provider Count</td><td style="color:#6b7280;">Card</td><td style="color:#6b7280;">Overview Page</td>
+            </tr>
+            <tr style="border-bottom:1px solid #f3f4f6;">
+              <td style="padding:3px 0;">Provider Filter</td><td style="color:#6b7280;">Slicer</td><td style="color:#6b7280;">Overview Page</td>
+            </tr>
+            <tr>
+              <td style="padding:3px 0;">Provider Breakdown</td><td style="color:#6b7280;">Bar Chart</td><td style="color:#6b7280;">Detail Page</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Filterable Table</h3>
+      <p>Flat list with page filter chips at the top. Click a page name to narrow down. Familiar spreadsheet feel.</p>
+    </div>
+  </div>
+
+</div>

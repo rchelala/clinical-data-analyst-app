@@ -9,11 +9,12 @@ import { DensitySelector } from "@/components/DensitySelector";
 import { FieldRequestForm } from "@/components/FieldRequestForm";
 import { ITReferenceForm } from "@/components/ITReferenceForm";
 import { ClinicianGuideForm } from "@/components/ClinicianGuideForm";
+import { PbixExplorerTab } from "@/components/PbixExplorerTab";
 import { HistoryPanel } from "@/components/HistoryPanel";
 import { Language, Density } from "@/lib/prompts";
 import { HistoryEntry, loadHistory, addHistoryEntry, removeHistoryEntry } from "@/lib/history";
 import { AIProvider, loadProvider, saveProvider, PROVIDER_LABELS } from "@/lib/providers";
-import { Sparkles, Copy, Check, RotateCcw, AlertCircle, Loader2, FileText, ChevronDown, ChevronUp, Code2, TableProperties, Download, GitCompare, History, Bot, Users } from "lucide-react";
+import { Sparkles, Copy, Check, RotateCcw, AlertCircle, Loader2, FileText, ChevronDown, ChevronUp, Code2, TableProperties, Download, GitCompare, History, Bot, Users, Search } from "lucide-react";
 
 const DAX_PLACEHOLDER = `// Paste your DAX measure here, e.g.:
 
@@ -34,7 +35,7 @@ WHERE o.OrderDate >= '2024-01-01'
 GROUP BY c.CustomerName
 ORDER BY TotalSpend DESC;`;
 
-type AppTab = "commenter" | "field-request" | "it-reference" | "clinician-guide";
+type AppTab = "commenter" | "field-request" | "it-reference" | "clinician-guide" | "pbix-explorer";
 
 export default function Home() {
   const [activeTab, setActiveTab]       = useState<AppTab>("commenter");
@@ -210,6 +211,17 @@ export default function Home() {
             <Users className="w-4 h-4" />
             Clinician Guide
           </button>
+          <button
+            onClick={() => setActiveTab("pbix-explorer")}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-t-lg border-x border-t transition-colors ${
+              activeTab === "pbix-explorer"
+                ? "border-theme bg-primary text-primary"
+                : "border-transparent text-secondary hover:text-primary"
+            }`}
+          >
+            <Search className="w-4 h-4" />
+            PBIX Explorer
+          </button>
         </div>
 
         {/* AI provider selector — persists across both tabs */}
@@ -239,6 +251,9 @@ export default function Home() {
 
       {/* ── Clinician Guide tab ── */}
       {activeTab === "clinician-guide" && <ClinicianGuideForm provider={provider} />}
+
+      {/* ── PBIX Explorer tab ── */}
+      {activeTab === "pbix-explorer" && <PbixExplorerTab />}
 
       {/* ── Commenter tab ── */}
       {activeTab === "commenter" && (

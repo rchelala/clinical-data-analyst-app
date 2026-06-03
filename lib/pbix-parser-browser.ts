@@ -142,7 +142,7 @@ async function attemptModelMeasures(zip: JSZip): Promise<ModelMeasureResult> {
             }
           }
         }
-        if (rows.length > 0) return { rows, available: true };
+        return { rows, available: true };
       } catch { continue; }
     }
   } catch { /* DataModel is not a ZIP or is unreadable — expected for most .pbix files */ }

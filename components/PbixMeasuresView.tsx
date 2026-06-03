@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback } from "react";
 import { Search } from "lucide-react";
-import type { PbixDashboard, MeasureUsage, LoadedFile } from "@/lib/pbix-parser";
+import type { MeasureUsage, LoadedFile } from "@/lib/pbix-parser";
 
 interface FlatMeasureRow {
   name: string;

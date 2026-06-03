@@ -111,6 +111,44 @@ function extractMeasureUsages(
   return usageMap;
 }
 
+interface ModelMeasureResult {
+  rows: Array<{ name: string; table: string }>;
+  available: boolean;
+}
+
+async function attemptModelMeasures(zip: JSZip): Promise<ModelMeasureResult> {
+  const dataModelEntry = zip.file("DataModel");
+  if (!dataModelEntry) return { rows: [], available: false };
+
+  try {
+    const bytes = await dataModelEntry.async("uint8array");
+    const innerZip = await JSZip.loadAsync(bytes);
+
+    const candidates = ["model.bim", "definition.bim", "schema.json", "DataModelSchema"];
+    for (const candidate of candidates) {
+      const file = innerZip.file(candidate);
+      if (!file) continue;
+      try {
+        const text = await file.async("string");
+        const parsed = JSON.parse(text);
+        const tables: Array<{ name?: string; measures?: Array<{ name?: string }> }> =
+          parsed?.model?.tables ?? parsed?.tables ?? [];
+        const rows: Array<{ name: string; table: string }> = [];
+        for (const table of tables) {
+          for (const measure of table.measures ?? []) {
+            if (measure.name) {
+              rows.push({ name: measure.name, table: table.name ?? "Unknown" });
+            }
+          }
+        }
+        if (rows.length > 0) return { rows, available: true };
+      } catch { continue; }
+    }
+  } catch { /* DataModel is not a ZIP or is unreadable — expected for most .pbix files */ }
+
+  return { rows: [], available: false };
+}
+
 export async function parsePbixFileClient(file: File): Promise<PbixDashboard> {
   const arrayBuffer = await file.arrayBuffer();
   const zip = await JSZip.loadAsync(arrayBuffer);

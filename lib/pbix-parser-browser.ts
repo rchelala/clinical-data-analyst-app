@@ -50,7 +50,12 @@ export async function parsePbixFileClient(file: File): Promise<PbixDashboard> {
   // Strip control characters invalid in JSON strings (keep \t=9, \n=10, \r=13)
   layoutText = layoutText.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, "");
 
-  const layout: ReportLayout = JSON.parse(layoutText);
+  let layout: ReportLayout;
+  try {
+    layout = JSON.parse(layoutText);
+  } catch {
+    throw new Error(`Failed to parse Report/Layout in "${file.name}": the file may be corrupt or unsupported.`);
+  }
   const reportName = file.name.replace(/\.pbix$/i, "").replace(/[_-]+/g, " ");
 
   const pages: PbixPage[] = (layout.sections ?? []).map((section) => {

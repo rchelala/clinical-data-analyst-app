@@ -3,13 +3,8 @@
 import { useState, useCallback, useMemo } from "react";
 import { Upload, X, FileBarChart2, AlertCircle, Search, Loader2 } from "lucide-react";
 import { parsePbixFileClient } from "@/lib/pbix-parser-browser";
-import type { PbixDashboard } from "@/lib/pbix-parser";
+import type { PbixDashboard, LoadedFile } from "@/lib/pbix-parser";
 import { PbixMeasuresView } from "@/components/PbixMeasuresView";
-
-interface LoadedFile {
-  dashboard: PbixDashboard;
-  fileName: string;
-}
 
 interface FileError {
   name: string;
@@ -366,7 +361,7 @@ export function PbixExplorerTab() {
             )}
           </div>
 
-          {/* Footer — CSV export button added in Task 4 */}
+          {/* Footer */}
           {loadedFiles.length > 0 && (
             <div className="flex items-center justify-between px-6 py-2 border-t border-theme bg-panel text-xs text-secondary flex-shrink-0">
               <span>

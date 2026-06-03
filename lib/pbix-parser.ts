@@ -29,6 +29,11 @@ export interface PbixDashboard {
   modelMeasuresAvailable: boolean;
 }
 
+export interface LoadedFile {
+  dashboard: PbixDashboard;
+  fileName: string;
+}
+
 interface VisualConfig {
   singleVisual?: {
     visualType?: string;

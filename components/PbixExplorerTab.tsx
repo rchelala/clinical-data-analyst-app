@@ -86,6 +86,7 @@ export function PbixExplorerTab() {
   const removeFile = useCallback((fileName: string) => {
     setLoadedFiles((prev) => prev.filter((f) => f.fileName !== fileName));
     setSelectedPage("");
+    setSearchType("");
   }, []);
 
   const removeError = useCallback((name: string) => {
@@ -225,7 +226,7 @@ export function PbixExplorerTab() {
           <input
             type="text"
             value={searchTitle}
-            onChange={(e) => setSearchTitle(e.target.value)}
+            onChange={(e) => { setSearchTitle(e.target.value); setSelectedPage(""); }}
             placeholder="Search visual title…"
             className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg border border-theme bg-panel text-primary placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
           />

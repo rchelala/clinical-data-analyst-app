@@ -6,7 +6,6 @@ import type { PbixDashboard, MeasureUsage } from "@/lib/pbix-parser";
 
 interface LoadedFile {
   dashboard: PbixDashboard;
-  fileName: string;
 }
 
 interface FlatMeasureRow {

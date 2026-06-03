@@ -10,6 +10,23 @@ interface VisualConfig {
   };
 }
 
+interface ProtoQueryFrom {
+  Name: string;
+  Entity: string;
+}
+
+interface ProtoQuerySelect {
+  Measure?: {
+    Expression: { SourceRef: { Source: string } };
+    Property: string;
+  };
+}
+
+interface ProtoQuery {
+  From?: ProtoQueryFrom[];
+  Select?: ProtoQuerySelect[];
+}
+
 interface VisualContainer {
   config?: string;
   title?: string;
@@ -31,6 +48,67 @@ function extractVisualTitle(config: VisualConfig): string | undefined {
     if (val) return val.replace(/^'|'$/g, "");
   } catch { /* ignore */ }
   return undefined;
+}
+
+function extractMeasureUsages(
+  sections: LayoutSection[],
+  extractTitle: (config: VisualConfig) => string | undefined
+): Map<string, import("./pbix-parser").MeasureUsage[]> {
+  const usageMap = new Map<string, import("./pbix-parser").MeasureUsage[]>();
+
+  for (const section of sections) {
+    const pageName = section.displayName ?? section.name ?? "Unnamed Page";
+
+    for (const vc of section.visualContainers ?? []) {
+      if (!vc.config) continue;
+
+      let config: VisualConfig;
+      try {
+        config = JSON.parse(vc.config);
+      } catch { continue; }
+
+      const sv = config.singleVisual;
+      if (!sv?.visualType) continue;
+
+      const visualType = sv.visualType;
+      const visualTitle = extractTitle(config) ?? vc.title ?? visualType;
+
+      const rawProto = (sv as unknown as Record<string, unknown>).prototypeQuery;
+      if (!rawProto) continue;
+
+      let protoQuery: ProtoQuery;
+      try {
+        protoQuery = typeof rawProto === "string" ? JSON.parse(rawProto) : (rawProto as ProtoQuery);
+      } catch { continue; }
+
+      if (!protoQuery.From || !protoQuery.Select) continue;
+
+      const aliasMap = new Map<string, string>();
+      for (const from of protoQuery.From) {
+        aliasMap.set(from.Name, from.Entity);
+      }
+
+      for (const sel of protoQuery.Select) {
+        if (!sel.Measure) continue;
+        const alias = sel.Measure.Expression?.SourceRef?.Source;
+        const measureName = sel.Measure.Property;
+        if (!alias || !measureName) continue;
+        const tableName = aliasMap.get(alias);
+        if (!tableName) continue;
+
+        const key = `${tableName}::${measureName}`;
+        const usage = { page: pageName, visualTitle, visualType };
+        const existing = usageMap.get(key);
+        if (existing) {
+          existing.push(usage);
+        } else {
+          usageMap.set(key, [usage]);
+        }
+      }
+    }
+  }
+
+  return usageMap;
 }
 
 export async function parsePbixFileClient(file: File): Promise<PbixDashboard> {

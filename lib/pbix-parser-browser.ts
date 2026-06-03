@@ -1,5 +1,5 @@
 import JSZip from "jszip";
-import type { PbixVisual, PbixPage, PbixDashboard } from "./pbix-parser";
+import type { PbixVisual, PbixPage, PbixDashboard, MeasureRow } from "./pbix-parser";
 
 interface VisualConfig {
   singleVisual?: {
@@ -192,5 +192,30 @@ export async function parsePbixFileClient(file: File): Promise<PbixDashboard> {
     return { name: pageName, visuals };
   });
 
-  return { reportName, pages, measures: [], modelMeasuresAvailable: false };
+  // Extract measure usages from visual prototypeQuery configs
+  const usageMap = extractMeasureUsages(layout.sections ?? [], extractVisualTitle);
+
+  // Attempt to get full measure list from DataModel (includes unused measures)
+  const { rows: modelRows, available: modelMeasuresAvailable } = await attemptModelMeasures(zip);
+
+  // Merge: model rows are the authoritative list when available; otherwise build from usage map only
+  const measureMap = new Map<string, MeasureRow>();
+
+  if (modelMeasuresAvailable) {
+    for (const { name, table } of modelRows) {
+      const key = `${table}::${name}`;
+      measureMap.set(key, { name, table, usages: usageMap.get(key) ?? [] });
+    }
+  } else {
+    for (const [key, usages] of usageMap) {
+      const separatorIdx = key.indexOf("::");
+      const table = key.slice(0, separatorIdx);
+      const name = key.slice(separatorIdx + 2);
+      measureMap.set(key, { name, table, usages });
+    }
+  }
+
+  const measures: MeasureRow[] = [...measureMap.values()];
+
+  return { reportName, pages, measures, modelMeasuresAvailable };
 }

@@ -141,6 +141,22 @@ export function PbixExplorerTab() {
     [titleTypeFiltered, selectedPage]
   );
 
+  const handleCsvExport = useCallback(() => {
+    const escape = (s: string) => `"${s.replace(/"/g, '""')}"`;
+    const header = "Title,Type,Page,File";
+    const rows = filteredRows.map((r) =>
+      [r.title, r.type, r.page, r.file].map(escape).join(",")
+    );
+    const csv = [header, ...rows].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "pbix-visuals.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [filteredRows]);
+
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
       {/* Drop zone */}
@@ -318,6 +334,12 @@ export function PbixExplorerTab() {
             {loadedFiles.length === 1 ? "file" : "files"}, {pageChips.length}{" "}
             {pageChips.length === 1 ? "page" : "pages"}
           </span>
+          <button
+            onClick={handleCsvExport}
+            className="text-brand-600 dark:text-brand-400 hover:underline font-medium"
+          >
+            Copy results as CSV
+          </button>
         </div>
       )}
     </div>

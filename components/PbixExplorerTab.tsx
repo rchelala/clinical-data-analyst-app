@@ -4,6 +4,7 @@ import { useState, useCallback, useMemo } from "react";
 import { Upload, X, FileBarChart2, AlertCircle, Search, Loader2 } from "lucide-react";
 import { parsePbixFileClient } from "@/lib/pbix-parser-browser";
 import type { PbixDashboard } from "@/lib/pbix-parser";
+import { PbixMeasuresView } from "@/components/PbixMeasuresView";
 
 interface LoadedFile {
   dashboard: PbixDashboard;
@@ -29,6 +30,7 @@ export function PbixExplorerTab() {
   const [searchTitle, setSearchTitle] = useState("");
   const [searchType, setSearchType] = useState("");
   const [selectedPage, setSelectedPage] = useState("");
+  const [view, setView] = useState<"visuals" | "measures">("visuals");
 
   const processFiles = useCallback(async (files: File[]) => {
     const fileArray = files.filter((f) => f.name.toLowerCase().endsWith(".pbix"));
@@ -247,112 +249,142 @@ export function PbixExplorerTab() {
         </div>
       )}
 
-      {/* Search row */}
-      <div className="flex gap-3 px-6 pb-3 flex-shrink-0">
-        <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-secondary pointer-events-none" />
-          <input
-            type="text"
-            value={searchTitle}
-            onChange={(e) => { setSearchTitle(e.target.value); setSelectedPage(""); }}
-            placeholder="Search visual title…"
-            className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg border border-theme bg-panel text-primary placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
-          />
-        </div>
-        <select
-          value={searchType}
-          onChange={(e) => { setSearchType(e.target.value); setSelectedPage(""); }}
-          className="px-2.5 py-1.5 text-sm rounded-lg border border-theme bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500 min-w-[160px]"
+      {/* View toggle */}
+      <div className="flex gap-1 px-6 pb-3 flex-shrink-0">
+        <button
+          onClick={() => setView("visuals")}
+          className={`px-4 py-1.5 text-sm rounded-lg font-medium transition-colors ${
+            view === "visuals"
+              ? "bg-brand-600 text-white"
+              : "bg-panel border border-theme text-secondary hover:text-primary"
+          }`}
         >
-          <option value="">All types</option>
-          {typeOptions.map((t) => (
-            <option key={t} value={t}>{t}</option>
-          ))}
-        </select>
+          Visuals
+        </button>
+        <button
+          onClick={() => setView("measures")}
+          className={`px-4 py-1.5 text-sm rounded-lg font-medium transition-colors ${
+            view === "measures"
+              ? "bg-brand-600 text-white"
+              : "bg-panel border border-theme text-secondary hover:text-primary"
+          }`}
+        >
+          Measures
+        </button>
       </div>
 
-      {/* Page chips */}
-      {pageChips.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 px-6 pb-3 flex-shrink-0">
-          <button
-            onClick={() => setSelectedPage("")}
-            className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
-              selectedPage === ""
-                ? "bg-brand-600 text-white"
-                : "bg-panel border border-theme text-secondary hover:text-primary"
-            }`}
-          >
-            All ({titleTypeFiltered.length})
-          </button>
-          {pageChips.map(([page, count]) => (
-            <button
-              key={page}
-              onClick={() => setSelectedPage(page === selectedPage ? "" : page)}
-              className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
-                selectedPage === page
-                  ? "bg-brand-600 text-white"
-                  : "bg-panel border border-theme text-secondary hover:text-primary"
-              }`}
+      {view === "visuals" ? (
+        <>
+          {/* Search row */}
+          <div className="flex gap-3 px-6 pb-3 flex-shrink-0">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-secondary pointer-events-none" />
+              <input
+                type="text"
+                value={searchTitle}
+                onChange={(e) => { setSearchTitle(e.target.value); setSelectedPage(""); }}
+                placeholder="Search visual title…"
+                className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg border border-theme bg-panel text-primary placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+            <select
+              value={searchType}
+              onChange={(e) => { setSearchType(e.target.value); setSelectedPage(""); }}
+              className="px-2.5 py-1.5 text-sm rounded-lg border border-theme bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500 min-w-[160px]"
             >
-              {page} ({count})
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Results table */}
-      <div className="flex-1 overflow-auto px-6">
-        {loadedFiles.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full gap-3 text-secondary">
-            <FileBarChart2 className="w-10 h-10 text-slate-300 dark:text-slate-700" />
-            <p className="text-sm font-medium">Drop a .pbix file above to get started</p>
-          </div>
-        ) : filteredRows.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full gap-2 text-secondary">
-            <Search className="w-8 h-8 text-slate-300 dark:text-slate-700" />
-            <p className="text-sm font-medium">No visuals match your search</p>
-          </div>
-        ) : (
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b-2 border-theme text-xs text-secondary uppercase tracking-wide">
-                <th className="text-left py-2 px-2 font-semibold">Title</th>
-                <th className="text-left py-2 px-2 font-semibold">Type</th>
-                <th className="text-left py-2 px-2 font-semibold">Page</th>
-                <th className="text-left py-2 px-2 font-semibold">File</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRows.map((row, i) => (
-                <tr key={`${row.file}|${row.page}|${row.type}|${row.title}|${i}`} className="border-b border-theme hover:bg-panel transition-colors">
-                  <td className="py-2 px-2 font-medium text-primary">
-                    {row.title || <span className="text-slate-400 italic">Untitled</span>}
-                  </td>
-                  <td className="py-2 px-2 text-secondary">{row.type}</td>
-                  <td className="py-2 px-2 text-secondary">{row.page}</td>
-                  <td className="py-2 px-2 text-secondary">{row.file}</td>
-                </tr>
+              <option value="">All types</option>
+              {typeOptions.map((t) => (
+                <option key={t} value={t}>{t}</option>
               ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+            </select>
+          </div>
 
-      {/* Footer — CSV export button added in Task 4 */}
-      {loadedFiles.length > 0 && (
-        <div className="flex items-center justify-between px-6 py-2 border-t border-theme bg-panel text-xs text-secondary flex-shrink-0">
-          <span>
-            Showing {filteredRows.length} of {allRows.length} visuals across {loadedFiles.length}{" "}
-            {loadedFiles.length === 1 ? "file" : "files"}, {totalPageCount}{" "}
-            {totalPageCount === 1 ? "page" : "pages"}
-          </span>
-          <button
-            onClick={handleCsvExport}
-            className="text-brand-600 dark:text-brand-400 hover:underline font-medium"
-          >
-            Copy results as CSV
-          </button>
-        </div>
+          {/* Page chips */}
+          {pageChips.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 px-6 pb-3 flex-shrink-0">
+              <button
+                onClick={() => setSelectedPage("")}
+                className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+                  selectedPage === ""
+                    ? "bg-brand-600 text-white"
+                    : "bg-panel border border-theme text-secondary hover:text-primary"
+                }`}
+              >
+                All ({titleTypeFiltered.length})
+              </button>
+              {pageChips.map(([page, count]) => (
+                <button
+                  key={page}
+                  onClick={() => setSelectedPage(page === selectedPage ? "" : page)}
+                  className={`px-3 py-1 text-xs font-medium rounded-full transition-colors ${
+                    selectedPage === page
+                      ? "bg-brand-600 text-white"
+                      : "bg-panel border border-theme text-secondary hover:text-primary"
+                  }`}
+                >
+                  {page} ({count})
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Results table */}
+          <div className="flex-1 overflow-auto px-6">
+            {loadedFiles.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full gap-3 text-secondary">
+                <FileBarChart2 className="w-10 h-10 text-slate-300 dark:text-slate-700" />
+                <p className="text-sm font-medium">Drop a .pbix file above to get started</p>
+              </div>
+            ) : filteredRows.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full gap-2 text-secondary">
+                <Search className="w-8 h-8 text-slate-300 dark:text-slate-700" />
+                <p className="text-sm font-medium">No visuals match your search</p>
+              </div>
+            ) : (
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="border-b-2 border-theme text-xs text-secondary uppercase tracking-wide">
+                    <th className="text-left py-2 px-2 font-semibold">Title</th>
+                    <th className="text-left py-2 px-2 font-semibold">Type</th>
+                    <th className="text-left py-2 px-2 font-semibold">Page</th>
+                    <th className="text-left py-2 px-2 font-semibold">File</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRows.map((row, i) => (
+                    <tr key={`${row.file}|${row.page}|${row.type}|${row.title}|${i}`} className="border-b border-theme hover:bg-panel transition-colors">
+                      <td className="py-2 px-2 font-medium text-primary">
+                        {row.title || <span className="text-slate-400 italic">Untitled</span>}
+                      </td>
+                      <td className="py-2 px-2 text-secondary">{row.type}</td>
+                      <td className="py-2 px-2 text-secondary">{row.page}</td>
+                      <td className="py-2 px-2 text-secondary">{row.file}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {/* Footer — CSV export button added in Task 4 */}
+          {loadedFiles.length > 0 && (
+            <div className="flex items-center justify-between px-6 py-2 border-t border-theme bg-panel text-xs text-secondary flex-shrink-0">
+              <span>
+                Showing {filteredRows.length} of {allRows.length} visuals across {loadedFiles.length}{" "}
+                {loadedFiles.length === 1 ? "file" : "files"}, {totalPageCount}{" "}
+                {totalPageCount === 1 ? "page" : "pages"}
+              </span>
+              <button
+                onClick={handleCsvExport}
+                className="text-brand-600 dark:text-brand-400 hover:underline font-medium"
+              >
+                Copy results as CSV
+              </button>
+            </div>
+          )}
+        </>
+      ) : (
+        <PbixMeasuresView loadedFiles={loadedFiles} />
       )}
     </div>
   );

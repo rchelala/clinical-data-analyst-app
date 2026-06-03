@@ -154,7 +154,7 @@ export function PbixExplorerTab() {
     a.href = url;
     a.download = "pbix-visuals.csv";
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
   }, [filteredRows]);
 
   return (

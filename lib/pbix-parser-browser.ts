@@ -131,8 +131,9 @@ async function attemptModelMeasures(zip: JSZip): Promise<ModelMeasureResult> {
       try {
         const text = await file.async("string");
         const parsed = JSON.parse(text);
-        const tables: Array<{ name?: string; measures?: Array<{ name?: string }> }> =
-          parsed?.model?.tables ?? parsed?.tables ?? [];
+        const rawTables = parsed?.model?.tables ?? parsed?.tables;
+        if (!Array.isArray(rawTables)) continue;
+        const tables: Array<{ name?: string; measures?: Array<{ name?: string }> }> = rawTables;
         const rows: Array<{ name: string; table: string }> = [];
         for (const table of tables) {
           for (const measure of table.measures ?? []) {

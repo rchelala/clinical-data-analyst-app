@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Upload, X, FileBarChart2, AlertCircle } from "lucide-react";
+import { Upload, X, FileBarChart2, AlertCircle, Loader2 } from "lucide-react";
 import { parsePbixFileClient } from "@/lib/pbix-parser-browser";
 import type { PbixDashboard } from "@/lib/pbix-parser";
 
@@ -18,33 +18,42 @@ export function PbixExplorerTab() {
   const [loadedFiles, setLoadedFiles] = useState<LoadedFile[]>([]);
   const [fileErrors, setFileErrors] = useState<FileError[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const processFiles = useCallback(async (files: FileList | File[]) => {
-    const fileArray = Array.from(files).filter((f) => f.name.toLowerCase().endsWith(".pbix"));
+  const processFiles = useCallback(async (files: File[]) => {
+    const fileArray = files.filter((f) => f.name.toLowerCase().endsWith(".pbix"));
     const newFiles: LoadedFile[] = [];
     const newErrors: FileError[] = [];
 
-    for (const file of fileArray) {
-      try {
-        const dashboard = await parsePbixFileClient(file);
-        newFiles.push({ dashboard, fileName: file.name });
-      } catch {
-        newErrors.push({ name: file.name });
+    setIsProcessing(true);
+    try {
+      for (const file of fileArray) {
+        try {
+          const dashboard = await parsePbixFileClient(file);
+          newFiles.push({ dashboard, fileName: file.name });
+        } catch {
+          newErrors.push({ name: file.name });
+        }
       }
-    }
 
-    setLoadedFiles((prev) => {
-      const existingNames = new Set(prev.map((f) => f.fileName));
-      return [...prev, ...newFiles.filter((r) => !existingNames.has(r.fileName))];
-    });
-    setFileErrors((prev) => [...prev, ...newErrors]);
+      setLoadedFiles((prev) => {
+        const existingNames = new Set(prev.map((f) => f.fileName));
+        return [...prev, ...newFiles.filter((r) => !existingNames.has(r.fileName))];
+      });
+      setFileErrors((prev) => {
+        const existingNames = new Set(prev.map((e) => e.name));
+        return [...prev, ...newErrors.filter((e) => !existingNames.has(e.name))];
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   }, []);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
       setIsDragging(false);
-      processFiles(e.dataTransfer.files);
+      processFiles(Array.from(e.dataTransfer.files));
     },
     [processFiles]
   );
@@ -58,7 +67,7 @@ export function PbixExplorerTab() {
 
   const handleFileInput = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      if (e.target.files) processFiles(e.target.files);
+      if (e.target.files) processFiles(Array.from(e.target.files));
       e.target.value = "";
     },
     [processFiles]
@@ -85,13 +94,22 @@ export function PbixExplorerTab() {
             isDragging
               ? "border-brand-500 bg-brand-50 dark:bg-brand-950/20"
               : "border-theme hover:border-brand-400 bg-secondary"
-          }`}
+          }${isProcessing ? " pointer-events-none opacity-60" : ""}`}
         >
-          <Upload className="w-6 h-6 text-secondary" />
-          <div className="text-center">
-            <p className="text-sm font-medium text-primary">Drop .pbix files here</p>
-            <p className="text-xs text-secondary mt-0.5">or click to browse — multiple files supported</p>
-          </div>
+          {isProcessing ? (
+            <>
+              <Loader2 className="w-6 h-6 text-secondary animate-spin" />
+              <p className="text-sm text-secondary">Parsing files…</p>
+            </>
+          ) : (
+            <>
+              <Upload className="w-6 h-6 text-secondary" />
+              <div className="text-center">
+                <p className="text-sm font-medium text-primary">Drop .pbix files here</p>
+                <p className="text-xs text-secondary mt-0.5">or click to browse — multiple files supported</p>
+              </div>
+            </>
+          )}
         </div>
         <input
           id="pbix-file-input"

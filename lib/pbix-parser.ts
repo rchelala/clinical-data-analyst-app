@@ -85,7 +85,7 @@ export async function parsePbixFile(buffer: Buffer, fileName: string): Promise<P
     layoutText = layoutText.slice(1);
   }
 
-  layoutText = layoutText.replace(/[ --]/g, "");
+  layoutText = layoutText.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, "");
 
   const layout: ReportLayout = JSON.parse(layoutText);
 

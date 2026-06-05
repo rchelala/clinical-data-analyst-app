@@ -79,8 +79,8 @@ export async function exportPbixToPdf({
 
     const uploadRes = await pbiRequest(
       `${PBI_BASE}/imports?datasetDisplayName=${encodeURIComponent(
-        reportName + "-export-tmp"
-      )}&nameConflict=Overwrite`,
+        `${reportName}-export-tmp-${Date.now()}`
+      )}&nameConflict=Abort`,
       token,
       { method: "POST", body: uploadForm }
     );

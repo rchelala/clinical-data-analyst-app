@@ -6,7 +6,8 @@ export interface PbixVisual {
 }
 
 export interface PbixPage {
-  name: string;
+  name: string;         // display name shown in UI
+  internalName: string; // internal ID used by Power BI REST API
   visuals: PbixVisual[];
 }
 
@@ -93,6 +94,7 @@ export async function parsePbixFile(buffer: Buffer, fileName: string): Promise<P
 
   const pages: PbixPage[] = (layout.sections ?? []).map((section) => {
     const pageName = section.displayName ?? section.name ?? "Unnamed Page";
+    const internalName = section.name ?? pageName;
 
     const visuals: PbixVisual[] = (section.visualContainers ?? [])
       .map((vc): PbixVisual | null => {
@@ -110,7 +112,7 @@ export async function parsePbixFile(buffer: Buffer, fileName: string): Promise<P
       })
       .filter((v): v is PbixVisual => v !== null);
 
-    return { name: pageName, visuals };
+    return { name: pageName, internalName, visuals };
   });
 
   return { reportName, pages, measures: [], modelMeasuresAvailable: false };

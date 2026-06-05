@@ -177,6 +177,7 @@ export async function parsePbixFileClient(file: File): Promise<PbixDashboard> {
 
   const pages: PbixPage[] = (layout.sections ?? []).map((section) => {
     const pageName = section.displayName ?? section.name ?? "Unnamed Page";
+    const internalName = section.name ?? pageName;
     const visuals: PbixVisual[] = (section.visualContainers ?? [])
       .map((vc): PbixVisual | null => {
         if (!vc.config) return null;
@@ -189,7 +190,7 @@ export async function parsePbixFileClient(file: File): Promise<PbixDashboard> {
         } catch { return null; }
       })
       .filter((v): v is PbixVisual => v !== null);
-    return { name: pageName, visuals };
+    return { name: pageName, internalName, visuals };
   });
 
   // Extract measure usages from visual prototypeQuery configs

@@ -10,6 +10,10 @@ interface FileError {
   name: string;
 }
 
+interface LoadedFileWithRaw extends LoadedFile {
+  rawFile: File;
+}
+
 interface VisualRow {
   title: string;
   type: string;
@@ -18,7 +22,7 @@ interface VisualRow {
 }
 
 export function PbixExplorerTab() {
-  const [loadedFiles, setLoadedFiles] = useState<LoadedFile[]>([]);
+  const [loadedFiles, setLoadedFiles] = useState<LoadedFileWithRaw[]>([]);
   const [fileErrors, setFileErrors] = useState<FileError[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -29,7 +33,7 @@ export function PbixExplorerTab() {
 
   const processFiles = useCallback(async (files: File[]) => {
     const fileArray = files.filter((f) => f.name.toLowerCase().endsWith(".pbix"));
-    const newFiles: LoadedFile[] = [];
+    const newFiles: LoadedFileWithRaw[] = [];
     const newErrors: FileError[] = [];
 
     setIsProcessing(true);
@@ -37,7 +41,7 @@ export function PbixExplorerTab() {
       for (const file of fileArray) {
         try {
           const dashboard = await parsePbixFileClient(file);
-          newFiles.push({ dashboard, fileName: file.name });
+          newFiles.push({ dashboard, fileName: file.name, rawFile: file });
         } catch {
           newErrors.push({ name: file.name });
         }

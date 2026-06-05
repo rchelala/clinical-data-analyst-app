@@ -5,6 +5,7 @@ import { Upload, X, FileBarChart2, AlertCircle, Search, Loader2 } from "lucide-r
 import { parsePbixFileClient } from "@/lib/pbix-parser-browser";
 import type { PbixDashboard, LoadedFile } from "@/lib/pbix-parser";
 import { PbixMeasuresView } from "@/components/PbixMeasuresView";
+import { PbixExportPanel } from "@/components/PbixExportPanel";
 
 interface FileError {
   name: string;
@@ -385,6 +386,8 @@ export function PbixExplorerTab() {
       ) : (
         <PbixMeasuresView loadedFiles={loadedFiles} />
       )}
+
+      <PbixExportPanel loadedFiles={loadedFiles} />
     </div>
   );
 }

@@ -12,9 +12,19 @@ interface AzTokenOutput {
 
 export async function GET() {
   try {
+    // On Windows the Azure CLI wbin directory may not be in the PATH inherited
+    // by the Next.js server process (e.g. installed after the server started).
+    const env =
+      process.platform === "win32"
+        ? {
+            ...process.env,
+            PATH: `${process.env.PATH ?? ""};C:\\Program Files\\Microsoft SDKs\\Azure\\CLI2\\wbin`,
+          }
+        : process.env;
+
     const { stdout } = await execAsync(
       "az account get-access-token --resource https://analysis.windows.net/powerbi/api --output json",
-      { timeout: 15000 }
+      { timeout: 15000, env }
     );
 
     const parsed: AzTokenOutput = JSON.parse(stdout.trim());

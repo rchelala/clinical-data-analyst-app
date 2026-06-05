@@ -115,13 +115,16 @@ export async function POST(req: NextRequest) {
     });
     if (!exportRes.ok) {
       const text = await exportRes.text();
+      if (datasetId) pbiDelete(`${PBI_BASE}/datasets/${datasetId}`, token).catch(() => {});
       return NextResponse.json({ error: "export_trigger_failed", detail: text, step: "export" }, { status: 502 });
     }
     exportId = ((await exportRes.json()) as { id: string }).id;
+    const safeReportId = reportId;
+    const safeExportId = exportId;
 
     // Step 4: Poll export status
     await poll<ExportStatus>(
-      () => pbiGet<ExportStatus>(`${PBI_BASE}/reports/${reportId}/exports/${exportId}`, token),
+      () => pbiGet<ExportStatus>(`${PBI_BASE}/reports/${safeReportId}/exports/${safeExportId}`, token),
       (v) => v.status === "Succeeded",
       (v) => v.status === "Failed",
       3000,
@@ -129,7 +132,7 @@ export async function POST(req: NextRequest) {
     );
 
     // Step 5: Download PDF
-    const pdfRes = await fetch(`${PBI_BASE}/reports/${reportId}/exports/${exportId}/file`, {
+    const pdfRes = await fetch(`${PBI_BASE}/reports/${safeReportId}/exports/${safeExportId}/file`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!pdfRes.ok) {
@@ -146,7 +149,7 @@ export async function POST(req: NextRequest) {
     return new NextResponse(pdfBuffer, {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${reportName}.pdf"`,
+        "Content-Disposition": `attachment; filename="${reportName.replace(/[^\w\s\-_.]/g, "_")}.pdf"`,
       },
     });
   } catch (err: unknown) {

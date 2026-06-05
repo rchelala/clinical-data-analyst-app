@@ -235,8 +235,16 @@ export function PbixExportPanel({ loadedFiles }: Props) {
       phaseTimersRef.current = [];
 
       if (!res.ok) {
-        const err = await res.json() as { detail?: string; error?: string };
-        throw new Error(err.detail ?? err.error ?? "Export failed");
+        let detail = `Export failed (HTTP ${res.status})`;
+        try {
+          const err = await res.json() as { detail?: string; error?: string };
+          detail = err.detail ?? err.error ?? detail;
+        } catch {
+          const text = await res.text().catch(() => "");
+          if (text) detail = text;
+        }
+        if (res.status === 413) detail = "File too large to upload — try a smaller .pbix file";
+        throw new Error(detail);
       }
 
       setExportPhase("cleaning_up");

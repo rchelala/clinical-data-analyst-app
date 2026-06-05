@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { FileDown, CheckCircle2, AlertCircle, Loader2, Terminal } from "lucide-react";
 import type { LoadedFile } from "@/lib/pbix-parser";
 
@@ -15,7 +15,7 @@ interface Props {
 type AuthState =
   | { phase: "connecting" }
   | { phase: "connected"; token: string; expiresOn: string }
-  | { phase: "error"; code: "azure_cli_not_found" | "not_logged_in" | "unknown"; detail?: string };
+  | { phase: "error"; code: "azure_cli_not_found" | "not_logged_in" | "azure_cli_timeout" | "unknown"; detail?: string };
 
 type ExportPhase =
   | "idle"
@@ -51,6 +51,15 @@ export function PbixExportPanel({ loadedFiles }: Props) {
   const [exportPhase, setExportPhase] = useState<ExportPhase>("idle");
   const [exportError, setExportError] = useState<string | null>(null);
 
+  // Track phase timers so they can be cleared on unmount
+  const phaseTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(() => {
+    return () => {
+      phaseTimersRef.current.forEach(clearTimeout);
+    };
+  }, []);
+
   const connect = useCallback(async () => {
     setAuth({ phase: "connecting" });
     try {
@@ -61,7 +70,7 @@ export function PbixExportPanel({ loadedFiles }: Props) {
       const code = error.code ?? "unknown";
       setAuth({
         phase: "error",
-        code: code as "azure_cli_not_found" | "not_logged_in" | "unknown",
+        code: code as "azure_cli_not_found" | "not_logged_in" | "azure_cli_timeout" | "unknown",
         detail: error.message,
       });
     }
@@ -79,8 +88,7 @@ export function PbixExportPanel({ loadedFiles }: Props) {
       setSelectedPages(new Set());
       return;
     }
-    const current = selectedFile;
-    const stillLoaded = current && loadedFiles.some((f) => f.fileName === current.fileName);
+    const stillLoaded = selectedFile && loadedFiles.some((f) => f.fileName === selectedFile.fileName);
     if (!stillLoaded) {
       const first = loadedFiles[0];
       setSelectedFile(first);
@@ -144,7 +152,7 @@ export function PbixExportPanel({ loadedFiles }: Props) {
       form.append("token", token);
 
       // Simulate phase progression while server handles all steps
-      const phaseTimers: ReturnType<typeof setTimeout>[] = [
+      phaseTimersRef.current = [
         setTimeout(() => setExportPhase("importing"), 3000),
         setTimeout(() => setExportPhase("exporting"), 8000),
         setTimeout(() => setExportPhase("downloading"), 30000),
@@ -154,14 +162,16 @@ export function PbixExportPanel({ loadedFiles }: Props) {
       try {
         res = await fetch("/api/powerbi-export", { method: "POST", body: form });
       } catch (networkErr: unknown) {
-        phaseTimers.forEach(clearTimeout);
+        phaseTimersRef.current.forEach(clearTimeout);
+        phaseTimersRef.current = [];
         const error = networkErr as Error;
         setExportPhase("failed");
         setExportError(error.message || "Network error — could not reach the export server");
         return;
       }
 
-      phaseTimers.forEach(clearTimeout);
+      phaseTimersRef.current.forEach(clearTimeout);
+      phaseTimersRef.current = [];
 
       if (!res.ok) {
         const err = await res.json();
@@ -178,7 +188,8 @@ export function PbixExportPanel({ loadedFiles }: Props) {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      const revokeTimer = setTimeout(() => URL.revokeObjectURL(url), 2000);
+      phaseTimersRef.current = [revokeTimer];
 
       setExportPhase("done");
     } catch (err: unknown) {
@@ -216,7 +227,11 @@ export function PbixExportPanel({ loadedFiles }: Props) {
         <div className="rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/30 p-3 mb-3 text-xs text-amber-800 dark:text-amber-300">
           <div className="flex items-center gap-1.5 font-semibold mb-1.5">
             <AlertCircle className="w-3.5 h-3.5" />
-            {auth.code === "azure_cli_not_found" ? "Azure CLI not found" : "Not logged in to Azure"}
+            {auth.code === "azure_cli_not_found"
+              ? "Azure CLI not found"
+              : auth.code === "azure_cli_timeout"
+              ? "Azure CLI timed out"
+              : "Not logged in to Azure"}
           </div>
           {auth.code === "azure_cli_not_found" ? (
             <div className="space-y-1">
@@ -230,6 +245,8 @@ export function PbixExportPanel({ loadedFiles }: Props) {
                 az login
               </code>
             </div>
+          ) : auth.code === "azure_cli_timeout" ? (
+            <p>Azure CLI took too long to respond. Check that it is installed and try again.</p>
           ) : (
             <div className="space-y-1">
               <p>Run this once in a terminal to authenticate:</p>
@@ -307,24 +324,25 @@ export function PbixExportPanel({ loadedFiles }: Props) {
       {/* Export progress */}
       {exportPhase !== "idle" && exportPhase !== "done" && exportPhase !== "failed" && (
         <div className="space-y-1.5 mb-3">
-          {EXPORT_STEPS.map(({ phase, label }) => {
+          {(() => {
             const stepIdx = EXPORT_STEPS.findIndex((s) => s.phase === exportPhase);
-            const thisIdx = EXPORT_STEPS.findIndex((s) => s.phase === phase);
-            const isDone = thisIdx < stepIdx;
-            const isActive = phase === exportPhase;
-            return (
-              <div key={phase} className={`flex items-center gap-2 text-xs ${isDone ? "text-emerald-600 dark:text-emerald-400" : isActive ? "text-primary font-medium" : "text-slate-400"}`}>
-                {isDone ? (
-                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                ) : isActive ? (
-                  <Loader2 className="w-3.5 h-3.5 shrink-0 animate-spin" />
-                ) : (
-                  <div className="w-3.5 h-3.5 shrink-0 rounded-full border border-current opacity-30" />
-                )}
-                {label}
-              </div>
-            );
-          })}
+            return EXPORT_STEPS.map(({ phase, label }, thisIdx) => {
+              const isDone = thisIdx < stepIdx;
+              const isActive = phase === exportPhase;
+              return (
+                <div key={phase} className={`flex items-center gap-2 text-xs ${isDone ? "text-emerald-600 dark:text-emerald-400" : isActive ? "text-primary font-medium" : "text-slate-400"}`}>
+                  {isDone ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  ) : isActive ? (
+                    <Loader2 className="w-3.5 h-3.5 shrink-0 animate-spin" />
+                  ) : (
+                    <div className="w-3.5 h-3.5 shrink-0 rounded-full border border-current opacity-30" />
+                  )}
+                  {label}
+                </div>
+              );
+            });
+          })()}
         </div>
       )}
 
@@ -345,13 +363,13 @@ export function PbixExportPanel({ loadedFiles }: Props) {
       )}
 
       {/* Error state */}
-      {exportPhase === "failed" && exportError !== null && (
+      {exportPhase === "failed" && (
         <div className="rounded-lg border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950/30 p-3 mb-3 text-xs text-red-700 dark:text-red-300">
           <div className="flex items-center gap-1.5 font-semibold mb-1">
             <AlertCircle className="w-3.5 h-3.5" />
             Export failed
           </div>
-          <p className="font-mono break-all">{exportError}</p>
+          <p className="font-mono break-all">{exportError ?? "An unexpected error occurred"}</p>
           <button
             onClick={() => { setExportPhase("idle"); setExportError(null); }}
             className="mt-2 underline"

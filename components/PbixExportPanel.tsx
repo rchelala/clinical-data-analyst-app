@@ -37,9 +37,11 @@ const EXPORT_STEPS: { phase: ExportPhase; label: string }[] = [
 
 async function fetchToken(): Promise<{ accessToken: string; expiresOn: string }> {
   const res = await fetch("/api/powerbi-token");
-  const data = await res.json();
-  if (!res.ok) throw Object.assign(new Error("token_error"), { code: data.error as string });
-  return data;
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({})) as Record<string, string>;
+    throw Object.assign(new Error("token_error"), { code: data.error ?? "unknown" });
+  }
+  return res.json();
 }
 
 export function PbixExportPanel({ loadedFiles }: Props) {
@@ -142,15 +144,24 @@ export function PbixExportPanel({ loadedFiles }: Props) {
       form.append("token", token);
 
       // Simulate phase progression while server handles all steps
-      const phaseTimer = [
+      const phaseTimers: ReturnType<typeof setTimeout>[] = [
         setTimeout(() => setExportPhase("importing"), 3000),
         setTimeout(() => setExportPhase("exporting"), 8000),
         setTimeout(() => setExportPhase("downloading"), 30000),
       ];
 
-      const res = await fetch("/api/powerbi-export", { method: "POST", body: form });
+      let res: Response;
+      try {
+        res = await fetch("/api/powerbi-export", { method: "POST", body: form });
+      } catch (networkErr: unknown) {
+        phaseTimers.forEach(clearTimeout);
+        const error = networkErr as Error;
+        setExportPhase("failed");
+        setExportError(error.message || "Network error — could not reach the export server");
+        return;
+      }
 
-      phaseTimer.forEach(clearTimeout);
+      phaseTimers.forEach(clearTimeout);
 
       if (!res.ok) {
         const err = await res.json();
@@ -164,14 +175,16 @@ export function PbixExportPanel({ loadedFiles }: Props) {
       const a = document.createElement("a");
       a.href = url;
       a.download = `${selectedFile.dashboard.reportName}.pdf`;
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
       setTimeout(() => URL.revokeObjectURL(url), 2000);
 
       setExportPhase("done");
     } catch (err: unknown) {
       const error = err as Error;
       setExportPhase("failed");
-      setExportError(error.message);
+      setExportError(error.message || "Export failed");
     }
   }, [auth, selectedFile, selectedPages]);
 
@@ -332,7 +345,7 @@ export function PbixExportPanel({ loadedFiles }: Props) {
       )}
 
       {/* Error state */}
-      {exportPhase === "failed" && exportError && (
+      {exportPhase === "failed" && exportError !== null && (
         <div className="rounded-lg border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950/30 p-3 mb-3 text-xs text-red-700 dark:text-red-300">
           <div className="flex items-center gap-1.5 font-semibold mb-1">
             <AlertCircle className="w-3.5 h-3.5" />

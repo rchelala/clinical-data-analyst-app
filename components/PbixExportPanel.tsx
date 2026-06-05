@@ -192,7 +192,7 @@ export function PbixExportPanel({ loadedFiles }: Props) {
     }
 
     setExportError(null);
-    setExportPhase("uploading");
+    setExportPhase("uploading"); // lib takes over from "importing" onward; we set "done"/"failed" below
 
     try {
       await exportPbixToPdf({

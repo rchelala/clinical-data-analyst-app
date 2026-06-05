@@ -61,6 +61,8 @@ interface ExportStatus {
   status: string;
 }
 
+// Calls onPhase for: importing → exporting → downloading → cleaning_up.
+// Caller is responsible for setting "uploading" before calling, and "done"/"failed" after.
 export async function exportPbixToPdf({
   file,
   selectedPages,

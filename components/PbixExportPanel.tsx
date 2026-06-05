@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { FileDown, CheckCircle2, AlertCircle, Loader2, ExternalLink } from "lucide-react";
 import type { LoadedFile } from "@/lib/pbix-parser";
+import { exportPbixToPdf, type ExportPhase } from "@/lib/powerbi-export-client";
 
 interface LoadedFileWithRaw extends LoadedFile {
   rawFile: File;
@@ -20,16 +21,6 @@ type AuthState =
   | { phase: "connected"; token: string; expiresOn: string }
   | { phase: "expired" }
   | { phase: "error"; message: string };
-
-type ExportPhase =
-  | "idle"
-  | "uploading"
-  | "importing"
-  | "exporting"
-  | "downloading"
-  | "cleaning_up"
-  | "done"
-  | "failed";
 
 const EXPORT_STEPS: { phase: ExportPhase; label: string }[] = [
   { phase: "uploading", label: "Uploading to Power BI…" },
@@ -70,13 +61,11 @@ export function PbixExportPanel({ loadedFiles }: Props) {
   const [exportPhase, setExportPhase] = useState<ExportPhase>("idle");
   const [exportError, setExportError] = useState<string | null>(null);
 
-  const phaseTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Clear all timers on unmount
+  // Clear auth poll timer on unmount
   useEffect(() => {
     return () => {
-      phaseTimersRef.current.forEach(clearTimeout);
       if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
     };
   }, []);
@@ -197,8 +186,6 @@ export function PbixExportPanel({ loadedFiles }: Props) {
   const handleExport = useCallback(async () => {
     if (auth.phase !== "connected" || !selectedFile || selectedPages.size === 0) return;
 
-    // Re-sign-in if token is nearly expired
-    let token = auth.token;
     if (Date.now() >= new Date(auth.expiresOn).getTime() - 5 * 60 * 1000) {
       setAuth({ phase: "expired" });
       return;
@@ -208,58 +195,12 @@ export function PbixExportPanel({ loadedFiles }: Props) {
     setExportPhase("uploading");
 
     try {
-      const form = new FormData();
-      form.append("file", selectedFile.rawFile);
-      form.append("pages", JSON.stringify([...selectedPages]));
-      form.append("token", token);
-
-      phaseTimersRef.current = [
-        setTimeout(() => setExportPhase("importing"), 3000),
-        setTimeout(() => setExportPhase("exporting"), 8000),
-        setTimeout(() => setExportPhase("downloading"), 30000),
-      ];
-
-      let res: Response;
-      try {
-        res = await fetch("/api/powerbi-export", { method: "POST", body: form });
-      } catch (networkErr: unknown) {
-        phaseTimersRef.current.forEach(clearTimeout);
-        phaseTimersRef.current = [];
-        const error = networkErr as Error;
-        setExportPhase("failed");
-        setExportError(error.message || "Network error — could not reach the export server");
-        return;
-      }
-
-      phaseTimersRef.current.forEach(clearTimeout);
-      phaseTimersRef.current = [];
-
-      if (!res.ok) {
-        let detail = `Export failed (HTTP ${res.status})`;
-        try {
-          const err = await res.json() as { detail?: string; error?: string };
-          detail = err.detail ?? err.error ?? detail;
-        } catch {
-          const text = await res.text().catch(() => "");
-          if (text) detail = text;
-        }
-        if (res.status === 413) detail = "File too large to upload — try a smaller .pbix file";
-        throw new Error(detail);
-      }
-
-      setExportPhase("cleaning_up");
-
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${selectedFile.dashboard.reportName}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      const revokeTimer = setTimeout(() => URL.revokeObjectURL(url), 2000);
-      phaseTimersRef.current = [revokeTimer];
-
+      await exportPbixToPdf({
+        file: selectedFile.rawFile,
+        selectedPages: [...selectedPages],
+        token: auth.token,
+        onPhase: setExportPhase,
+      });
       setExportPhase("done");
     } catch (err: unknown) {
       const error = err as Error;

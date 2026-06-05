@@ -123,7 +123,7 @@ export function PbixExportPanel({ loadedFiles }: Props) {
 
     // Refresh token if nearly expired
     let token = auth.token;
-    if (Date.now() >= new Date(auth.expiresOn).getTime() - 60000) {
+    if (Date.now() >= new Date(auth.expiresOn).getTime() - 5 * 60 * 1000) {
       try {
         const fresh = await fetchToken();
         token = fresh.accessToken;

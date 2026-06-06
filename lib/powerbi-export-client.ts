@@ -26,6 +26,7 @@ interface ExportStatus {
   status: string;
 }
 
+// $top=100 is the API maximum per page; tenants with >100 workspaces will see a truncated list.
 export async function listWorkspaces(token: string): Promise<PbiWorkspace[]> {
   const res = await pbiRequest(`${PBI_BASE}/groups?$top=100`, token);
   if (!res.ok) throw new Error(`Failed to list workspaces: ${res.status}`);

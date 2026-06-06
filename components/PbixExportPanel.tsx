@@ -3,7 +3,16 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { FileDown, CheckCircle2, AlertCircle, Loader2, ExternalLink } from "lucide-react";
 import type { LoadedFile } from "@/lib/pbix-parser";
-import { type ExportPhase } from "@/lib/powerbi-export-client";
+import {
+  type ExportPhase,
+  type PbiWorkspace,
+  type PbiReport,
+  type PbiPage,
+  listWorkspaces,
+  listReports,
+  listPages,
+  exportPublishedReportToPdf,
+} from "@/lib/powerbi-export-client";
 
 interface LoadedFileWithRaw extends LoadedFile {
   rawFile: File;
@@ -21,6 +30,8 @@ type AuthState =
   | { phase: "connected"; token: string; expiresOn: string }
   | { phase: "expired" }
   | { phase: "error"; message: string };
+
+type BrowseState = "idle" | "loading" | "error";
 
 const EXPORT_STEPS: { phase: ExportPhase; label: string }[] = [
   { phase: "exporting", label: "Generating PDF…" },
@@ -53,10 +64,20 @@ function cacheToken(accessToken: string, expiresOn: string) {
 
 export function PbixExportPanel({ loadedFiles }: Props) {
   const [auth, setAuth] = useState<AuthState>({ phase: "idle" });
-  const [selectedFile, setSelectedFile] = useState<LoadedFileWithRaw | null>(null);
   const [selectedPages, setSelectedPages] = useState<Set<string>>(new Set());
   const [exportPhase, setExportPhase] = useState<ExportPhase>("idle");
   const [exportError, setExportError] = useState<string | null>(null);
+
+  const [workspaces, setWorkspaces] = useState<PbiWorkspace[]>([]);
+  const [workspacesState, setWorkspacesState] = useState<BrowseState>("idle");
+  const [selectedWorkspace, setSelectedWorkspace] = useState<PbiWorkspace | null>(null);
+
+  const [reports, setReports] = useState<PbiReport[]>([]);
+  const [reportsState, setReportsState] = useState<BrowseState>("idle");
+  const [selectedReport, setSelectedReport] = useState<PbiReport | null>(null);
+
+  const [pages, setPages] = useState<PbiPage[]>([]);
+  const [pagesState, setPagesState] = useState<BrowseState>("idle");
 
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -75,20 +96,22 @@ export function PbixExportPanel({ loadedFiles }: Props) {
     }
   }, []);
 
-  // When loaded files change, update selected file if needed
+  // Fetch workspaces on auth connected; reset browse state when auth leaves connected
   useEffect(() => {
-    if (loadedFiles.length === 0) {
-      setSelectedFile(null);
+    if (auth.phase !== "connected") {
+      setWorkspaces([]);
+      setSelectedWorkspace(null);
+      setReports([]);
+      setSelectedReport(null);
+      setPages([]);
       setSelectedPages(new Set());
       return;
     }
-    const stillLoaded = selectedFile && loadedFiles.some((f) => f.fileName === selectedFile.fileName);
-    if (!stillLoaded) {
-      const first = loadedFiles[0];
-      setSelectedFile(first);
-      setSelectedPages(new Set(first.dashboard.pages.map((p) => p.internalName)));
-    }
-  }, [loadedFiles, selectedFile]);
+    setWorkspacesState("loading");
+    listWorkspaces(auth.token)
+      .then((ws) => { setWorkspaces(ws); setWorkspacesState("idle"); })
+      .catch(() => setWorkspacesState("error"));
+  }, [auth]);
 
   const pollForToken = useCallback((deviceCode: string, userCode: string, verificationUri: string, intervalMs: number) => {
     setAuth({ phase: "polling", userCode, verificationUri });
@@ -164,24 +187,51 @@ export function PbixExportPanel({ loadedFiles }: Props) {
     }
   }, [pollForToken]);
 
-  const togglePage = useCallback((internalName: string) => {
+  const onWorkspaceChange = useCallback((ws: PbiWorkspace) => {
+    if (auth.phase !== "connected") return;
+    setSelectedWorkspace(ws);
+    setReports([]);
+    setSelectedReport(null);
+    setPages([]);
+    setSelectedPages(new Set());
+    setReportsState("loading");
+    listReports(ws.id, auth.token)
+      .then((r) => { setReports(r); setReportsState("idle"); })
+      .catch(() => setReportsState("error"));
+  }, [auth]);
+
+  const onReportChange = useCallback((ws: PbiWorkspace, report: PbiReport) => {
+    if (auth.phase !== "connected") return;
+    setSelectedReport(report);
+    setPages([]);
+    setSelectedPages(new Set());
+    setPagesState("loading");
+    listPages(ws.id, report.id, auth.token)
+      .then((p) => {
+        setPages(p);
+        setSelectedPages(new Set(p.map((page) => page.name)));
+        setPagesState("idle");
+      })
+      .catch(() => setPagesState("error"));
+  }, [auth]);
+
+  const togglePage = useCallback((name: string) => {
     setSelectedPages((prev) => {
       const next = new Set(prev);
-      if (next.has(internalName)) next.delete(internalName);
-      else next.add(internalName);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
       return next;
     });
   }, []);
 
   const selectAll = useCallback(() => {
-    if (!selectedFile) return;
-    setSelectedPages(new Set(selectedFile.dashboard.pages.map((p) => p.internalName)));
-  }, [selectedFile]);
+    setSelectedPages(new Set(pages.map((p) => p.name)));
+  }, [pages]);
 
   const clearAll = useCallback(() => setSelectedPages(new Set()), []);
 
   const handleExport = useCallback(async () => {
-    if (auth.phase !== "connected" || !selectedFile || selectedPages.size === 0) return;
+    if (auth.phase !== "connected" || !selectedWorkspace || !selectedReport || selectedPages.size === 0) return;
 
     if (Date.now() >= new Date(auth.expiresOn).getTime() - 5 * 60 * 1000) {
       setAuth({ phase: "expired" });
@@ -189,18 +239,27 @@ export function PbixExportPanel({ loadedFiles }: Props) {
     }
 
     setExportError(null);
+    setExportPhase("exporting");
 
     try {
-      // TODO: replace with exportPublishedReportToPdf once PublishedReportExportPanel is wired up
+      await exportPublishedReportToPdf({
+        groupId: selectedWorkspace.id,
+        reportId: selectedReport.id,
+        reportName: selectedReport.name,
+        selectedPages: [...selectedPages],
+        token: auth.token,
+        onPhase: setExportPhase,
+      });
       setExportPhase("done");
     } catch (err: unknown) {
       const error = err as Error;
       setExportPhase("failed");
       setExportError(error.message || "Export failed");
     }
-  }, [auth, selectedFile, selectedPages]);
+  }, [auth, selectedWorkspace, selectedReport, selectedPages]);
 
-  if (loadedFiles.length === 0) return null;
+  // Suppress unused warning — prop kept for API compatibility
+  void loadedFiles;
 
   return (
     <div className="border-t border-theme px-6 py-4 flex-shrink-0">
@@ -291,59 +350,102 @@ export function PbixExportPanel({ loadedFiles }: Props) {
         </div>
       )}
 
-      {/* File selector (multiple files) */}
-      {loadedFiles.length > 1 && (
+      {/* Workspace picker */}
+      {auth.phase === "connected" && exportPhase === "idle" && (
         <div className="mb-3">
-          <label className="text-xs text-secondary block mb-1">File to export</label>
-          <select
-            value={selectedFile?.fileName ?? ""}
-            onChange={(e) => {
-              const f = loadedFiles.find((lf) => lf.fileName === e.target.value) ?? null;
-              setSelectedFile(f);
-              if (f) setSelectedPages(new Set(f.dashboard.pages.map((p) => p.internalName)));
-            }}
-            className="w-full px-2.5 py-1.5 text-sm rounded-lg border border-theme bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500"
-          >
-            {loadedFiles.map((f) => (
-              <option key={f.fileName} value={f.fileName}>
-                {f.dashboard.reportName}
-              </option>
-            ))}
-          </select>
+          <label className="text-xs text-secondary block mb-1">Workspace</label>
+          {workspacesState === "loading" && (
+            <div className="flex items-center gap-1.5 text-xs text-secondary">
+              <Loader2 className="w-3 h-3 animate-spin" /> Loading workspaces…
+            </div>
+          )}
+          {workspacesState === "error" && (
+            <p className="text-xs text-red-600 dark:text-red-400">Failed to load workspaces.</p>
+          )}
+          {workspacesState === "idle" && workspaces.length > 0 && (
+            <select
+              value={selectedWorkspace?.id ?? ""}
+              onChange={(e) => {
+                const ws = workspaces.find((w) => w.id === e.target.value);
+                if (ws) onWorkspaceChange(ws);
+              }}
+              className="w-full px-2.5 py-1.5 text-sm rounded-lg border border-theme bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500"
+            >
+              <option value="">Select a workspace…</option>
+              {workspaces.map((ws) => (
+                <option key={ws.id} value={ws.id}>{ws.name}</option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
+
+      {/* Report picker */}
+      {auth.phase === "connected" && selectedWorkspace && exportPhase === "idle" && (
+        <div className="mb-3">
+          <label className="text-xs text-secondary block mb-1">Report</label>
+          {reportsState === "loading" && (
+            <div className="flex items-center gap-1.5 text-xs text-secondary">
+              <Loader2 className="w-3 h-3 animate-spin" /> Loading reports…
+            </div>
+          )}
+          {reportsState === "error" && (
+            <p className="text-xs text-red-600 dark:text-red-400">Failed to load reports.</p>
+          )}
+          {reportsState === "idle" && reports.length > 0 && (
+            <select
+              value={selectedReport?.id ?? ""}
+              onChange={(e) => {
+                const r = reports.find((rep) => rep.id === e.target.value);
+                if (r && selectedWorkspace) onReportChange(selectedWorkspace, r);
+              }}
+              className="w-full px-2.5 py-1.5 text-sm rounded-lg border border-theme bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500"
+            >
+              <option value="">Select a report…</option>
+              {reports.map((r) => (
+                <option key={r.id} value={r.id}>{r.name}</option>
+              ))}
+            </select>
+          )}
         </div>
       )}
 
       {/* Page selection */}
-      {auth.phase === "connected" && selectedFile && exportPhase === "idle" && (
+      {auth.phase === "connected" && selectedReport && exportPhase === "idle" && (
         <div className="mb-3">
-          <div className="flex items-center justify-between mb-1.5">
-            <label className="text-xs text-secondary">Pages to include</label>
-            <div className="flex gap-2 text-xs">
-              <button onClick={selectAll} className="text-brand-600 dark:text-brand-400 hover:underline">
-                Select all
-              </button>
-              <span className="text-secondary">·</span>
-              <button onClick={clearAll} className="text-brand-600 dark:text-brand-400 hover:underline">
-                Clear
-              </button>
+          {pagesState === "loading" && (
+            <div className="flex items-center gap-1.5 text-xs text-secondary">
+              <Loader2 className="w-3 h-3 animate-spin" /> Loading pages…
             </div>
-          </div>
-          <div className="space-y-1 max-h-40 overflow-y-auto">
-            {selectedFile.dashboard.pages.map((page) => (
-              <label
-                key={page.internalName}
-                className="flex items-center gap-2 text-sm text-primary cursor-pointer hover:text-brand-600 dark:hover:text-brand-400"
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedPages.has(page.internalName)}
-                  onChange={() => togglePage(page.internalName)}
-                  className="rounded border-theme accent-brand-600"
-                />
-                {page.name}
-              </label>
-            ))}
-          </div>
+          )}
+          {pagesState === "error" && (
+            <p className="text-xs text-red-600 dark:text-red-400">Failed to load pages.</p>
+          )}
+          {pagesState === "idle" && pages.length > 0 && (
+            <>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs text-secondary">Pages to include</label>
+                <div className="flex gap-2 text-xs">
+                  <button onClick={selectAll} className="text-brand-600 dark:text-brand-400 hover:underline">Select all</button>
+                  <span className="text-secondary">·</span>
+                  <button onClick={clearAll} className="text-brand-600 dark:text-brand-400 hover:underline">Clear</button>
+                </div>
+              </div>
+              <div className="space-y-1 max-h-40 overflow-y-auto">
+                {pages.map((page) => (
+                  <label key={page.name} className="flex items-center gap-2 text-sm text-primary cursor-pointer hover:text-brand-600 dark:hover:text-brand-400">
+                    <input
+                      type="checkbox"
+                      checked={selectedPages.has(page.name)}
+                      onChange={() => togglePage(page.name)}
+                      className="rounded border-theme accent-brand-600"
+                    />
+                    {page.displayName}
+                  </label>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -409,7 +511,7 @@ export function PbixExportPanel({ loadedFiles }: Props) {
       {auth.phase === "connected" && exportPhase === "idle" && (
         <button
           onClick={handleExport}
-          disabled={selectedPages.size === 0 || !selectedFile}
+          disabled={selectedPages.size === 0 || !selectedReport}
           className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           <FileDown className="w-4 h-4" />

@@ -126,3 +126,44 @@ export async function exportPublishedReportToPdf({
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
+
+/**
+ * Parses a PBRS portal URL and extracts the server base and report path.
+ * Handles portal URLs like:
+ *   http://tpdcpbi02/reports/powerbi/Folder/ReportName
+ *   http://tpdcpbi02/reports/report/Folder/ReportName
+ * Returns null if the URL cannot be parsed or has no report path.
+ */
+export function parsePbrsPortalUrl(
+  input: string
+): { serverBase: string; reportPath: string } | null {
+  try {
+    const url = new URL(input);
+    const serverBase = `${url.protocol}//${url.host}`;
+    const prefixes = ["/reports/powerbi", "/reports/report", "/reports/browse"];
+    let path = decodeURIComponent(url.pathname);
+    for (const prefix of prefixes) {
+      if (path.startsWith(prefix)) {
+        path = path.slice(prefix.length);
+        break;
+      }
+    }
+    const segments = path.split("/").filter(Boolean);
+    if (segments.length === 0) return null;
+    return { serverBase, reportPath: "/" + segments.join("/") };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Builds the ReportServer URL-access PDF export URL for a PBRS report.
+ * Works for both .pbix (Power BI) and .rdl (paginated) reports.
+ * The resulting URL can be opened directly in the browser — Windows NTLM
+ * auth is handled automatically.
+ */
+export function buildPbrsExportUrl(serverBase: string, reportPath: string): string {
+  const segments = reportPath.split("/").filter(Boolean);
+  const encodedPath = segments.map(encodeURIComponent).join("%2F");
+  return `${serverBase}/ReportServer?%2F${encodedPath}&rs:Format=PDF&rs:Command=Render`;
+}

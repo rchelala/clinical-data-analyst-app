@@ -1,21 +1,10 @@
 const PBI_BASE = "https://api.powerbi.com/v1.0/myorg";
 
-export type ExportPhase =
-  | "idle"
-  | "uploading"
-  | "importing"
-  | "exporting"
-  | "downloading"
-  | "cleaning_up"
-  | "done"
-  | "failed";
+export type ExportPhase = "idle" | "exporting" | "downloading" | "done" | "failed";
 
-export interface ExportOptions {
-  file: File;
-  selectedPages: string[];
-  token: string;
-  onPhase: (phase: ExportPhase) => void;
-}
+export interface PbiWorkspace { id: string; name: string; }
+export interface PbiReport    { id: string; name: string; }
+export interface PbiPage      { name: string; displayName: string; order: number; }
 
 async function pbiRequest(url: string, token: string, options?: RequestInit): Promise<Response> {
   try {
@@ -33,140 +22,103 @@ async function pbiRequest(url: string, token: string, options?: RequestInit): Pr
   }
 }
 
-async function poll<T>(
-  fn: () => Promise<T>,
-  isDone: (val: T) => boolean,
-  isFailed: (val: T) => boolean,
-  intervalMs: number,
-  timeoutMs: number,
-  timeoutMessage: string
-): Promise<T> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const val = await fn();
-    if (isDone(val)) return val;
-    if (isFailed(val)) throw new Error("Power BI reported export failure");
-    await new Promise<void>((r) => setTimeout(r, intervalMs));
-  }
-  throw new Error(timeoutMessage);
-}
-
-interface ImportStatus {
-  importState: string;
-  reports?: Array<{ id: string; name: string }>;
-  datasets?: Array<{ id: string; name: string }>;
-}
-
 interface ExportStatus {
   status: string;
 }
 
-// Calls onPhase for: importing → exporting → downloading → cleaning_up.
-// Caller is responsible for setting "uploading" before calling, and "done"/"failed" after.
-export async function exportPbixToPdf({
-  file,
+export async function listWorkspaces(token: string): Promise<PbiWorkspace[]> {
+  const res = await pbiRequest(`${PBI_BASE}/groups?$top=100`, token);
+  if (!res.ok) throw new Error(`Failed to list workspaces: ${res.status}`);
+  const data = (await res.json()) as { value: PbiWorkspace[] };
+  return data.value;
+}
+
+export async function listReports(groupId: string, token: string): Promise<PbiReport[]> {
+  const res = await pbiRequest(`${PBI_BASE}/groups/${groupId}/reports`, token);
+  if (!res.ok) throw new Error(`Failed to list reports: ${res.status}`);
+  const data = (await res.json()) as { value: PbiReport[] };
+  return data.value;
+}
+
+export async function listPages(groupId: string, reportId: string, token: string): Promise<PbiPage[]> {
+  const res = await pbiRequest(`${PBI_BASE}/groups/${groupId}/reports/${reportId}/pages`, token);
+  if (!res.ok) throw new Error(`Failed to list pages: ${res.status}`);
+  const data = (await res.json()) as { value: PbiPage[] };
+  return data.value.slice().sort((a, b) => a.order - b.order);
+}
+
+export interface PublishedExportOptions {
+  groupId: string;
+  reportId: string;
+  reportName: string;
+  selectedPages: string[];
+  token: string;
+  onPhase: (phase: ExportPhase) => void;
+}
+
+export async function exportPublishedReportToPdf({
+  groupId,
+  reportId,
+  reportName,
   selectedPages,
   token,
   onPhase,
-}: ExportOptions): Promise<void> {
-  let datasetId: string | undefined;
+}: PublishedExportOptions): Promise<void> {
+  onPhase("exporting");
 
-  try {
-    // Step 1: Upload PBIX directly to Power BI
-    const reportName = file.name.replace(/\.pbix$/i, "");
-    const uploadForm = new FormData();
-    uploadForm.append("file", file);
-
-    const uploadRes = await pbiRequest(
-      `${PBI_BASE}/imports?datasetDisplayName=${encodeURIComponent(
-        `${reportName}-export-tmp-${Date.now()}`
-      )}&nameConflict=Abort`,
-      token,
-      { method: "POST", body: uploadForm }
-    );
-    if (!uploadRes.ok) {
-      const text = await uploadRes.text().catch(() => "");
-      throw new Error(`Upload failed: ${text || uploadRes.status}`);
-    }
-    const { id: importId } = (await uploadRes.json()) as { id: string };
-
-    // Step 2: Poll import status
-    onPhase("importing");
-    const importResult = await poll<ImportStatus>(
-      async () => {
-        const res = await pbiRequest(`${PBI_BASE}/imports/${importId}`, token);
-        if (!res.ok) throw new Error(`Import status check failed: ${res.status}`);
-        return res.json() as Promise<ImportStatus>;
-      },
-      (v) => v.importState === "Succeeded",
-      (v) => v.importState === "Failed",
-      2000,
-      60000,
-      "Import timed out"
-    );
-
-    const reportId = importResult.reports?.[0]?.id;
-    datasetId = importResult.datasets?.[0]?.id;
-    if (!reportId) throw new Error("Import succeeded but no report ID returned");
-
-    // Step 3: Trigger PDF export
-    onPhase("exporting");
-    const exportRes = await pbiRequest(`${PBI_BASE}/reports/${reportId}/ExportTo`, token, {
+  // Trigger PDF export
+  const exportRes = await pbiRequest(
+    `${PBI_BASE}/groups/${groupId}/reports/${reportId}/ExportTo`,
+    token,
+    {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         format: "PDF",
-        pages: selectedPages.map((pageName) => ({ pageName })),
+        powerBIReportConfiguration: {
+          pages: selectedPages.map((name) => ({ pageName: name })),
+        },
       }),
-    });
-    if (!exportRes.ok) {
-      const text = await exportRes.text().catch(() => "");
-      throw new Error(`Export trigger failed: ${text || exportRes.status}`);
     }
-    const { id: exportId } = (await exportRes.json()) as { id: string };
+  );
+  if (!exportRes.ok) {
+    const text = await exportRes.text().catch(() => "");
+    throw new Error(`Export trigger failed: ${text || exportRes.status}`);
+  }
+  const { id: exportId } = (await exportRes.json()) as { id: string };
 
-    // Step 4: Poll export status, respecting Power BI's Retry-After header (up to 60 min)
-    const exportDeadline = Date.now() + 3_600_000;
-    while (Date.now() < exportDeadline) {
-      const statusRes = await pbiRequest(
-        `${PBI_BASE}/reports/${reportId}/exports/${exportId}`,
-        token
-      );
-      if (!statusRes.ok) throw new Error(`Export status check failed: ${statusRes.status}`);
-      const exportStatus = (await statusRes.json()) as ExportStatus;
-      if (exportStatus.status === "Succeeded") break;
-      if (exportStatus.status === "Failed") throw new Error("Power BI reported export failure");
-      const retryAfterSec = parseInt(statusRes.headers.get("Retry-After") ?? "30", 10);
-      await new Promise<void>((r) => setTimeout(r, retryAfterSec * 1000));
-    }
-    if (Date.now() >= exportDeadline) throw new Error("Export generation timed out");
-
-    // Step 5: Download PDF blob
-    onPhase("downloading");
-    const pdfRes = await pbiRequest(
-      `${PBI_BASE}/reports/${reportId}/exports/${exportId}/file`,
+  // Poll export status, respecting Power BI's Retry-After header (up to 60 min)
+  const exportDeadline = Date.now() + 3_600_000;
+  while (Date.now() < exportDeadline) {
+    const statusRes = await pbiRequest(
+      `${PBI_BASE}/groups/${groupId}/reports/${reportId}/exports/${exportId}`,
       token
     );
-    if (!pdfRes.ok) throw new Error(`PDF download failed: ${pdfRes.status}`);
-    const blob = await pdfRes.blob();
-
-    // Step 6: Trigger browser download
-    onPhase("cleaning_up");
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${reportName}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
-  } finally {
-    // Fire-and-forget cleanup
-    if (datasetId) {
-      fetch(`${PBI_BASE}/datasets/${datasetId}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      }).catch(() => {});
-    }
+    if (!statusRes.ok) throw new Error(`Export status check failed: ${statusRes.status}`);
+    const exportStatus = (await statusRes.json()) as ExportStatus;
+    if (exportStatus.status === "Succeeded") break;
+    if (exportStatus.status === "Failed") throw new Error("Power BI reported export failure");
+    const retryAfterSec = parseInt(statusRes.headers.get("Retry-After") ?? "30", 10);
+    await new Promise<void>((r) => setTimeout(r, retryAfterSec * 1000));
   }
+  if (Date.now() >= exportDeadline) throw new Error("Export generation timed out");
+
+  // Download PDF blob
+  onPhase("downloading");
+  const pdfRes = await pbiRequest(
+    `${PBI_BASE}/groups/${groupId}/reports/${reportId}/exports/${exportId}/file`,
+    token
+  );
+  if (!pdfRes.ok) throw new Error(`PDF download failed: ${pdfRes.status}`);
+  const blob = await pdfRes.blob();
+
+  // Trigger browser download
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${reportName}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
 }

@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { FileDown, CheckCircle2, AlertCircle, Loader2, ExternalLink } from "lucide-react";
 import type { LoadedFile } from "@/lib/pbix-parser";
-import { exportPbixToPdf, type ExportPhase } from "@/lib/powerbi-export-client";
+import { type ExportPhase } from "@/lib/powerbi-export-client";
 
 interface LoadedFileWithRaw extends LoadedFile {
   rawFile: File;
@@ -23,11 +23,8 @@ type AuthState =
   | { phase: "error"; message: string };
 
 const EXPORT_STEPS: { phase: ExportPhase; label: string }[] = [
-  { phase: "uploading", label: "Uploading to Power BI…" },
-  { phase: "importing", label: "Processing import…" },
   { phase: "exporting", label: "Generating PDF…" },
   { phase: "downloading", label: "Downloading…" },
-  { phase: "cleaning_up", label: "Cleaning up…" },
 ];
 
 const TOKEN_CACHE_KEY = "pbi_export_token";
@@ -192,15 +189,9 @@ export function PbixExportPanel({ loadedFiles }: Props) {
     }
 
     setExportError(null);
-    setExportPhase("uploading"); // lib takes over from "importing" onward; we set "done"/"failed" below
 
     try {
-      await exportPbixToPdf({
-        file: selectedFile.rawFile,
-        selectedPages: [...selectedPages],
-        token: auth.token,
-        onPhase: setExportPhase,
-      });
+      // TODO: replace with exportPublishedReportToPdf once PublishedReportExportPanel is wired up
       setExportPhase("done");
     } catch (err: unknown) {
       const error = err as Error;

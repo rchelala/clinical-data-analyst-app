@@ -105,6 +105,9 @@ export function PbixExportPanel({ loadedFiles }: Props) {
       setSelectedReport(null);
       setPages([]);
       setSelectedPages(new Set());
+      setWorkspacesState("idle");
+      setReportsState("idle");
+      setPagesState("idle");
       return;
     }
     setWorkspacesState("loading");
@@ -194,6 +197,7 @@ export function PbixExportPanel({ loadedFiles }: Props) {
     setSelectedReport(null);
     setPages([]);
     setSelectedPages(new Set());
+    setPagesState("idle");
     setReportsState("loading");
     listReports(ws.id, auth.token)
       .then((r) => { setReports(r); setReportsState("idle"); })

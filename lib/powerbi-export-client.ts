@@ -141,13 +141,21 @@ export function parsePbrsPortalUrl(
     const url = new URL(input);
     const serverBase = `${url.protocol}//${url.host}`;
     const prefixes = ["/reports/powerbi", "/reports/report", "/reports/browse"];
-    let path = decodeURIComponent(url.pathname);
+    let path: string;
+    try {
+      path = decodeURIComponent(url.pathname);
+    } catch {
+      path = url.pathname;
+    }
+    let prefixMatched = false;
     for (const prefix of prefixes) {
       if (path.startsWith(prefix)) {
         path = path.slice(prefix.length);
+        prefixMatched = true;
         break;
       }
     }
+    if (!prefixMatched) return null;
     const segments = path.split("/").filter(Boolean);
     if (segments.length === 0) return null;
     return { serverBase, reportPath: "/" + segments.join("/") };

@@ -76,17 +76,19 @@ export function PbixExportPanel({ loadedFiles }: Props) {
             )}
           </div>
 
-          <div className="mb-3">
-            <a
-              href="http://tpdcpbi02/reports/browse"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-brand-600 dark:text-brand-400 hover:underline"
-            >
-              Open Report Server portal
-              <ExternalLink className="w-3 h-3" />
-            </a>
-          </div>
+          {(parsed?.serverBase || urlInput.length === 0) && (
+            <div className="mb-3">
+              <a
+                href={parsed ? `${parsed.serverBase}/reports/browse` : "http://tpdcpbi02/reports/browse"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-brand-600 dark:text-brand-400 hover:underline"
+              >
+                Open Report Server portal
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+          )}
 
           <button
             onClick={handleExport}

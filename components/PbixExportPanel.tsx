@@ -80,6 +80,8 @@ export function PbixExportPanel({ loadedFiles }: Props) {
   const [pagesState, setPagesState] = useState<BrowseState>("idle");
 
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reportsFetchIdRef = useRef(0);
+  const pagesFetchIdRef = useRef(0);
 
   // Clear auth poll timer on unmount
   useEffect(() => {
@@ -199,9 +201,17 @@ export function PbixExportPanel({ loadedFiles }: Props) {
     setSelectedPages(new Set());
     setPagesState("idle");
     setReportsState("loading");
+    const myId = ++reportsFetchIdRef.current;
     listReports(ws.id, auth.token)
-      .then((r) => { setReports(r); setReportsState("idle"); })
-      .catch(() => setReportsState("error"));
+      .then((r) => {
+        if (reportsFetchIdRef.current !== myId) return;
+        setReports(r);
+        setReportsState("idle");
+      })
+      .catch(() => {
+        if (reportsFetchIdRef.current !== myId) return;
+        setReportsState("error");
+      });
   }, [auth]);
 
   const onReportChange = useCallback((ws: PbiWorkspace, report: PbiReport) => {
@@ -210,13 +220,18 @@ export function PbixExportPanel({ loadedFiles }: Props) {
     setPages([]);
     setSelectedPages(new Set());
     setPagesState("loading");
+    const myId = ++pagesFetchIdRef.current;
     listPages(ws.id, report.id, auth.token)
       .then((p) => {
+        if (pagesFetchIdRef.current !== myId) return;
         setPages(p);
         setSelectedPages(new Set(p.map((page) => page.name)));
         setPagesState("idle");
       })
-      .catch(() => setPagesState("error"));
+      .catch(() => {
+        if (pagesFetchIdRef.current !== myId) return;
+        setPagesState("error");
+      });
   }, [auth]);
 
   const togglePage = useCallback((name: string) => {
@@ -243,8 +258,6 @@ export function PbixExportPanel({ loadedFiles }: Props) {
     }
 
     setExportError(null);
-    setExportPhase("exporting");
-
     try {
       await exportPublishedReportToPdf({
         groupId: selectedWorkspace.id,
@@ -381,6 +394,9 @@ export function PbixExportPanel({ loadedFiles }: Props) {
               ))}
             </select>
           )}
+          {workspacesState === "idle" && workspaces.length === 0 && (
+            <p className="text-xs text-secondary">No workspaces found.</p>
+          )}
         </div>
       )}
 
@@ -410,6 +426,9 @@ export function PbixExportPanel({ loadedFiles }: Props) {
                 <option key={r.id} value={r.id}>{r.name}</option>
               ))}
             </select>
+          )}
+          {reportsState === "idle" && reports.length === 0 && selectedWorkspace && (
+            <p className="text-xs text-secondary">No reports found in this workspace.</p>
           )}
         </div>
       )}

@@ -86,8 +86,10 @@ export async function exportPublishedReportToPdf({
     throw new Error(`Export trigger failed: ${text || exportRes.status}`);
   }
   const { id: exportId } = (await exportRes.json()) as { id: string };
+  if (!exportId) throw new Error("Export trigger returned no export ID");
 
   // Poll export status, respecting Power BI's Retry-After header (up to 60 min)
+  let timedOut = true;
   const exportDeadline = Date.now() + 3_600_000;
   while (Date.now() < exportDeadline) {
     const statusRes = await pbiRequest(
@@ -96,12 +98,13 @@ export async function exportPublishedReportToPdf({
     );
     if (!statusRes.ok) throw new Error(`Export status check failed: ${statusRes.status}`);
     const exportStatus = (await statusRes.json()) as ExportStatus;
-    if (exportStatus.status === "Succeeded") break;
+    if (exportStatus.status === "Succeeded") { timedOut = false; break; }
     if (exportStatus.status === "Failed") throw new Error("Power BI reported export failure");
-    const retryAfterSec = parseInt(statusRes.headers.get("Retry-After") ?? "30", 10);
-    await new Promise<void>((r) => setTimeout(r, retryAfterSec * 1000));
+    const retryAfterRaw = parseInt(statusRes.headers.get("Retry-After") ?? "30", 10);
+    const waitMs = Number.isFinite(retryAfterRaw) && retryAfterRaw > 0 ? retryAfterRaw * 1000 : 30_000;
+    await new Promise<void>((r) => setTimeout(r, waitMs));
   }
-  if (Date.now() >= exportDeadline) throw new Error("Export generation timed out");
+  if (timedOut) throw new Error("Export generation timed out");
 
   // Download PDF blob
   onPhase("downloading");

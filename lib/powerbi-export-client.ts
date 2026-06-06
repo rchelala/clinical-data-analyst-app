@@ -137,8 +137,8 @@ export async function exportPbixToPdf({
       },
       (v) => v.status === "Succeeded",
       (v) => v.status === "Failed",
-      3000,
-      180000,
+      5000,
+      600000,
       "Export generation timed out"
     );
 

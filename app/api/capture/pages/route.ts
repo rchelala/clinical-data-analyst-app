@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
 
   const parsed = parsePbrsPortalUrl(url);
   if (!parsed) {
-    return NextResponse.json({ error: "Invalid PBRS URL — must start with /reports/powerbi or /reports/report" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid PBRS URL — must start with /reports/powerbi, /reports/report, or /reports/browse" }, { status: 400 });
   }
 
   try {
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ pages });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    if (message.includes("Executable doesn't exist") || message.includes("browserType.launch")) {
+    if (message.includes("Executable doesn't exist") || message.includes("playwright install")) {
       return NextResponse.json(
         { error: "Playwright chromium not installed. Run: npx playwright install chromium" },
         { status: 500 }

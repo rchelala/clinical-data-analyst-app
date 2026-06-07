@@ -109,8 +109,15 @@ export function DashboardCaptureTab() {
 
   async function handleOpenTerminal() {
     setOpeningTerminal(true);
+    setError(null);
     try {
-      await fetch("/api/capture/open-terminal", { method: "POST" });
+      const res = await fetch("/api/capture/open-terminal", { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string };
+        setError(data.error ?? "Failed to open terminal.");
+      }
+    } catch {
+      setError("Network error — could not open terminal.");
     } finally {
       setOpeningTerminal(false);
     }

@@ -1,10 +1,11 @@
 // lib/playwright-capture.ts
 import { chromium, Browser, Frame, Page } from "playwright";
 
-// Allow NTLM/Negotiate auth for all local servers (safe for local dev only)
+const PBRS_HOST = "tpdcpbi02";
+
 const LAUNCH_ARGS = [
-  "--auth-server-allowlist=*",
-  "--auth-negotiate-delegate-allowlist=*",
+  `--auth-server-allowlist=${PBRS_HOST}`,
+  `--auth-negotiate-delegate-allowlist=${PBRS_HOST}`,
 ];
 
 async function launchBrowser(): Promise<Browser> {
@@ -29,12 +30,13 @@ const PAGE_TAB_SELECTORS = [
   'div[class*="pages"] button',
 ];
 
+function allFrames(page: Page): Frame[] {
+  return [page.mainFrame(), ...page.frames().filter((f) => f !== page.mainFrame())];
+}
+
 async function findPageTabs(page: Page): Promise<string[]> {
   // Power BI report may render directly or inside an iframe
-  const framesToSearch: Frame[] = [
-    page.mainFrame(),
-    ...page.frames().filter((f) => f !== page.mainFrame()),
-  ];
+  const framesToSearch = allFrames(page);
 
   for (const frame of framesToSearch) {
     for (const selector of PAGE_TAB_SELECTORS) {
@@ -77,10 +79,7 @@ export async function capturePages(
     const page = await openReport(browser, reportUrl);
     const results: { name: string; data: Buffer }[] = [];
 
-    const framesToSearch: Frame[] = [
-      page.mainFrame(),
-      ...page.frames().filter((f) => f !== page.mainFrame()),
-    ];
+    const framesToSearch = allFrames(page);
 
     for (const pageName of pageNames) {
       // Click the page tab

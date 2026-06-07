@@ -127,6 +127,7 @@ export function DashboardCaptureTab() {
     setSetupStatus("checking");
     try {
       const res = await fetch("/api/capture/status");
+      if (!res.ok) { setSetupStatus("needs-chromium"); return; }
       const data = await res.json() as { chromiumInstalled: boolean };
       setSetupStatus(data.chromiumInstalled ? "ready" : "needs-chromium");
     } catch {

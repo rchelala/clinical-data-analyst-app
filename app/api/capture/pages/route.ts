@@ -3,14 +3,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { parsePbrsPortalUrl } from "@/lib/powerbi-export-client";
 import { getReportPages } from "@/lib/playwright-capture";
 
+// Extend route timeout — report loads can take 60+ seconds
+export const maxDuration = 300;
+
 export async function GET(req: NextRequest) {
   const url = req.nextUrl.searchParams.get("url");
   if (!url) {
     return NextResponse.json({ error: "url param required" }, { status: 400 });
   }
 
-  const parsed = parsePbrsPortalUrl(url);
-  if (!parsed) {
+  if (!parsePbrsPortalUrl(url)) {
     return NextResponse.json({ error: "Invalid PBRS URL — must start with /reports/powerbi, /reports/report, or /reports/browse" }, { status: 400 });
   }
 

@@ -90,6 +90,7 @@ export async function capturePages(
           `[role="tablist"] [role="tab"]:has-text("${pageName}")`,
           `button[title="${pageName}"]`,
           `div[class*="pageNavigation"] button:has-text("${pageName}")`,
+          `div[class*="pages"] button:has-text("${pageName}")`,
         ];
         for (const selector of clickSelectors) {
           try {

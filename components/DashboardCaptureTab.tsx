@@ -13,7 +13,6 @@ export function DashboardCaptureTab() {
   const [pages, setPages]       = useState<string[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [error, setError]       = useState<string | null>(null);
-  const [zipUrl, setZipUrl]     = useState<string | null>(null);
 
   const validUrl = url.trim().length > 0 && parsePbrsPortalUrl(url.trim()) !== null;
 
@@ -21,7 +20,6 @@ export function DashboardCaptureTab() {
     setState("idle");
     setPages([]);
     setSelected(new Set());
-    setZipUrl(null);
     setError(null);
   }
 
@@ -31,7 +29,6 @@ export function DashboardCaptureTab() {
     setError(null);
     setPages([]);
     setSelected(new Set());
-    setZipUrl(null);
 
     try {
       const res = await fetch(`/api/capture/pages?url=${encodeURIComponent(url.trim())}`);
@@ -74,7 +71,13 @@ export function DashboardCaptureTab() {
 
       const blob = await res.blob();
       const objectUrl = URL.createObjectURL(blob);
-      setZipUrl(objectUrl);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = "dashboard-pages.zip";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 2000);
       setState("done");
     } catch {
       setError("Network error during capture.");
@@ -181,16 +184,14 @@ export function DashboardCaptureTab() {
           </div>
         )}
 
-        {/* Download ZIP */}
-        {state === "done" && zipUrl && (
-          <a
-            href={zipUrl}
-            download="dashboard-pages.zip"
-            className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-lg bg-green-600 hover:bg-green-700 text-white transition-colors shadow-sm"
-          >
-            <Download className="w-4 h-4" />
-            Download ZIP
-          </a>
+        {/* Done state */}
+        {state === "done" && (
+          <div className="flex items-center gap-3 px-4 py-3 rounded-lg border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/30">
+            <Download className="w-4 h-4 text-green-600 flex-shrink-0" />
+            <span className="text-sm text-green-700 dark:text-green-400">
+              Downloaded dashboard-pages.zip — paste another URL to capture more pages.
+            </span>
+          </div>
         )}
 
         {/* Setup hint (shown only when idle with no URL) */}

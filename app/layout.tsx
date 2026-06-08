@@ -3,8 +3,9 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
 
 export const metadata: Metadata = {
-  title: "DAX & SQL Commenter",
-  description: "AI-powered inline commenting for DAX measures and SQL queries",
+  title: "ClinKit",
+  description: "Your clinical data analyst toolkit",
+  icons: { icon: "/favicon.svg" },
 };
 
 export default function RootLayout({

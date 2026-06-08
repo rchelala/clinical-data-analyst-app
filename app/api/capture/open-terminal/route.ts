@@ -5,13 +5,6 @@ import { spawn } from "child_process";
 export const dynamic = "force-dynamic";
 
 export async function POST() {
-  if (process.platform !== "win32") {
-    return NextResponse.json(
-      { error: "This feature is only available on Windows" },
-      { status: 400 }
-    );
-  }
-
   const projectRoot = process.cwd();
   const safePath = projectRoot.replace(/'/g, "''");
   // Set-Location moves to project dir; Insert pre-fills the prompt via PSReadLine

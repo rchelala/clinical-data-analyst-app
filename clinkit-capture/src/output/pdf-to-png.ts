@@ -18,11 +18,14 @@ export async function convertPdfToPng(
 
   const scale = targetWidthPx / sample.width;
 
-  const [page] = await pdfToPng(pdfBuffer, {
+  const pages = await pdfToPng(pdfBuffer, {
     pagesToProcess: [1],
     viewportScale: scale,
     verbosityLevel: 0,
   });
+
+  const page = pages[0];
+  if (!page || !page.content) throw new Error('pdf-to-png-converter returned no pages');
 
   return { png: page.content, width: page.width, height: page.height };
 }

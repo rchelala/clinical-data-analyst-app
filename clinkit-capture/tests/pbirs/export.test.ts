@@ -33,3 +33,51 @@ describe('exportRdl', () => {
     );
   });
 });
+
+import { exportPbix } from '../../src/pbirs/export';
+
+describe('exportPbix', () => {
+  it('returns PDF bytes when job immediately succeeds', async () => {
+    const client = {
+      getJson: vi.fn().mockResolvedValue({ Id: 'job-1', Status: 'Succeeded' }),
+      postJson: vi.fn().mockResolvedValue({ Id: 'job-1' }),
+      getBytes: vi.fn().mockResolvedValue(Buffer.from('PDF')),
+    } as unknown as PbirsClient;
+    const result = await exportPbix(client, 'http://tpdcpbi02', 'guid', 'Overview', { pollIntervalMs: 0, timeoutMs: 5000 });
+    expect(result).toEqual(Buffer.from('PDF'));
+  });
+
+  it('polls until Succeeded', async () => {
+    const client = {
+      getJson: vi.fn()
+        .mockResolvedValueOnce({ Id: 'job-1', Status: 'InProgress' })
+        .mockResolvedValueOnce({ Id: 'job-1', Status: 'Succeeded' }),
+      postJson: vi.fn().mockResolvedValue({ Id: 'job-1' }),
+      getBytes: vi.fn().mockResolvedValue(Buffer.from('PDF')),
+    } as unknown as PbirsClient;
+    await exportPbix(client, 'http://tpdcpbi02', 'guid', 'Overview', { pollIntervalMs: 0, timeoutMs: 5000 });
+    expect(client.getJson).toHaveBeenCalledTimes(2);
+  });
+
+  it('throws on Failed status', async () => {
+    const client = {
+      getJson: vi.fn().mockResolvedValue({ Id: 'job-1', Status: 'Failed' }),
+      postJson: vi.fn().mockResolvedValue({ Id: 'job-1' }),
+      getBytes: vi.fn(),
+    } as unknown as PbirsClient;
+    await expect(
+      exportPbix(client, 'http://tpdcpbi02', 'guid', 'Overview', { pollIntervalMs: 0, timeoutMs: 5000 })
+    ).rejects.toThrow('failed');
+  });
+
+  it('throws on timeout', async () => {
+    const client = {
+      getJson: vi.fn().mockResolvedValue({ Id: 'job-1', Status: 'InProgress' }),
+      postJson: vi.fn().mockResolvedValue({ Id: 'job-1' }),
+      getBytes: vi.fn(),
+    } as unknown as PbirsClient;
+    await expect(
+      exportPbix(client, 'http://tpdcpbi02', 'guid', 'Overview', { pollIntervalMs: 0, timeoutMs: 1 })
+    ).rejects.toThrow('timed out');
+  });
+});

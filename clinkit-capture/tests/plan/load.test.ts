@@ -50,4 +50,28 @@ describe('loadPlan', () => {
     });
     expect(() => loadPlan(p)).toThrow(/pageName/);
   });
+
+  it('throws if a page has no slug', () => {
+    const p = writeTmp('no-slug.json', {
+      name: 'x', pbirsBaseUrl: 'http://x',
+      pages: [{ reportPath: '/x', reportType: 'rdl' }],
+    });
+    expect(() => loadPlan(p)).toThrow(/slug/);
+  });
+
+  it('throws if a page has no reportPath', () => {
+    const p = writeTmp('no-path.json', {
+      name: 'x', pbirsBaseUrl: 'http://x',
+      pages: [{ slug: '01', reportType: 'rdl' }],
+    });
+    expect(() => loadPlan(p)).toThrow(/reportPath/);
+  });
+
+  it('throws if a page has invalid reportType', () => {
+    const p = writeTmp('bad-type.json', {
+      name: 'x', pbirsBaseUrl: 'http://x',
+      pages: [{ slug: '01', reportPath: '/x', reportType: 'invalid' }],
+    });
+    expect(() => loadPlan(p)).toThrow(/reportType/);
+  });
 });

@@ -22,6 +22,15 @@ export function loadPlan(filePath: string): PlanFile {
   }
 
   for (const page of obj.pages as Record<string, unknown>[]) {
+    if (typeof page.slug !== 'string' || !page.slug) {
+      throw new Error('Each page must have a non-empty "slug" string');
+    }
+    if (typeof page.reportPath !== 'string' || !page.reportPath) {
+      throw new Error(`Page "${page.slug}" must have a non-empty "reportPath" string`);
+    }
+    if (page.reportType !== 'pbix' && page.reportType !== 'rdl') {
+      throw new Error(`Page "${page.slug}" has invalid "reportType": must be "pbix" or "rdl"`);
+    }
     if (page.reportType === 'pbix' && !page.pageName) {
       throw new Error(
         `Page "${page.slug}" has reportType "pbix" but is missing required "pageName"`

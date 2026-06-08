@@ -97,6 +97,9 @@ program
     };
 
     writeManifest(outDir, manifest);
+    if (manifestPages.length === 0 && plan.pages.length > 0) {
+      process.exit(1);
+    }
     log.info(`Done. ${manifestPages.length}/${plan!.pages.length} pages captured.`);
     log.info(`Manifest: ${join(outDir, 'manifest.json')}`);
   });

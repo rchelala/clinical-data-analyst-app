@@ -16,16 +16,15 @@ export async function convertPdfToPng(
     verbosityLevel: 0,
   });
 
+  if (!sample) throw new Error('pdf-to-png-converter returned no pages for the first pass');
   const scale = targetWidthPx / sample.width;
 
-  const pages = await pdfToPng(pdfBuffer, {
+  const [page] = await pdfToPng(pdfBuffer, {
     pagesToProcess: [1],
     viewportScale: scale,
     verbosityLevel: 0,
   });
 
-  const page = pages[0];
-  if (!page || !page.content) throw new Error('pdf-to-png-converter returned no pages');
-
+  if (!page || !page.content) throw new Error('pdf-to-png-converter returned no pages for the second pass');
   return { png: page.content, width: page.width, height: page.height };
 }

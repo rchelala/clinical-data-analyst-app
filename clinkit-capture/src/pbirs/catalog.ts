@@ -6,7 +6,8 @@ export async function resolveCatalogItem(
   baseUrl: string,
   reportPath: string
 ): Promise<{ id: string; type: string }> {
-  const url = `${baseUrl}/Reports/api/v2.0/CatalogItems(Path='${reportPath}')`;
+  const odataSafePath = reportPath.replace(/'/g, "''");
+  const url = `${baseUrl}/Reports/api/v2.0/CatalogItems(Path='${odataSafePath}')`;
   const data = (await client.getJson(url)) as Partial<CatalogItem>;
 
   if (!data.Id) {

@@ -1,0 +1,31 @@
+{
+  "name": "maw-walkthrough",
+  "pbirsBaseUrl": "http://tpdcpbi02",
+  "defaultPdfWidthPx": 1920,
+  "pages": [
+    {
+      "slug": "01-overview",
+      "reportPath": "/Clinical/MAW Dashboard",
+      "reportType": "pbix",
+      "pageName": "Overview",
+      "narration": "The MAW dashboard tracks Make-A-Wish qualifying patients across divisions.",
+      "durationSec": 6
+    },
+    {
+      "slug": "02-pipeline",
+      "reportPath": "/Clinical/MAW Dashboard",
+      "reportType": "pbix",
+      "pageName": "Attrition Pipeline",
+      "narration": "The attrition pipeline shows where patients drop off in the referral process.",
+      "durationSec": 7
+    },
+    {
+      "slug": "03-qualifiers",
+      "reportPath": "/Clinical/MAW Dashboard",
+      "reportType": "pbix",
+      "pageName": "Qualifiers",
+      "narration": "Lists individual patients currently meeting criteria.",
+      "durationSec": 6
+    }
+  ]
+}

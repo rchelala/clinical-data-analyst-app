@@ -323,7 +323,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No SQL provided." }, { status: 400 });
     }
 
-    const client = new Anthropic();
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
     const message = await client.messages.create({
       model: "claude-sonnet-4-6",

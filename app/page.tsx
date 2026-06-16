@@ -162,85 +162,35 @@ export default function Home() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-primary">
-      <Header />
+      {/* Fixed radial glow — behind all content, starts at top of page */}
+      <div className="fixed inset-0 -z-10 bg-[#0d1117]" />
+      <div className="fixed inset-0 -z-10 bg-[radial-gradient(ellipse_80%_40%_at_50%_0%,#525252,transparent)]" />
+      <Header provider={provider} onProviderChange={handleProviderChange} />
 
       {/* Tab bar */}
-      <div className="flex items-center justify-between gap-1 px-6 pt-3 border-b border-theme bg-secondary flex-shrink-0">
-        <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 px-6 border-b border-theme bg-primary-glass flex-shrink-0">
+        {(
+          [
+            { id: "field-request",    label: "Field Request",   Icon: TableProperties },
+            { id: "it-reference",     label: "IT Reference",    Icon: FileText        },
+            { id: "clinician-guide",  label: "Clinician Guide", Icon: Users           },
+            { id: "pbix-explorer",    label: "PBIX Explorer",   Icon: Search          },
+            { id: "commenter",        label: "Commenter",       Icon: Code2           },
+          ] as const
+        ).map(({ id, label, Icon }) => (
           <button
-            onClick={() => setActiveTab("commenter")}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-t-lg border-x border-t transition-colors ${
-              activeTab === "commenter"
-                ? "border-theme bg-primary text-primary"
+            key={id}
+            onClick={() => setActiveTab(id)}
+            className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === id
+                ? "border-brand-500 text-primary"
                 : "border-transparent text-secondary hover:text-primary"
             }`}
           >
-            <Code2 className="w-4 h-4" />
-            Code Commenter
+            <Icon className="w-4 h-4" />
+            {label}
           </button>
-          <button
-            onClick={() => setActiveTab("field-request")}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-t-lg border-x border-t transition-colors ${
-              activeTab === "field-request"
-                ? "border-theme bg-primary text-primary"
-                : "border-transparent text-secondary hover:text-primary"
-            }`}
-          >
-            <TableProperties className="w-4 h-4" />
-            Field Request
-          </button>
-          <button
-            onClick={() => setActiveTab("it-reference")}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-t-lg border-x border-t transition-colors ${
-              activeTab === "it-reference"
-                ? "border-theme bg-primary text-primary"
-                : "border-transparent text-secondary hover:text-primary"
-            }`}
-          >
-            <FileText className="w-4 h-4" />
-            IT Reference
-          </button>
-          <button
-            onClick={() => setActiveTab("clinician-guide")}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-t-lg border-x border-t transition-colors ${
-              activeTab === "clinician-guide"
-                ? "border-theme bg-primary text-primary"
-                : "border-transparent text-secondary hover:text-primary"
-            }`}
-          >
-            <Users className="w-4 h-4" />
-            Clinician Guide
-          </button>
-          <button
-            onClick={() => setActiveTab("pbix-explorer")}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-t-lg border-x border-t transition-colors ${
-              activeTab === "pbix-explorer"
-                ? "border-theme bg-primary text-primary"
-                : "border-transparent text-secondary hover:text-primary"
-            }`}
-          >
-            <Search className="w-4 h-4" />
-            PBIX Explorer
-          </button>
-        </div>
-
-        {/* AI provider selector — persists across both tabs */}
-        <div className="flex items-center gap-2 pb-1">
-          <Bot className="w-3.5 h-3.5 text-secondary flex-shrink-0" />
-          <select
-            value={provider}
-            onChange={(e) => handleProviderChange(e.target.value as AIProvider)}
-            className={`text-xs font-medium rounded-md border px-2 py-1 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer transition-colors ${
-              provider === "gemini"
-                ? "border-blue-400 dark:border-blue-600 text-blue-600 dark:text-blue-400"
-                : "border-theme"
-            }`}
-          >
-            {(Object.entries(PROVIDER_LABELS) as [AIProvider, string][]).map(([value, label]) => (
-              <option key={value} value={value}>{label}</option>
-            ))}
-          </select>
-        </div>
+        ))}
       </div>
 
       {/* ── Field Request tab ── */}
@@ -305,7 +255,7 @@ export default function Home() {
               <button
                 onClick={handleComment}
                 disabled={!input.trim() || isWorking}
-                className="flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-lg bg-brand-600 hover:bg-brand-700 text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-sm"
+                className="btn-shimmer flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-lg text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
               >
                 {loading ? (
                   <><Loader2 className="w-4 h-4 animate-spin" />Commenting…</>

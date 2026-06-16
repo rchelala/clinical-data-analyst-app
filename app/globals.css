@@ -56,3 +56,35 @@
 .monaco-editor-background {
   background-color: transparent !important;
 }
+
+/* ── Animated accents ── */
+@keyframes logo-pulse {
+  0%, 100% { background-position: 0% 50%; }
+  50%       { background-position: 100% 50%; }
+}
+
+@keyframes btn-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50%       { background-position: 100% 50%; }
+}
+
+.logo-pulse-bg {
+  background: linear-gradient(135deg, #3a5fff, #7c3aed, #0ea5e9, #3a5fff);
+  background-size: 300% 300%;
+  animation: logo-pulse 5s ease infinite;
+}
+
+.btn-shimmer {
+  background: linear-gradient(135deg, #3a5fff, #7c3aed, #3a5fff, #0ea5e9);
+  background-size: 300% 300%;
+  animation: btn-shimmer 4s ease infinite;
+}
+
+/* Semi-transparent zone backgrounds — lets the fixed radial glow show through */
+.bg-secondary-glass {
+  background: rgba(22, 27, 34, 0.75);
+}
+
+.bg-primary-glass {
+  background: rgba(13, 17, 23, 0.70);
+}

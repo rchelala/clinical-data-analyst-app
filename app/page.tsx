@@ -16,6 +16,14 @@ import { HistoryEntry, loadHistory, addHistoryEntry, removeHistoryEntry } from "
 import { AIProvider, loadProvider, saveProvider, PROVIDER_LABELS } from "@/lib/providers";
 import { Sparkles, Copy, Check, RotateCcw, AlertCircle, Loader2, FileText, ChevronDown, ChevronUp, Code2, TableProperties, Download, GitCompare, History, Bot, Users, Search } from "lucide-react";
 
+const APP_TABS = [
+  { id: "field-request",    label: "Field Request",   Icon: TableProperties },
+  { id: "it-reference",     label: "IT Reference",    Icon: FileText        },
+  { id: "clinician-guide",  label: "Clinician Guide", Icon: Users           },
+  { id: "pbix-explorer",    label: "PBIX Explorer",   Icon: Search          },
+  { id: "commenter",        label: "Commenter",       Icon: Code2           },
+] as const;
+
 const DAX_PLACEHOLDER = `// Paste your DAX measure here, e.g.:
 
 Total Sales YTD =
@@ -169,15 +177,7 @@ export default function Home() {
 
       {/* Tab bar */}
       <div className="flex items-center gap-1 px-6 border-b border-theme bg-primary-glass flex-shrink-0">
-        {(
-          [
-            { id: "field-request",    label: "Field Request",   Icon: TableProperties },
-            { id: "it-reference",     label: "IT Reference",    Icon: FileText        },
-            { id: "clinician-guide",  label: "Clinician Guide", Icon: Users           },
-            { id: "pbix-explorer",    label: "PBIX Explorer",   Icon: Search          },
-            { id: "commenter",        label: "Commenter",       Icon: Code2           },
-          ] as const
-        ).map(({ id, label, Icon }) => (
+        {APP_TABS.map(({ id, label, Icon }) => (
           <button
             key={id}
             onClick={() => setActiveTab(id)}

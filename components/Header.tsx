@@ -42,6 +42,7 @@ export function Header({ provider, onProviderChange }: HeaderProps) {
         <div className="flex items-center gap-2">
           <Bot className="w-3.5 h-3.5 text-secondary flex-shrink-0" />
           <select
+            aria-label="Select AI provider"
             value={provider}
             onChange={(e) => onProviderChange(e.target.value as AIProvider)}
             className={`text-xs font-medium rounded-md border px-2 py-1 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer transition-colors ${

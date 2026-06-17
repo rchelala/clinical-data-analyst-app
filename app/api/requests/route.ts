@@ -8,33 +8,60 @@ const VALID_REQUEST_TYPES = ['feature', 'bug', 'field_request'] as const;
 export async function GET(req: NextRequest) {
   try {
     const dashboardIdParam = req.nextUrl.searchParams.get('dashboardId');
-    const dashboardId = dashboardIdParam ? Number(dashboardIdParam) : NaN;
+    const subscriptionIdParam = req.nextUrl.searchParams.get('subscriptionId');
 
-    if (!dashboardIdParam || !Number.isFinite(dashboardId)) {
+    const dashboardId = dashboardIdParam ? Number(dashboardIdParam) : NaN;
+    const subscriptionId = subscriptionIdParam ? Number(subscriptionIdParam) : NaN;
+
+    const hasDashboardId = !!dashboardIdParam && Number.isFinite(dashboardId);
+    const hasSubscriptionId = !!subscriptionIdParam && Number.isFinite(subscriptionId);
+
+    if (hasDashboardId === hasSubscriptionId) {
       return NextResponse.json(
-        { error: 'dashboardId query param is required and must be numeric.' },
+        { error: 'Provide exactly one of dashboardId or subscriptionId query params, and it must be numeric.' },
         { status: 400 }
       );
     }
 
-    const rows = await sql`
-      SELECT
-        r.id,
-        r.dashboard_id,
-        r.created_by_id,
-        r.title,
-        r.description,
-        r.request_type,
-        r.status,
-        r.jira_ticket_id,
-        r.created_date,
-        r.completed_date,
-        a.name AS created_by_name
-      FROM requests r
-      JOIN analysts a ON a.id = r.created_by_id
-      WHERE r.dashboard_id = ${dashboardId}
-      ORDER BY r.created_date DESC
-    `;
+    const rows = hasDashboardId
+      ? await sql`
+          SELECT
+            r.id,
+            r.dashboard_id,
+            r.subscription_id,
+            r.created_by_id,
+            r.title,
+            r.description,
+            r.request_type,
+            r.status,
+            r.jira_ticket_id,
+            r.created_date,
+            r.completed_date,
+            a.name AS created_by_name
+          FROM requests r
+          JOIN analysts a ON a.id = r.created_by_id
+          WHERE r.dashboard_id = ${dashboardId}
+          ORDER BY r.created_date DESC
+        `
+      : await sql`
+          SELECT
+            r.id,
+            r.dashboard_id,
+            r.subscription_id,
+            r.created_by_id,
+            r.title,
+            r.description,
+            r.request_type,
+            r.status,
+            r.jira_ticket_id,
+            r.created_date,
+            r.completed_date,
+            a.name AS created_by_name
+          FROM requests r
+          JOIN analysts a ON a.id = r.created_by_id
+          WHERE r.subscription_id = ${subscriptionId}
+          ORDER BY r.created_date DESC
+        `;
 
     return NextResponse.json(rows.map(mapRequestWithCreatorRow));
   } catch (err: unknown) {
@@ -63,17 +90,28 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json() as {
       dashboardId?: number;
+      subscriptionId?: number;
       title?: string;
       description?: string;
       requestType?: string;
       jiraTicketId?: string;
     };
 
-    const { dashboardId, title, description, requestType, jiraTicketId } = body;
+    const { dashboardId, subscriptionId, title, description, requestType, jiraTicketId } = body;
 
-    if (dashboardId === undefined || dashboardId === null || !title?.trim()) {
+    const hasDashboardId = dashboardId !== undefined && dashboardId !== null;
+    const hasSubscriptionId = subscriptionId !== undefined && subscriptionId !== null;
+
+    if (hasDashboardId === hasSubscriptionId) {
       return NextResponse.json(
-        { error: 'dashboardId and title are required.' },
+        { error: 'Provide exactly one of dashboardId or subscriptionId.' },
+        { status: 400 }
+      );
+    }
+
+    if (!title?.trim()) {
+      return NextResponse.json(
+        { error: 'title is required.' },
         { status: 400 }
       );
     }
@@ -86,19 +124,28 @@ export async function POST(req: NextRequest) {
     }
 
     const rows = await sql`
-      INSERT INTO requests (dashboard_id, created_by_id, title, description, request_type, jira_ticket_id)
-      VALUES (${dashboardId}, ${createdById}, ${title}, ${description ?? null}, ${requestType ?? 'feature'}, ${jiraTicketId ?? null})
-      RETURNING id, dashboard_id, created_by_id, title, description, request_type, status, jira_ticket_id, created_date, completed_date
+      INSERT INTO requests (dashboard_id, subscription_id, created_by_id, title, description, request_type, jira_ticket_id)
+      VALUES (${dashboardId ?? null}, ${subscriptionId ?? null}, ${createdById}, ${title}, ${description ?? null}, ${requestType ?? 'feature'}, ${jiraTicketId ?? null})
+      RETURNING id, dashboard_id, subscription_id, created_by_id, title, description, request_type, status, jira_ticket_id, created_date, completed_date
     `;
 
     return NextResponse.json(mapRequestRow(rows[0]), { status: 201 });
   } catch (err: unknown) {
     console.error('Create request error:', err);
-    if (err && typeof err === 'object' && 'code' in err && (err as { code?: string }).code === '23503') {
-      return NextResponse.json(
-        { error: 'Referenced dashboardId does not exist' },
-        { status: 400 }
-      );
+    if (err && typeof err === 'object' && 'code' in err) {
+      const code = (err as { code?: string }).code;
+      if (code === '23503') {
+        return NextResponse.json(
+          { error: 'Referenced dashboardId/subscriptionId does not exist' },
+          { status: 400 }
+        );
+      }
+      if (code === '23514') {
+        return NextResponse.json(
+          { error: 'Provide exactly one of dashboardId or subscriptionId.' },
+          { status: 400 }
+        );
+      }
     }
     const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
     return NextResponse.json({ error: message }, { status: 500 });

@@ -36,13 +36,13 @@ export async function PATCH(
             UPDATE requests
             SET status = ${status}, completed_date = CURRENT_DATE
             WHERE id = ${requestId}
-            RETURNING id, dashboard_id, created_by_id, title, description, request_type, status, jira_ticket_id, created_date, completed_date
+            RETURNING id, dashboard_id, subscription_id, created_by_id, title, description, request_type, status, jira_ticket_id, created_date, completed_date
           `
         : await sql`
             UPDATE requests
             SET status = ${status}, completed_date = NULL
             WHERE id = ${requestId}
-            RETURNING id, dashboard_id, created_by_id, title, description, request_type, status, jira_ticket_id, created_date, completed_date
+            RETURNING id, dashboard_id, subscription_id, created_by_id, title, description, request_type, status, jira_ticket_id, created_date, completed_date
           `;
 
     if (rows.length === 0) {

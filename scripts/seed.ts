@@ -89,6 +89,10 @@ const ROBERT_DASHBOARDS: Array<{ name: string; division: string }> = [
   { name: 'MAW', division: 'NO GROUP' },
 ];
 
+const ROBERT_SUBSCRIPTIONS: Array<{ name: string; division: string }> = [
+  { name: 'CCBD Expected Admits', division: 'HEMATOLOGY ONCOLOGY' },
+];
+
 async function main() {
   let analystsInserted = 0;
   for (const name of ANALYSTS) {
@@ -145,10 +149,36 @@ async function main() {
     }
   }
 
+  let subscriptionsInserted = 0;
+  for (const { name, division } of ROBERT_SUBSCRIPTIONS) {
+    const divisionRows = await sql`
+      SELECT id FROM divisions WHERE name = ${division}
+    `;
+    if (divisionRows.length === 0) {
+      throw new Error(`Division "${division}" not found for subscription "${name}"`);
+    }
+    const divisionId = divisionRows[0].id as number;
+
+    // report_subscriptions has no unique constraint to use as an ON CONFLICT
+    // target, so idempotency is enforced manually: skip if a subscription
+    // with this name already exists for this division.
+    const existing = await sql`
+      SELECT id FROM report_subscriptions WHERE name = ${name} AND division_id = ${divisionId}
+    `;
+    if (existing.length === 0) {
+      await sql`
+        INSERT INTO report_subscriptions (name, division_id, analyst_id)
+        VALUES (${name}, ${divisionId}, ${robertId})
+      `;
+      subscriptionsInserted++;
+    }
+  }
+
   console.log(
     `Seed complete: ${analystsInserted}/${ANALYSTS.length} analysts, ` +
       `${divisionsInserted}/${DIVISIONS.length} divisions, ` +
-      `${dashboardsInserted}/${ROBERT_DASHBOARDS.length} dashboards inserted (new rows only).`
+      `${dashboardsInserted}/${ROBERT_DASHBOARDS.length} dashboards, ` +
+      `${subscriptionsInserted}/${ROBERT_SUBSCRIPTIONS.length} subscriptions inserted (new rows only).`
   );
 }
 

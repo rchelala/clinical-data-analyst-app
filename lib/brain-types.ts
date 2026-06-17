@@ -33,12 +33,33 @@ export interface DashboardWithUrgency extends Dashboard {
   radius: number;
 }
 
+export type BrainEntityKind = 'dashboard' | 'subscription';
+
+export interface ReportSubscription {
+  id: number;
+  name: string;
+  divisionId: number;
+  analystId: number | null;
+  stakeholder: string | null;
+  status: DashboardStatus; // reuse the existing status union type, it's generic enough
+  jiraTicketId: string | null;
+  lastTouchedDate: string;
+  createdDate: string;
+}
+
+export interface ReportSubscriptionWithUrgency extends ReportSubscription {
+  openRequestCount: number;
+  urgency: number;
+  radius: number;
+}
+
 export type RequestType = 'feature' | 'bug' | 'field_request';
 export type RequestStatus = 'open' | 'in_progress' | 'done';
 
 export interface Request {
   id: number;
-  dashboardId: number;
+  dashboardId: number | null;
+  subscriptionId: number | null;
   createdById: number;
   title: string;
   description: string | null;

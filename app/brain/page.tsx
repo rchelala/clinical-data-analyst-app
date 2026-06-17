@@ -1,26 +1,42 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, ClipboardPlus } from "lucide-react";
 import { AnalystSelector } from "@/components/brain/AnalystSelector";
-import { DashboardBrain } from "@/components/brain/DashboardBrain";
-import { RequestSidePanel } from "@/components/brain/RequestSidePanel";
+import { DivisionBrain, DivisionNode } from "@/components/brain/DivisionBrain";
+import { DivisionDetailBrain } from "@/components/brain/DivisionDetailBrain";
+import { RequestSidePanel, RequestSidePanelEntity } from "@/components/brain/RequestSidePanel";
 import { AddRequestForm } from "@/components/brain/AddRequestForm";
-import { Division, DashboardWithUrgency } from "@/lib/brain-types";
+import { AddSubscriptionForm } from "@/components/brain/AddSubscriptionForm";
+import {
+  BrainEntityKind,
+  Division,
+  DashboardWithUrgency,
+  ReportSubscriptionWithUrgency,
+} from "@/lib/brain-types";
+
+interface SelectedEntity {
+  kind: BrainEntityKind;
+  id: number;
+}
 
 export default function BrainPage() {
   const [currentAnalystId, setCurrentAnalystId] = useState<number | null>(null);
   const [dashboards, setDashboards] = useState<DashboardWithUrgency[]>([]);
+  const [subscriptions, setSubscriptions] = useState<ReportSubscriptionWithUrgency[]>([]);
   const [divisions, setDivisions] = useState<Division[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // All dashboards (not scoped to the current analyst), used to populate the
-  // "Add Request" dashboard dropdown per the design doc.
+  // All dashboards/subscriptions (not scoped to the current analyst), used to
+  // populate the "Add Request" dropdown per the design doc.
   const [allDashboards, setAllDashboards] = useState<DashboardWithUrgency[]>([]);
-  const [selectedDashboardId, setSelectedDashboardId] = useState<number | null>(null);
+  const [allSubscriptions, setAllSubscriptions] = useState<ReportSubscriptionWithUrgency[]>([]);
+  const [selectedDivisionId, setSelectedDivisionId] = useState<number | null>(null);
+  const [selectedEntity, setSelectedEntity] = useState<SelectedEntity | null>(null);
   const [showAddRequestForm, setShowAddRequestForm] = useState(false);
-  // Bumping this re-runs the dashboards-fetching effect below, letting us
-  // refresh urgency/counts after a new request is created.
+  const [showAddSubscriptionForm, setShowAddSubscriptionForm] = useState(false);
+  // Bumping this re-runs the dashboards/subscriptions-fetching effect below,
+  // letting us refresh urgency/counts after a new request is created.
   const [refreshKey, setRefreshKey] = useState(0);
 
   const handleSelectAnalyst = useCallback((analystId: number) => {
@@ -43,6 +59,48 @@ export default function BrainPage() {
     []
   );
 
+  // Mirror of fetchDashboards for /api/report-subscriptions.
+  const fetchSubscriptions = useCallback(
+    async (headers?: HeadersInit): Promise<ReportSubscriptionWithUrgency[]> => {
+      const res = await fetch("/api/report-subscriptions", headers ? { headers } : undefined);
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error ?? "Could not load report subscriptions.");
+      }
+      return data;
+    },
+    []
+  );
+
+  // One-time, unscoped division list — not analyst-specific, so it doesn't
+  // need to refetch on analyst switch or refreshKey bumps.
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await fetch("/api/divisions");
+        const data = await res.json();
+        if (cancelled) return;
+
+        if (!res.ok) {
+          setError(data.error ?? "Could not load divisions.");
+          return;
+        }
+        setDivisions(data);
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Network error — could not reach the server.");
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Main effect: fetch analyst-scoped dashboards + subscriptions.
   useEffect(() => {
     if (currentAnalystId === null) return;
 
@@ -52,22 +110,15 @@ export default function BrainPage() {
 
     (async () => {
       try {
-        const [dashboardsData, divisionsRes] = await Promise.all([
+        const [dashboardsData, subscriptionsData] = await Promise.all([
           fetchDashboards({ "x-analyst-id": String(currentAnalystId) }),
-          fetch("/api/divisions"),
+          fetchSubscriptions({ "x-analyst-id": String(currentAnalystId) }),
         ]);
-
-        const divisionsData = await divisionsRes.json();
 
         if (cancelled) return;
 
-        if (!divisionsRes.ok) {
-          setError(divisionsData.error ?? "Could not load divisions.");
-          return;
-        }
-
         setDashboards(dashboardsData);
-        setDivisions(divisionsData);
+        setSubscriptions(subscriptionsData);
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Network error — could not reach the server.");
@@ -80,12 +131,12 @@ export default function BrainPage() {
     return () => {
       cancelled = true;
     };
-  }, [currentAnalystId, refreshKey, fetchDashboards]);
+  }, [currentAnalystId, refreshKey, fetchDashboards, fetchSubscriptions]);
 
-  // Separate, non-blocking fetch of ALL dashboards (no x-analyst-id header)
-  // for the Add Request form's dashboard dropdown. Doesn't gate the main
-  // view. Triggered when the form opens rather than on every refreshKey
-  // bump, since the dashboard list rarely changes just from adding a request.
+  // Separate, non-blocking fetch of ALL dashboards + subscriptions (no
+  // x-analyst-id header) for the Add Request form's dropdown. Doesn't gate
+  // the main view. Triggered when the form opens rather than on every
+  // refreshKey bump, since the lists rarely change just from adding a request.
   useEffect(() => {
     if (currentAnalystId === null || !showAddRequestForm) return;
 
@@ -93,18 +144,91 @@ export default function BrainPage() {
 
     (async () => {
       try {
-        const data = await fetchDashboards();
-        if (!cancelled) setAllDashboards(data);
+        const [dashboardsData, subscriptionsData] = await Promise.all([
+          fetchDashboards(),
+          fetchSubscriptions(),
+        ]);
+        if (!cancelled) {
+          setAllDashboards(dashboardsData);
+          setAllSubscriptions(subscriptionsData);
+        }
       } catch {
         // Non-critical for the main view; the Add Request form will simply
-        // show an empty dashboard list if this fails.
+        // show an empty list if this fails.
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [currentAnalystId, showAddRequestForm, fetchDashboards]);
+  }, [currentAnalystId, showAddRequestForm, fetchDashboards, fetchSubscriptions]);
+
+  // Group dashboards+subscriptions by divisionId to build the top-level
+  // division nodes, each positioned at the min radius across its children.
+  const divisionNodes = useMemo<DivisionNode[]>(() => {
+    const radiiByDivision = new Map<number, number[]>();
+
+    const addRadius = (divisionId: number, radius: number) => {
+      const existing = radiiByDivision.get(divisionId);
+      if (existing) {
+        existing.push(radius);
+      } else {
+        radiiByDivision.set(divisionId, [radius]);
+      }
+    };
+
+    dashboards.forEach((d) => addRadius(d.divisionId, d.radius));
+    subscriptions.forEach((s) => addRadius(s.divisionId, s.radius));
+
+    const nodes: DivisionNode[] = [];
+    for (const [divisionId, radii] of radiiByDivision.entries()) {
+      const division = divisions.find((d) => d.id === divisionId);
+      if (!division) continue; // division not found — skip rather than crash
+      nodes.push({ division, radius: Math.min(...radii) });
+    }
+    return nodes;
+  }, [dashboards, subscriptions, divisions]);
+
+  const selectedDivision = useMemo(
+    () => (selectedDivisionId !== null ? divisions.find((d) => d.id === selectedDivisionId) ?? null : null),
+    [selectedDivisionId, divisions]
+  );
+
+  const divisionDashboards = useMemo(
+    () => dashboards.filter((d) => d.divisionId === selectedDivisionId),
+    [dashboards, selectedDivisionId]
+  );
+
+  const divisionSubscriptions = useMemo(
+    () => subscriptions.filter((s) => s.divisionId === selectedDivisionId),
+    [subscriptions, selectedDivisionId]
+  );
+
+  const sidePanelEntity = useMemo<RequestSidePanelEntity | null>(() => {
+    if (!selectedEntity) return null;
+
+    if (selectedEntity.kind === "dashboard") {
+      const dashboard = dashboards.find((d) => d.id === selectedEntity.id);
+      if (!dashboard) return null;
+      return {
+        kind: "dashboard",
+        id: dashboard.id,
+        name: dashboard.name,
+        stakeholder: dashboard.stakeholder,
+      };
+    }
+
+    const subscription = subscriptions.find((s) => s.id === selectedEntity.id);
+    if (!subscription) return null;
+    return {
+      kind: "subscription",
+      id: subscription.id,
+      name: subscription.name,
+      stakeholder: subscription.stakeholder,
+    };
+  }, [selectedEntity, dashboards, subscriptions]);
+
+  const hasAnyEntities = dashboards.length > 0 || subscriptions.length > 0;
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-primary">
@@ -148,7 +272,7 @@ export default function BrainPage() {
           </div>
         )}
 
-        {currentAnalystId !== null && !loading && !error && dashboards.length === 0 && (
+        {currentAnalystId !== null && !loading && !error && !hasAnyEntities && (
           <div className="flex items-center justify-center h-full">
             <p className="text-sm text-secondary">
               No dashboards assigned to you yet.
@@ -156,29 +280,52 @@ export default function BrainPage() {
           </div>
         )}
 
-        {currentAnalystId !== null && !loading && !error && dashboards.length > 0 && (
-          <DashboardBrain
-            dashboards={dashboards}
-            divisions={divisions}
-            onSelectDashboard={(id) => setSelectedDashboardId(id)}
+        {currentAnalystId !== null && !loading && !error && hasAnyEntities && selectedDivisionId === null && (
+          <DivisionBrain
+            divisionNodes={divisionNodes}
+            onSelectDivision={setSelectedDivisionId}
+          />
+        )}
+
+        {currentAnalystId !== null && !loading && !error && hasAnyEntities && selectedDivision && (
+          <DivisionDetailBrain
+            division={selectedDivision}
+            dashboards={divisionDashboards}
+            subscriptions={divisionSubscriptions}
+            onSelectEntity={(kind, id) => setSelectedEntity({ kind, id })}
+            onBack={() => setSelectedDivisionId(null)}
+            onAddSubscription={() => setShowAddSubscriptionForm(true)}
           />
         )}
       </main>
 
       <RequestSidePanel
-        dashboard={dashboards.find((d) => d.id === selectedDashboardId) ?? null}
-        onClose={() => setSelectedDashboardId(null)}
+        entity={sidePanelEntity}
+        onClose={() => setSelectedEntity(null)}
       />
 
       {showAddRequestForm && currentAnalystId !== null && (
         <AddRequestForm
           dashboards={allDashboards}
+          subscriptions={allSubscriptions}
           currentAnalystId={currentAnalystId}
           onCreated={() => {
             setShowAddRequestForm(false);
             setRefreshKey((k) => k + 1);
           }}
           onCancel={() => setShowAddRequestForm(false)}
+        />
+      )}
+
+      {showAddSubscriptionForm && currentAnalystId !== null && selectedDivision && (
+        <AddSubscriptionForm
+          division={selectedDivision}
+          currentAnalystId={currentAnalystId}
+          onCreated={() => {
+            setShowAddSubscriptionForm(false);
+            setRefreshKey((k) => k + 1);
+          }}
+          onCancel={() => setShowAddSubscriptionForm(false)}
         />
       )}
     </div>

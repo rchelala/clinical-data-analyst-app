@@ -2,10 +2,17 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { X, Loader2 } from "lucide-react";
-import { DashboardWithUrgency, RequestStatus, RequestWithCreator } from "@/lib/brain-types";
+import { BrainEntityKind, RequestStatus, RequestWithCreator } from "@/lib/brain-types";
+
+export interface RequestSidePanelEntity {
+  kind: BrainEntityKind;
+  id: number;
+  name: string;
+  stakeholder: string | null;
+}
 
 interface RequestSidePanelProps {
-  dashboard: DashboardWithUrgency | null;
+  entity: RequestSidePanelEntity | null;
   onClose: () => void;
 }
 
@@ -24,7 +31,7 @@ function formatDate(dateString: string | null): string {
   return d.toLocaleDateString();
 }
 
-export function RequestSidePanel({ dashboard, onClose }: RequestSidePanelProps) {
+export function RequestSidePanel({ entity, onClose }: RequestSidePanelProps) {
   const [requests, setRequests] = useState<RequestWithCreator[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,8 +42,8 @@ export function RequestSidePanel({ dashboard, onClose }: RequestSidePanelProps) 
   const [updatingIds, setUpdatingIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
-    if (!dashboard) return;
-    const dashboardId = dashboard.id;
+    if (!entity) return;
+    const { kind, id } = entity;
 
     let cancelled = false;
     setLoading(true);
@@ -45,7 +52,8 @@ export function RequestSidePanel({ dashboard, onClose }: RequestSidePanelProps) 
 
     (async () => {
       try {
-        const res = await fetch(`/api/requests?dashboardId=${dashboardId}`);
+        const queryParam = kind === "dashboard" ? `dashboardId=${id}` : `subscriptionId=${id}`;
+        const res = await fetch(`/api/requests?${queryParam}`);
         const data = await res.json();
         if (cancelled) return;
 
@@ -65,11 +73,12 @@ export function RequestSidePanel({ dashboard, onClose }: RequestSidePanelProps) 
     return () => {
       cancelled = true;
     };
-    // Only refetch when the selected dashboard's id changes, not when the
-    // parent passes a structurally-identical-but-new dashboard object
-    // (e.g. after a refreshKey-triggered parent refetch).
+    // Only refetch when the selected entity's kind+id changes, not when the
+    // parent passes a structurally-identical-but-new entity object (e.g.
+    // after a refreshKey-triggered parent refetch). Both kind and id must be
+    // tracked so switching from dashboard #3 to subscription #3 refetches.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dashboard?.id]);
+  }, [entity?.kind, entity?.id]);
 
   const handleStatusChange = useCallback(
     async (requestId: number, newStatus: RequestStatus) => {
@@ -115,7 +124,7 @@ export function RequestSidePanel({ dashboard, onClose }: RequestSidePanelProps) 
     []
   );
 
-  if (!dashboard) return null;
+  if (!entity) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -131,10 +140,10 @@ export function RequestSidePanel({ dashboard, onClose }: RequestSidePanelProps) 
         <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-theme flex-shrink-0">
           <div>
             <h2 className="text-sm font-semibold text-primary leading-none">
-              {dashboard.name}
+              {entity.name}
             </h2>
             <p className="text-xs text-secondary mt-0.5">
-              Stakeholder: {dashboard.stakeholder ?? "—"}
+              Stakeholder: {entity.stakeholder ?? "—"}
             </p>
           </div>
           <button
@@ -159,7 +168,7 @@ export function RequestSidePanel({ dashboard, onClose }: RequestSidePanelProps) 
           )}
 
           {!loading && !error && requests.length === 0 && (
-            <p className="text-sm text-secondary">No requests for this dashboard yet.</p>
+            <p className="text-sm text-secondary">No requests yet.</p>
           )}
 
           {!loading && !error && requests.length > 0 && (

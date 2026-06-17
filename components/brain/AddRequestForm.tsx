@@ -2,10 +2,15 @@
 
 import { useState, useCallback } from "react";
 import { ClipboardPlus } from "lucide-react";
-import { DashboardWithUrgency, RequestType } from "@/lib/brain-types";
+import {
+  DashboardWithUrgency,
+  ReportSubscriptionWithUrgency,
+  RequestType,
+} from "@/lib/brain-types";
 
 interface AddRequestFormProps {
   dashboards: DashboardWithUrgency[];
+  subscriptions: ReportSubscriptionWithUrgency[];
   currentAnalystId: number;
   onCreated: () => void;
   onCancel: () => void;
@@ -19,13 +24,17 @@ const REQUEST_TYPE_OPTIONS: { value: RequestType; label: string }[] = [
 
 export function AddRequestForm({
   dashboards,
+  subscriptions,
   currentAnalystId,
   onCreated,
   onCancel,
 }: AddRequestFormProps) {
-  const [dashboardId, setDashboardId] = useState<string>(
-    dashboards[0] ? String(dashboards[0].id) : ""
-  );
+  const firstOptionValue = dashboards[0]
+    ? `dashboard:${dashboards[0].id}`
+    : subscriptions[0]
+      ? `subscription:${subscriptions[0].id}`
+      : "";
+  const [entityValue, setEntityValue] = useState<string>(firstOptionValue);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [requestType, setRequestType] = useState<RequestType>("feature");
@@ -37,9 +46,13 @@ export function AddRequestForm({
       e.preventDefault();
       setError(null);
 
-      const parsedDashboardId = Number(dashboardId);
-      if (!dashboardId || !Number.isFinite(parsedDashboardId)) {
-        setError("Please select a dashboard.");
+      const separatorIndex = entityValue.indexOf(":");
+      const kind = separatorIndex >= 0 ? entityValue.slice(0, separatorIndex) : "";
+      const idPart = separatorIndex >= 0 ? entityValue.slice(separatorIndex + 1) : "";
+      const parsedId = Number(idPart);
+
+      if ((kind !== "dashboard" && kind !== "subscription") || !Number.isFinite(parsedId)) {
+        setError("Please select a dashboard or subscription.");
         return;
       }
       if (!title.trim()) {
@@ -56,7 +69,8 @@ export function AddRequestForm({
             "x-analyst-id": String(currentAnalystId),
           },
           body: JSON.stringify({
-            dashboardId: parsedDashboardId,
+            dashboardId: kind === "dashboard" ? parsedId : undefined,
+            subscriptionId: kind === "subscription" ? parsedId : undefined,
             title: title.trim(),
             description: description.trim() ? description.trim() : undefined,
             requestType,
@@ -76,7 +90,7 @@ export function AddRequestForm({
         setSubmitting(false);
       }
     },
-    [dashboardId, title, description, requestType, currentAnalystId, onCreated]
+    [entityValue, title, description, requestType, currentAnalystId, onCreated]
   );
 
   return (
@@ -91,7 +105,7 @@ export function AddRequestForm({
               Add request
             </h2>
             <p className="text-xs text-secondary mt-0.5">
-              Log a new request against a dashboard.
+              Log a new request against a dashboard or subscription.
             </p>
           </div>
         </div>
@@ -99,21 +113,36 @@ export function AddRequestForm({
         <form onSubmit={handleSubmit} className="px-5 py-4 flex flex-col gap-4">
           <div className="flex flex-col gap-1">
             <label htmlFor="dashboard" className="text-xs font-medium text-secondary">
-              Dashboard <span className="text-red-500">*</span>
+              Dashboard / Subscription <span className="text-red-500">*</span>
             </label>
             <select
               id="dashboard"
-              value={dashboardId}
-              onChange={(e) => setDashboardId(e.target.value)}
+              value={entityValue}
+              onChange={(e) => setEntityValue(e.target.value)}
               required
               className="text-sm rounded-md border border-theme px-3 py-2 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer transition-colors"
             >
-              {dashboards.length === 0 && <option value="">No dashboards available</option>}
-              {dashboards.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
+              {dashboards.length === 0 && subscriptions.length === 0 && (
+                <option value="">No dashboards or subscriptions available</option>
+              )}
+              {dashboards.length > 0 && (
+                <optgroup label="Dashboards">
+                  {dashboards.map((d) => (
+                    <option key={`dashboard:${d.id}`} value={`dashboard:${d.id}`}>
+                      {d.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
+              {subscriptions.length > 0 && (
+                <optgroup label="Report Subscriptions">
+                  {subscriptions.map((s) => (
+                    <option key={`subscription:${s.id}`} value={`subscription:${s.id}`}>
+                      {s.name}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </div>
 
@@ -177,7 +206,7 @@ export function AddRequestForm({
             </button>
             <button
               type="submit"
-              disabled={submitting || dashboards.length === 0}
+              disabled={submitting || (dashboards.length === 0 && subscriptions.length === 0)}
               className="px-3 py-1.5 text-xs font-medium rounded-md bg-brand-600 hover:bg-brand-700 text-white transition-colors disabled:opacity-60"
             >
               {submitting ? "Creating…" : "Create request"}

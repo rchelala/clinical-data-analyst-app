@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ClipboardPlus } from "lucide-react";
 import { computePositionInWedge, computeRequestMoonPositions, Wedge } from "@/lib/layout-math";
 import {
   Division,
@@ -17,6 +17,7 @@ interface DivisionDetailBrainProps {
   subscriptions: ReportSubscriptionWithUrgency[]; // already filtered by caller to just this division
   onSelectEntity: (kind: BrainEntityKind, id: number) => void;
   onBack: () => void;
+  onAddSubscription?: () => void;
 }
 
 interface EntityRef {
@@ -63,6 +64,7 @@ export function DivisionDetailBrain({
   subscriptions,
   onSelectEntity,
   onBack,
+  onAddSubscription,
 }: DivisionDetailBrainProps) {
   const [hovered, setHovered] = useState<EntityRef | null>(null);
 
@@ -105,6 +107,15 @@ export function DivisionDetailBrain({
           All divisions
         </button>
         <h2 className="text-sm font-semibold text-primary">{division.name}</h2>
+        {onAddSubscription && (
+          <button
+            onClick={onAddSubscription}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors ml-auto"
+          >
+            <ClipboardPlus className="w-3 h-3" />
+            Add Subscription
+          </button>
+        )}
       </div>
 
       <div className="relative flex-1 flex items-center justify-center">

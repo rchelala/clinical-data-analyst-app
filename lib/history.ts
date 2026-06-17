@@ -68,6 +68,7 @@ export interface FieldRequestEntry {
   tableName: string;
   date: string;
   rows: Record<string, string | number>[];
+  attachedDashboardName?: string; // set after a successful attach, for display only
 }
 
 const FIELD_KEY = "field_request_history";
@@ -111,6 +112,18 @@ export function removeFieldHistoryEntry(
   id: string
 ): FieldRequestEntry[] {
   const updated = entries.filter((e) => e.id !== id);
+  saveFieldHistory(updated);
+  return updated;
+}
+
+export function markFieldHistoryEntryAttached(
+  entries: FieldRequestEntry[],
+  id: string,
+  dashboardName: string
+): FieldRequestEntry[] {
+  const updated = entries.map((e) =>
+    e.id === id ? { ...e, attachedDashboardName: dashboardName } : e
+  );
   saveFieldHistory(updated);
   return updated;
 }

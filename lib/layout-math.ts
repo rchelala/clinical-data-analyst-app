@@ -4,7 +4,7 @@
 // by urgency, and are grouped into division-based angular wedges. Keeping
 // this file pure makes it independently unit-testable.
 
-import { Division, DashboardWithUrgency } from './brain-types';
+import { Division } from './brain-types';
 
 export interface Wedge {
   startAngle: number;
@@ -48,11 +48,10 @@ export function computeDivisionWedges(
 
 /**
  * Computes the SVG-ready (x, y) offset (from the center origin) and the
- * polar angle (in degrees) for a single dashboard within its division's
- * wedge. Dashboards are distributed evenly across the wedge's angular range,
- * with small padding reserved on each side so dashboards don't sit flush
- * against a wedge boundary (and risk visually overlapping a neighboring
- * division's dashboards).
+ * polar angle (in degrees) for a single item within a wedge. Items are
+ * distributed evenly across the wedge's angular range, with small padding
+ * reserved on each side so items don't sit flush against a wedge boundary
+ * (and risk visually overlapping a neighboring wedge's items).
  *
  * Angle convention: 0 degrees points to 12 o'clock (straight up), and angles
  * increase clockwise. Standard SVG/math convention has angle 0 point right
@@ -61,33 +60,34 @@ export function computeDivisionWedges(
  * (this makes angle 0 point up, and increasing angle rotate clockwise
  * toward +x).
  *
- * The radial distance comes from `dashboard.radius`, which is already
- * computed server-side based on urgency.
+ * `radius` is the radial distance from the center origin (already computed
+ * by the caller, e.g. server-side based on urgency, or a per-division
+ * aggregate). Pass `index=0, count=1` to place a single item at the wedge's
+ * angular center (e.g. a division node within its own wedge).
  */
-export function computeDashboardPosition(
-  dashboard: DashboardWithUrgency,
+export function computePositionInWedge(
+  radius: number,
   wedge: Wedge,
-  indexInDivision: number,
-  countInDivision: number
+  index: number,
+  count: number
 ): PolarPosition {
   const wedgeSpan = wedge.endAngle - wedge.startAngle;
 
   // Reserve 10% padding on each side of the wedge before distributing
-  // dashboards, so they never sit flush against a wedge boundary.
+  // items, so they never sit flush against a wedge boundary.
   const padding = wedgeSpan * 0.1;
   const usableStart = wedge.startAngle + padding;
   const usableEnd = wedge.endAngle - padding;
   const usableSpan = usableEnd - usableStart;
 
-  // Distribute dashboards evenly across the usable span. With a single
-  // dashboard, place it at the center of the usable span.
+  // Distribute items evenly across the usable span. With a single item,
+  // place it at the center of the usable span.
   const angle =
-    countInDivision <= 1
+    count <= 1
       ? usableStart + usableSpan / 2
-      : usableStart + (usableSpan * indexInDivision) / (countInDivision - 1);
+      : usableStart + (usableSpan * index) / (count - 1);
 
   const angleRad = (angle * Math.PI) / 180;
-  const radius = dashboard.radius;
 
   const x = radius * Math.sin(angleRad);
   const y = -radius * Math.cos(angleRad);

@@ -48,3 +48,7 @@ export interface Request {
   createdDate: string;
   completedDate: string | null;
 }
+
+export interface RequestWithCreator extends Request {
+  createdByName: string;
+}

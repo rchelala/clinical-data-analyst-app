@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, ClipboardPlus } from "lucide-react";
 import { AnalystSelector } from "@/components/brain/AnalystSelector";
 import { DashboardBrain } from "@/components/brain/DashboardBrain";
+import { RequestSidePanel } from "@/components/brain/RequestSidePanel";
+import { AddRequestForm } from "@/components/brain/AddRequestForm";
 import { Division, DashboardWithUrgency } from "@/lib/brain-types";
 
 export default function BrainPage() {
@@ -12,10 +14,34 @@ export default function BrainPage() {
   const [divisions, setDivisions] = useState<Division[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // All dashboards (not scoped to the current analyst), used to populate the
+  // "Add Request" dashboard dropdown per the design doc.
+  const [allDashboards, setAllDashboards] = useState<DashboardWithUrgency[]>([]);
+  const [selectedDashboardId, setSelectedDashboardId] = useState<number | null>(null);
+  const [showAddRequestForm, setShowAddRequestForm] = useState(false);
+  // Bumping this re-runs the dashboards-fetching effect below, letting us
+  // refresh urgency/counts after a new request is created.
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const handleSelectAnalyst = useCallback((analystId: number) => {
     setCurrentAnalystId(analystId);
   }, []);
+
+  // Shared fetch-and-parse logic for /api/dashboards, used by both the
+  // analyst-scoped fetch and the unscoped "all dashboards" fetch below.
+  // Throws on network/HTTP error so callers can handle cancellation and
+  // state-setting in their own try/catch.
+  const fetchDashboards = useCallback(
+    async (headers?: HeadersInit): Promise<DashboardWithUrgency[]> => {
+      const res = await fetch("/api/dashboards", headers ? { headers } : undefined);
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error ?? "Could not load dashboards.");
+      }
+      return data;
+    },
+    []
+  );
 
   useEffect(() => {
     if (currentAnalystId === null) return;
@@ -26,24 +52,15 @@ export default function BrainPage() {
 
     (async () => {
       try {
-        const [dashboardsRes, divisionsRes] = await Promise.all([
-          fetch("/api/dashboards", {
-            headers: { "x-analyst-id": String(currentAnalystId) },
-          }),
+        const [dashboardsData, divisionsRes] = await Promise.all([
+          fetchDashboards({ "x-analyst-id": String(currentAnalystId) }),
           fetch("/api/divisions"),
         ]);
 
-        const [dashboardsData, divisionsData] = await Promise.all([
-          dashboardsRes.json(),
-          divisionsRes.json(),
-        ]);
+        const divisionsData = await divisionsRes.json();
 
         if (cancelled) return;
 
-        if (!dashboardsRes.ok) {
-          setError(dashboardsData.error ?? "Could not load dashboards.");
-          return;
-        }
         if (!divisionsRes.ok) {
           setError(divisionsData.error ?? "Could not load divisions.");
           return;
@@ -51,8 +68,10 @@ export default function BrainPage() {
 
         setDashboards(dashboardsData);
         setDivisions(divisionsData);
-      } catch {
-        if (!cancelled) setError("Network error — could not reach the server.");
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Network error — could not reach the server.");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -61,7 +80,31 @@ export default function BrainPage() {
     return () => {
       cancelled = true;
     };
-  }, [currentAnalystId]);
+  }, [currentAnalystId, refreshKey, fetchDashboards]);
+
+  // Separate, non-blocking fetch of ALL dashboards (no x-analyst-id header)
+  // for the Add Request form's dashboard dropdown. Doesn't gate the main
+  // view. Triggered when the form opens rather than on every refreshKey
+  // bump, since the dashboard list rarely changes just from adding a request.
+  useEffect(() => {
+    if (currentAnalystId === null || !showAddRequestForm) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const data = await fetchDashboards();
+        if (!cancelled) setAllDashboards(data);
+      } catch {
+        // Non-critical for the main view; the Add Request form will simply
+        // show an empty dashboard list if this fails.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentAnalystId, showAddRequestForm, fetchDashboards]);
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-primary">
@@ -78,7 +121,17 @@ export default function BrainPage() {
           </p>
         </div>
 
-        <AnalystSelector onSelect={handleSelectAnalyst} />
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowAddRequestForm(true)}
+            disabled={currentAnalystId === null}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-60"
+          >
+            <ClipboardPlus className="w-3 h-3" />
+            Add Request
+          </button>
+          <AnalystSelector onSelect={handleSelectAnalyst} />
+        </div>
       </header>
 
       <main className="flex-1 overflow-hidden">
@@ -104,9 +157,30 @@ export default function BrainPage() {
         )}
 
         {currentAnalystId !== null && !loading && !error && dashboards.length > 0 && (
-          <DashboardBrain dashboards={dashboards} divisions={divisions} />
+          <DashboardBrain
+            dashboards={dashboards}
+            divisions={divisions}
+            onSelectDashboard={(id) => setSelectedDashboardId(id)}
+          />
         )}
       </main>
+
+      <RequestSidePanel
+        dashboard={dashboards.find((d) => d.id === selectedDashboardId) ?? null}
+        onClose={() => setSelectedDashboardId(null)}
+      />
+
+      {showAddRequestForm && currentAnalystId !== null && (
+        <AddRequestForm
+          dashboards={allDashboards}
+          currentAnalystId={currentAnalystId}
+          onCreated={() => {
+            setShowAddRequestForm(false);
+            setRefreshKey((k) => k + 1);
+          }}
+          onCancel={() => setShowAddRequestForm(false)}
+        />
+      )}
     </div>
   );
 }

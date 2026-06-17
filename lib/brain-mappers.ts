@@ -2,7 +2,7 @@
 // Dashboard Brain module. Centralized here because multiple routes map
 // dashboards and/or requests.
 
-import { Analyst, Dashboard, Division, Request } from '@/lib/brain-types';
+import { Analyst, Dashboard, Division, Request, RequestWithCreator } from '@/lib/brain-types';
 
 export function mapAnalystRow(row: any): Analyst {
   return {
@@ -45,5 +45,12 @@ export function mapRequestRow(row: any): Request {
     jiraTicketId: row.jira_ticket_id,
     createdDate: row.created_date,
     completedDate: row.completed_date,
+  };
+}
+
+export function mapRequestWithCreatorRow(row: any): RequestWithCreator {
+  return {
+    ...mapRequestRow(row),
+    createdByName: row.created_by_name,
   };
 }

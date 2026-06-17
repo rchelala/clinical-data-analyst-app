@@ -12,6 +12,7 @@ import { Division, DashboardWithUrgency, DashboardStatus } from "@/lib/brain-typ
 interface DashboardBrainProps {
   dashboards: DashboardWithUrgency[];
   divisions: Division[];
+  onSelectDashboard?: (dashboardId: number) => void;
 }
 
 interface PositionedDashboard {
@@ -33,7 +34,7 @@ function daysSince(dateString: string): number {
   return Math.floor((Date.now() - new Date(dateString).getTime()) / 86400000);
 }
 
-export function DashboardBrain({ dashboards, divisions }: DashboardBrainProps) {
+export function DashboardBrain({ dashboards, divisions, onSelectDashboard }: DashboardBrainProps) {
   const [hoveredId, setHoveredId] = useState<number | null>(null);
 
   const wedges = useMemo(() => computeDivisionWedges(divisions), [divisions]);
@@ -160,9 +161,10 @@ export function DashboardBrain({ dashboards, divisions }: DashboardBrainProps) {
                 style={{ cursor: "pointer" }}
                 onMouseEnter={() => setHoveredId(dashboard.id)}
                 onMouseLeave={() => setHoveredId((id) => (id === dashboard.id ? null : id))}
-                onClick={() =>
-                  setHoveredId((id) => (id === dashboard.id ? null : dashboard.id))
-                }
+                onClick={() => {
+                  setHoveredId((id) => (id === dashboard.id ? null : dashboard.id));
+                  onSelectDashboard?.(dashboard.id);
+                }}
               />
             </g>
           );

@@ -1,9 +1,48 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
-import { mapRequestRow } from '@/lib/brain-mappers';
+import { mapRequestRow, mapRequestWithCreatorRow } from '@/lib/brain-mappers';
 import { RequestType } from '@/lib/brain-types';
 
 const VALID_REQUEST_TYPES = ['feature', 'bug', 'field_request'] as const;
+
+export async function GET(req: NextRequest) {
+  try {
+    const dashboardIdParam = req.nextUrl.searchParams.get('dashboardId');
+    const dashboardId = dashboardIdParam ? Number(dashboardIdParam) : NaN;
+
+    if (!dashboardIdParam || !Number.isFinite(dashboardId)) {
+      return NextResponse.json(
+        { error: 'dashboardId query param is required and must be numeric.' },
+        { status: 400 }
+      );
+    }
+
+    const rows = await sql`
+      SELECT
+        r.id,
+        r.dashboard_id,
+        r.created_by_id,
+        r.title,
+        r.description,
+        r.request_type,
+        r.status,
+        r.jira_ticket_id,
+        r.created_date,
+        r.completed_date,
+        a.name AS created_by_name
+      FROM requests r
+      JOIN analysts a ON a.id = r.created_by_id
+      WHERE r.dashboard_id = ${dashboardId}
+      ORDER BY r.created_date DESC
+    `;
+
+    return NextResponse.json(rows.map(mapRequestWithCreatorRow));
+  } catch (err: unknown) {
+    console.error('List requests error:', err);
+    const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {

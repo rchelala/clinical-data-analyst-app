@@ -1,0 +1,230 @@
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+import { X, Loader2 } from "lucide-react";
+import { DashboardWithUrgency, RequestStatus, RequestWithCreator } from "@/lib/brain-types";
+
+interface RequestSidePanelProps {
+  dashboard: DashboardWithUrgency | null;
+  onClose: () => void;
+}
+
+const STATUS_OPTIONS: RequestStatus[] = ["open", "in_progress", "done"];
+
+const STATUS_LABELS: Record<RequestStatus, string> = {
+  open: "Open",
+  in_progress: "In progress",
+  done: "Done",
+};
+
+function formatDate(dateString: string | null): string {
+  if (!dateString) return "—";
+  const d = new Date(dateString);
+  if (Number.isNaN(d.getTime())) return dateString;
+  return d.toLocaleDateString();
+}
+
+export function RequestSidePanel({ dashboard, onClose }: RequestSidePanelProps) {
+  const [requests, setRequests] = useState<RequestWithCreator[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // Per-request error message, keyed by request id, for failed status updates.
+  const [statusErrors, setStatusErrors] = useState<Record<number, string>>({});
+  // Tracks which request ids currently have an in-flight PATCH, so we can
+  // disable that row's control without blocking the rest of the list.
+  const [updatingIds, setUpdatingIds] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    if (!dashboard) return;
+    const dashboardId = dashboard.id;
+
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    setStatusErrors({});
+
+    (async () => {
+      try {
+        const res = await fetch(`/api/requests?dashboardId=${dashboardId}`);
+        const data = await res.json();
+        if (cancelled) return;
+
+        if (!res.ok) {
+          setError(data.error ?? "Could not load requests.");
+          return;
+        }
+
+        setRequests(data);
+      } catch {
+        if (!cancelled) setError("Network error — could not reach the server.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // Only refetch when the selected dashboard's id changes, not when the
+    // parent passes a structurally-identical-but-new dashboard object
+    // (e.g. after a refreshKey-triggered parent refetch).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dashboard?.id]);
+
+  const handleStatusChange = useCallback(
+    async (requestId: number, newStatus: RequestStatus) => {
+      setStatusErrors((prev) => {
+        const next = { ...prev };
+        delete next[requestId];
+        return next;
+      });
+      setUpdatingIds((prev) => new Set(prev).add(requestId));
+
+      try {
+        const res = await fetch(`/api/requests/${requestId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: newStatus }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          setStatusErrors((prev) => ({
+            ...prev,
+            [requestId]: data.error ?? "Could not update status.",
+          }));
+          return;
+        }
+
+        setRequests((prev) =>
+          prev.map((r) => (r.id === requestId ? { ...r, ...data } : r))
+        );
+      } catch {
+        setStatusErrors((prev) => ({
+          ...prev,
+          [requestId]: "Network error — could not reach the server.",
+        }));
+      } finally {
+        setUpdatingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(requestId);
+          return next;
+        });
+      }
+    },
+    []
+  );
+
+  if (!dashboard) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/60"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+
+      {/* Panel */}
+      <div className="relative h-full w-full sm:w-96 bg-panel border-l border-theme shadow-xl flex flex-col">
+        <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-theme flex-shrink-0">
+          <div>
+            <h2 className="text-sm font-semibold text-primary leading-none">
+              {dashboard.name}
+            </h2>
+            <p className="text-xs text-secondary mt-0.5">
+              Stakeholder: {dashboard.stakeholder ?? "—"}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="flex items-center justify-center w-8 h-8 rounded-md border border-theme bg-panel hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex-shrink-0"
+          >
+            <X className="w-4 h-4 text-secondary" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          {loading && (
+            <div className="flex flex-col items-center justify-center gap-2 py-8">
+              <Loader2 className="w-5 h-5 text-brand-500 animate-spin" />
+              <p className="text-sm text-secondary">Loading requests…</p>
+            </div>
+          )}
+
+          {!loading && error && (
+            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+          )}
+
+          {!loading && !error && requests.length === 0 && (
+            <p className="text-sm text-secondary">No requests for this dashboard yet.</p>
+          )}
+
+          {!loading && !error && requests.length > 0 && (
+            <div className="flex flex-col gap-3">
+              {requests.map((request) => (
+                <div
+                  key={request.id}
+                  className="rounded-lg border border-theme px-4 py-3"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-medium text-primary">{request.title}</p>
+                  </div>
+
+                  {request.description && (
+                    <p className="text-xs text-secondary mt-1">{request.description}</p>
+                  )}
+
+                  <div className="flex items-center gap-2 mt-2 text-xs text-secondary">
+                    <span className="capitalize">{request.requestType.replace("_", " ")}</span>
+                    <span>·</span>
+                    <span>Created by {request.createdByName}</span>
+                  </div>
+
+                  <div className="text-xs text-secondary mt-1">
+                    Created: {formatDate(request.createdDate)}
+                    {request.status === "done" && (
+                      <> · Completed: {formatDate(request.completedDate)}</>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 mt-2">
+                    <label className="text-xs text-secondary" htmlFor={`status-${request.id}`}>
+                      Status:
+                    </label>
+                    <select
+                      id={`status-${request.id}`}
+                      value={request.status}
+                      disabled={updatingIds.has(request.id)}
+                      onChange={(e) =>
+                        handleStatusChange(request.id, e.target.value as RequestStatus)
+                      }
+                      className="text-xs font-medium rounded-md border border-theme px-2 py-1 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer transition-colors disabled:opacity-60"
+                    >
+                      {STATUS_OPTIONS.map((status) => (
+                        <option key={status} value={status}>
+                          {STATUS_LABELS[status]}
+                        </option>
+                      ))}
+                    </select>
+                    {updatingIds.has(request.id) && (
+                      <Loader2 className="w-3 h-3 text-brand-500 animate-spin" />
+                    )}
+                  </div>
+
+                  {statusErrors[request.id] && (
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                      {statusErrors[request.id]}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

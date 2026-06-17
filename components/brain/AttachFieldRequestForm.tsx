@@ -36,7 +36,8 @@ export function AttachFieldRequestForm({
 
     try {
       await attachFieldRequestToDashboard(entry, dashboardId, analystId);
-      setEntries((prev) => markFieldHistoryEntryAttached(prev, entry.id, dashboardName));
+      const updated = markFieldHistoryEntryAttached(loadFieldHistory(), entry.id, dashboardName);
+      setEntries(updated);
       setAttachedIds((prev) => new Set(prev).add(entry.id));
       onAttached();
     } catch (err) {

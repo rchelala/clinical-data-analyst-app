@@ -299,10 +299,13 @@ export default function BrainPage() {
         )}
       </main>
 
-      <RequestSidePanel
-        entity={sidePanelEntity}
-        onClose={() => setSelectedEntity(null)}
-      />
+      {currentAnalystId !== null && (
+        <RequestSidePanel
+          entity={sidePanelEntity}
+          currentAnalystId={currentAnalystId}
+          onClose={() => setSelectedEntity(null)}
+        />
+      )}
 
       {showAddRequestForm && currentAnalystId !== null && (
         <AddRequestForm

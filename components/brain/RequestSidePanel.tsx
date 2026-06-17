@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { X, Loader2 } from "lucide-react";
+import { X, Loader2, ClipboardList } from "lucide-react";
 import { BrainEntityKind, RequestStatus, RequestWithCreator } from "@/lib/brain-types";
+import { AttachFieldRequestForm } from "@/components/brain/AttachFieldRequestForm";
 
 export interface RequestSidePanelEntity {
   kind: BrainEntityKind;
@@ -13,6 +14,7 @@ export interface RequestSidePanelEntity {
 
 interface RequestSidePanelProps {
   entity: RequestSidePanelEntity | null;
+  currentAnalystId: number;
   onClose: () => void;
 }
 
@@ -31,7 +33,7 @@ function formatDate(dateString: string | null): string {
   return d.toLocaleDateString();
 }
 
-export function RequestSidePanel({ entity, onClose }: RequestSidePanelProps) {
+export function RequestSidePanel({ entity, currentAnalystId, onClose }: RequestSidePanelProps) {
   const [requests, setRequests] = useState<RequestWithCreator[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +42,10 @@ export function RequestSidePanel({ entity, onClose }: RequestSidePanelProps) {
   // Tracks which request ids currently have an in-flight PATCH, so we can
   // disable that row's control without blocking the rest of the list.
   const [updatingIds, setUpdatingIds] = useState<Set<number>>(new Set());
+  const [attachFieldRequestOpen, setAttachFieldRequestOpen] = useState(false);
+  // Bumping this re-runs the request-list fetch effect below, letting us
+  // refresh the list after a field request is attached from this panel.
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     if (!entity) return;
@@ -77,8 +83,10 @@ export function RequestSidePanel({ entity, onClose }: RequestSidePanelProps) {
     // parent passes a structurally-identical-but-new entity object (e.g.
     // after a refreshKey-triggered parent refetch). Both kind and id must be
     // tracked so switching from dashboard #3 to subscription #3 refetches.
+    // refreshKey is bumped after a field request is successfully attached,
+    // so the list reflects the newly created request.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entity?.kind, entity?.id]);
+  }, [entity?.kind, entity?.id, refreshKey]);
 
   const handleStatusChange = useCallback(
     async (requestId: number, newStatus: RequestStatus) => {
@@ -146,13 +154,24 @@ export function RequestSidePanel({ entity, onClose }: RequestSidePanelProps) {
               Stakeholder: {entity.stakeholder ?? "—"}
             </p>
           </div>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="flex items-center justify-center w-8 h-8 rounded-md border border-theme bg-panel hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex-shrink-0"
-          >
-            <X className="w-4 h-4 text-secondary" />
-          </button>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {entity.kind === "dashboard" && (
+              <button
+                onClick={() => setAttachFieldRequestOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+              >
+                <ClipboardList className="w-3 h-3" />
+                Attach Field Request
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              aria-label="Close"
+              className="flex items-center justify-center w-8 h-8 rounded-md border border-theme bg-panel hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex-shrink-0"
+            >
+              <X className="w-4 h-4 text-secondary" />
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
@@ -234,6 +253,16 @@ export function RequestSidePanel({ entity, onClose }: RequestSidePanelProps) {
           )}
         </div>
       </div>
+
+      {attachFieldRequestOpen && entity && entity.kind === "dashboard" && (
+        <AttachFieldRequestForm
+          dashboardId={entity.id}
+          dashboardName={entity.name}
+          analystId={currentAnalystId}
+          onAttached={() => setRefreshKey((k) => k + 1)}
+          onClose={() => setAttachFieldRequestOpen(false)}
+        />
+      )}
     </div>
   );
 }

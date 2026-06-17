@@ -1,12 +1,22 @@
 import { FieldRequestEntry } from "./history";
 
+const TEMPLATE_LABELS: Record<string, string> = {
+  "general": "General",
+  "quippe": "Quippe",
+  "structured-note": "Struct. Note",
+};
+
+function templateLabel(templateType: string): string {
+  return TEMPLATE_LABELS[templateType] ?? templateType;
+}
+
 export function summarizeFieldRequest(entry: FieldRequestEntry): string {
   const fieldCount = entry.rows.length;
   const fieldLabel = fieldCount === 1 ? "field" : "fields";
   const tableSegment = entry.tableName.trim()
     ? ` · table ${entry.tableName}`
     : "";
-  return `${entry.templateType} template · ${fieldCount} ${fieldLabel}${tableSegment}`;
+  return `${templateLabel(entry.templateType)} template · ${fieldCount} ${fieldLabel}${tableSegment}`;
 }
 
 export async function attachFieldRequestToDashboard(
@@ -22,7 +32,9 @@ export async function attachFieldRequestToDashboard(
     },
     body: JSON.stringify({
       dashboardId,
-      title: `Field request: ${entry.tableName}`,
+      title: entry.tableName.trim()
+        ? `Field request: ${entry.tableName}`
+        : "Field request",
       description: summarizeFieldRequest(entry),
       requestType: "field_request",
     }),

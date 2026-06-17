@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { Plus, Trash2, Download, FolderOpen, TableProperties, Sparkles, Loader2, Copy, Check, History, CopyPlus } from "lucide-react";
+import { Plus, Trash2, Download, FolderOpen, TableProperties, Sparkles, Loader2, Copy, Check, History, CopyPlus, LayoutDashboard } from "lucide-react";
 import { FieldHistoryPanel } from "@/components/FieldHistoryPanel";
+import { AttachToDashboardModal } from "./AttachToDashboardModal";
 import {
   FieldRequestEntry,
   loadFieldHistory,
   addFieldHistoryEntry,
   removeFieldHistoryEntry,
+  markFieldHistoryEntryAttached,
 } from "@/lib/history";
 import { AIProvider } from "@/lib/providers";
 
@@ -117,6 +119,7 @@ export function FieldRequestForm({ provider = "claude" }: { provider?: AIProvide
   const [copiedSql, setCopiedSql]         = useState(false);
   const [fieldHistory, setFieldHistory]   = useState<FieldRequestEntry[]>([]);
   const [historyOpen, setHistoryOpen]     = useState(false);
+  const [attachModalOpen, setAttachModalOpen] = useState(false);
 
   useEffect(() => { setFieldHistory(loadFieldHistory()); }, []);
 
@@ -458,6 +461,15 @@ export function FieldRequestForm({ provider = "claude" }: { provider?: AIProvide
             <Download className="w-4 h-4" />
             {downloading ? "Generating…" : "Download Excel"}
           </button>
+          <button
+            onClick={() => setAttachModalOpen(true)}
+            disabled={!tableName.trim()}
+            title="Attach this field request to a dashboard"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border border-theme bg-panel hover:bg-slate-200 dark:hover:bg-slate-700 text-primary disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+          >
+            <LayoutDashboard className="w-4 h-4" />
+            Attach to Dashboard
+          </button>
         </div>
       </div>
 
@@ -646,6 +658,26 @@ export function FieldRequestForm({ provider = "claude" }: { provider?: AIProvide
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}
       />
+
+      {/* Attach to Dashboard modal */}
+      {attachModalOpen && (
+        <AttachToDashboardModal
+          entry={{
+            id: "",
+            timestamp: Date.now(),
+            templateType,
+            tableName,
+            date,
+            rows: rows.map(({ id: _id, ...rest }) => rest),
+          }}
+          onAttached={(dashboardName) => {
+            saveToHistory();
+            setFieldHistory((prev) => markFieldHistoryEntryAttached(prev, prev[0].id, dashboardName));
+            setAttachModalOpen(false);
+          }}
+          onClose={() => setAttachModalOpen(false)}
+        />
+      )}
     </div>
   );
 }

@@ -313,6 +313,21 @@ export function FieldRequestForm({ provider = "claude" }: { provider?: AIProvide
     );
   }, [templateType, tableName, date, rows]);
 
+  // Saves a new history entry and marks it attached in a single atomic
+  // functional update, so the "mark attached" step can't race against a
+  // separate setFieldHistory call and tag the wrong entry.
+  const attachToHistoryAndMark = useCallback((dashboardName: string) => {
+    setFieldHistory((prev) => {
+      const saved = addFieldHistoryEntry(prev, {
+        templateType,
+        tableName,
+        date,
+        rows: rows.map(({ id: _id, ...rest }) => rest),
+      });
+      return markFieldHistoryEntryAttached(saved, saved[0].id, dashboardName);
+    });
+  }, [templateType, tableName, date, rows]);
+
   // ─── Download to default Downloads folder ────────────────────────────────────
   const handleDownload = useCallback(async () => {
     setDownloading(true);
@@ -671,8 +686,7 @@ export function FieldRequestForm({ provider = "claude" }: { provider?: AIProvide
             rows: rows.map(({ id: _id, ...rest }) => rest),
           }}
           onAttached={(dashboardName) => {
-            saveToHistory();
-            setFieldHistory((prev) => markFieldHistoryEntryAttached(prev, prev[0].id, dashboardName));
+            attachToHistoryAndMark(dashboardName);
             setAttachModalOpen(false);
           }}
           onClose={() => setAttachModalOpen(false)}

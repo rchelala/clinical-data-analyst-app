@@ -13,6 +13,7 @@
     "@google/genai": "^1.46.0",
     "@google/generative-ai": "^0.24.1",
     "@monaco-editor/react": "^4.6.0",
+    "@neondatabase/serverless": "^0.10.4",
     "docx": "^9.7.1",
     "exceljs": "^4.4.0",
     "jszip": "^3.10.1",

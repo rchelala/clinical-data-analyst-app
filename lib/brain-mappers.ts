@@ -11,7 +11,6 @@ export function mapAnalystRow(row: any): Analyst {
   };
 }
 
-// used by Phase 2 layout — no /api/divisions route yet
 export function mapDivisionRow(row: any): Division {
   return {
     id: row.id,

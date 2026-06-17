@@ -23,7 +23,6 @@ export function AttachFieldRequestForm({
   const [entries, setEntries] = useState<FieldRequestEntry[]>(() => loadFieldHistory());
   // Per-entry in-flight tracking, so attaching one entry doesn't disable the rest of the list.
   const [attachingIds, setAttachingIds] = useState<Set<string>>(new Set());
-  const [attachedIds, setAttachedIds] = useState<Set<string>>(new Set());
   const [entryErrors, setEntryErrors] = useState<Record<string, string>>({});
 
   const handleAttach = async (entry: FieldRequestEntry) => {
@@ -38,7 +37,6 @@ export function AttachFieldRequestForm({
       await attachFieldRequestToDashboard(entry, dashboardId, analystId);
       const updated = markFieldHistoryEntryAttached(loadFieldHistory(), entry.id, dashboardName);
       setEntries(updated);
-      setAttachedIds((prev) => new Set(prev).add(entry.id));
       onAttached();
     } catch (err) {
       setEntryErrors((prev) => ({
@@ -82,7 +80,6 @@ export function AttachFieldRequestForm({
             <div className="flex flex-col gap-3">
               {entries.map((entry) => {
                 const isAttaching = attachingIds.has(entry.id);
-                const isAttached = attachedIds.has(entry.id);
                 return (
                   <div
                     key={entry.id}
@@ -99,22 +96,21 @@ export function AttachFieldRequestForm({
                         <p className="text-xs text-secondary mt-0.5">
                           {formatHistoryDate(entry.timestamp)}
                         </p>
+                        {entry.attachedDashboardName && (
+                          <p className="flex items-center gap-1 text-xs font-medium text-green-600 dark:text-green-400 mt-1">
+                            <Check className="w-3.5 h-3.5" />
+                            Attached to {entry.attachedDashboardName}
+                          </p>
+                        )}
                       </div>
 
-                      {isAttached ? (
-                        <span className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md text-green-600 dark:text-green-400 flex-shrink-0">
-                          <Check className="w-3.5 h-3.5" />
-                          Attached
-                        </span>
-                      ) : (
-                        <button
-                          onClick={() => handleAttach(entry)}
-                          disabled={isAttaching}
-                          className="px-3 py-1.5 text-xs font-medium rounded-md bg-brand-600 hover:bg-brand-700 text-white transition-colors disabled:opacity-60 flex-shrink-0"
-                        >
-                          {isAttaching ? "Attaching…" : "Attach"}
-                        </button>
-                      )}
+                      <button
+                        onClick={() => handleAttach(entry)}
+                        disabled={isAttaching}
+                        className="px-3 py-1.5 text-xs font-medium rounded-md bg-brand-600 hover:bg-brand-700 text-white transition-colors disabled:opacity-60 flex-shrink-0"
+                      >
+                        {isAttaching ? "Attaching…" : entry.attachedDashboardName ? "Attach again" : "Attach"}
+                      </button>
                     </div>
 
                     {entryErrors[entry.id] && (

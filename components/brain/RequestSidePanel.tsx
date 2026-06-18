@@ -94,7 +94,11 @@ export function RequestSidePanel({ entity, currentAnalystId, focusRequestId, onC
     if (!focusRequestId) return;
     const row = rowRefs.current[focusRequestId];
     row?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [focusRequestId, requests]);
+    // Re-fire only when focusRequestId changes, or when the focused request
+    // transitions from absent to present (e.g. right after the initial
+    // fetch resolves) — not on every unrelated status-change re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusRequestId, requests.some((r) => r.id === focusRequestId)]);
 
   const handleStatusChange = useCallback(
     async (requestId: number, newStatus: RequestStatus) => {

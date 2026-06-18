@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { X, Loader2, ClipboardList } from "lucide-react";
 import { BrainEntityKind, RequestStatus, RequestWithCreator } from "@/lib/brain-types";
 import { AttachFieldRequestForm } from "@/components/brain/AttachFieldRequestForm";
@@ -15,6 +15,7 @@ export interface RequestSidePanelEntity {
 interface RequestSidePanelProps {
   entity: RequestSidePanelEntity | null;
   currentAnalystId: number;
+  focusRequestId?: number;
   onClose: () => void;
 }
 
@@ -33,7 +34,7 @@ function formatDate(dateString: string | null): string {
   return d.toLocaleDateString();
 }
 
-export function RequestSidePanel({ entity, currentAnalystId, onClose }: RequestSidePanelProps) {
+export function RequestSidePanel({ entity, currentAnalystId, focusRequestId, onClose }: RequestSidePanelProps) {
   const [requests, setRequests] = useState<RequestWithCreator[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +47,7 @@ export function RequestSidePanel({ entity, currentAnalystId, onClose }: RequestS
   // Bumping this re-runs the request-list fetch effect below, letting us
   // refresh the list after a field request is attached from this panel.
   const [refreshKey, setRefreshKey] = useState(0);
+  const rowRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
   useEffect(() => {
     if (!entity) return;
@@ -87,6 +89,12 @@ export function RequestSidePanel({ entity, currentAnalystId, onClose }: RequestS
     // so the list reflects the newly created request.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entity?.kind, entity?.id, refreshKey]);
+
+  useEffect(() => {
+    if (!focusRequestId) return;
+    const row = rowRefs.current[focusRequestId];
+    row?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [focusRequestId, requests]);
 
   const handleStatusChange = useCallback(
     async (requestId: number, newStatus: RequestStatus) => {
@@ -195,7 +203,14 @@ export function RequestSidePanel({ entity, currentAnalystId, onClose }: RequestS
               {requests.map((request) => (
                 <div
                   key={request.id}
-                  className="rounded-lg border border-theme px-4 py-3"
+                  ref={(el) => {
+                    rowRefs.current[request.id] = el;
+                  }}
+                  className={`rounded-lg border px-4 py-3 ${
+                    request.id === focusRequestId
+                      ? "border-brand-500 ring-2 ring-brand-500"
+                      : "border-theme"
+                  }`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <p className="text-sm font-medium text-primary">{request.title}</p>

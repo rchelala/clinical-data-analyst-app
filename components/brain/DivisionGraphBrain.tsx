@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ClipboardPlus } from "lucide-react";
 import { useTheme } from "next-themes";
 import { buildGraphData, GraphData } from "@/lib/brain-graph";
@@ -116,6 +116,36 @@ export function DivisionGraphBrain({
 
   const backgroundColor = resolvedTheme === "dark" ? DARK_BG : LIGHT_BG;
 
+  const textColor = resolvedTheme === "dark" ? "#e6edf3" : "#0f172a";
+
+  const paintNode = useCallback(
+    (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+      const n = node as GraphData["nodes"][number] & { x?: number; y?: number };
+      const x = n.x ?? 0;
+      const y = n.y ?? 0;
+
+      ctx.beginPath();
+      ctx.arc(x, y, n.val, 0, 2 * Math.PI, false);
+      ctx.fillStyle = n.color;
+      ctx.fill();
+
+      if (n.ringColor) {
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = n.ringColor;
+        ctx.stroke();
+      }
+
+      if (n.kind === "dashboard" || n.kind === "subscription") {
+        ctx.font = `${12 / globalScale}px Inter, sans-serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        ctx.fillStyle = textColor;
+        ctx.fillText(n.label, x, y + n.val + 4);
+      }
+    },
+    [textColor]
+  );
+
   return (
     <div className="relative w-full h-full flex flex-col">
       <div className="flex items-center gap-3 px-6 py-3 flex-shrink-0">
@@ -153,6 +183,7 @@ export function DivisionGraphBrain({
             backgroundColor={backgroundColor}
             nodeId="id"
             nodeVal="val"
+            nodeCanvasObject={paintNode}
           />
         )}
       </div>

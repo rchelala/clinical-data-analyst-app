@@ -1,13 +1,15 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { Plus, Trash2, Download, FolderOpen, TableProperties, Sparkles, Loader2, Copy, Check, History, CopyPlus } from "lucide-react";
+import { Plus, Trash2, Download, FolderOpen, TableProperties, Sparkles, Loader2, Copy, Check, History, CopyPlus, LayoutDashboard } from "lucide-react";
 import { FieldHistoryPanel } from "@/components/FieldHistoryPanel";
+import { AttachToDashboardModal } from "./AttachToDashboardModal";
 import {
   FieldRequestEntry,
   loadFieldHistory,
   addFieldHistoryEntry,
   removeFieldHistoryEntry,
+  markFieldHistoryEntryAttached,
 } from "@/lib/history";
 import { AIProvider } from "@/lib/providers";
 
@@ -117,6 +119,7 @@ export function FieldRequestForm({ provider = "claude" }: { provider?: AIProvide
   const [copiedSql, setCopiedSql]         = useState(false);
   const [fieldHistory, setFieldHistory]   = useState<FieldRequestEntry[]>([]);
   const [historyOpen, setHistoryOpen]     = useState(false);
+  const [attachModalOpen, setAttachModalOpen] = useState(false);
 
   useEffect(() => { setFieldHistory(loadFieldHistory()); }, []);
 
@@ -310,6 +313,21 @@ export function FieldRequestForm({ provider = "claude" }: { provider?: AIProvide
     );
   }, [templateType, tableName, date, rows]);
 
+  // Saves a new history entry and marks it attached in a single atomic
+  // functional update, so the "mark attached" step can't race against a
+  // separate setFieldHistory call and tag the wrong entry.
+  const attachToHistoryAndMark = useCallback((dashboardName: string) => {
+    setFieldHistory((prev) => {
+      const saved = addFieldHistoryEntry(prev, {
+        templateType,
+        tableName,
+        date,
+        rows: rows.map(({ id: _id, ...rest }) => rest),
+      });
+      return markFieldHistoryEntryAttached(saved, saved[0].id, dashboardName);
+    });
+  }, [templateType, tableName, date, rows]);
+
   // ─── Download to default Downloads folder ────────────────────────────────────
   const handleDownload = useCallback(async () => {
     setDownloading(true);
@@ -457,6 +475,15 @@ export function FieldRequestForm({ provider = "claude" }: { provider?: AIProvide
           >
             <Download className="w-4 h-4" />
             {downloading ? "Generating…" : "Download Excel"}
+          </button>
+          <button
+            onClick={() => setAttachModalOpen(true)}
+            disabled={!tableName.trim()}
+            title="Attach this field request to a dashboard"
+            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border border-theme bg-panel hover:bg-slate-200 dark:hover:bg-slate-700 text-primary disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+          >
+            <LayoutDashboard className="w-4 h-4" />
+            Attach to Dashboard
           </button>
         </div>
       </div>
@@ -646,6 +673,25 @@ export function FieldRequestForm({ provider = "claude" }: { provider?: AIProvide
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}
       />
+
+      {/* Attach to Dashboard modal */}
+      {attachModalOpen && (
+        <AttachToDashboardModal
+          entry={{
+            id: "",
+            timestamp: Date.now(),
+            templateType,
+            tableName,
+            date,
+            rows: rows.map(({ id: _id, ...rest }) => rest),
+          }}
+          onAttached={(dashboardName) => {
+            attachToHistoryAndMark(dashboardName);
+            setAttachModalOpen(false);
+          }}
+          onClose={() => setAttachModalOpen(false)}
+        />
+      )}
     </div>
   );
 }

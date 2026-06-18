@@ -44,6 +44,7 @@ export function DivisionGraphBrain({
   );
   const [requestsLoading, setRequestsLoading] = useState(false);
   const [requestsError, setRequestsError] = useState<string | null>(null);
+  const [hoveredNode, setHoveredNode] = useState<GraphData["nodes"][number] | null>(null);
   const { resolvedTheme } = useTheme();
 
   // Track container size so the graph fills the available space and resizes
@@ -147,6 +148,24 @@ export function DivisionGraphBrain({
     [textColor]
   );
 
+  const handleNodeClick = useCallback(
+    (node: any) => {
+      const n = node as GraphData["nodes"][number];
+      if (n.kind === "center" || !n.entityKind || n.entityId === undefined) return;
+      onSelectEntity(n.entityKind, n.entityId, n.requestId);
+    },
+    [onSelectEntity]
+  );
+
+  const handleNodeHover = useCallback((node: any) => {
+    const n = node as GraphData["nodes"][number] | null;
+    setHoveredNode(n && (n.kind === "dashboard" || n.kind === "subscription") ? n : null);
+  }, []);
+
+  function daysSince(dateString: string): number {
+    return Math.floor((Date.now() - new Date(dateString).getTime()) / 86400000);
+  }
+
   return (
     <div className="relative w-full h-full flex flex-col">
       <div className="flex items-center gap-3 px-6 py-3 flex-shrink-0">
@@ -185,7 +204,26 @@ export function DivisionGraphBrain({
             nodeId="id"
             nodeVal="val"
             nodeCanvasObject={paintNode}
+            onNodeClick={handleNodeClick}
+            onNodeHover={handleNodeHover}
+            nodeLabel={(node: any) => ((node as GraphData["nodes"][number]).kind === "request" ? (node as GraphData["nodes"][number]).label : "")}
           />
+        )}
+        {hoveredNode && (
+          <div className="absolute top-4 left-4 max-w-xs rounded-lg border border-theme bg-panel shadow-lg px-4 py-3 pointer-events-none">
+            <p className="text-sm font-semibold text-primary">{hoveredNode.label}</p>
+            <p className="text-xs text-secondary mt-1">
+              Stakeholder: {hoveredNode.stakeholder ?? "—"}
+            </p>
+            {hoveredNode.lastTouchedDate && (
+              <p className="text-xs text-secondary">
+                Last touched: {daysSince(hoveredNode.lastTouchedDate)} days ago
+              </p>
+            )}
+            <p className="text-xs text-secondary">
+              Open requests: {hoveredNode.openRequestCount ?? 0}
+            </p>
+          </div>
         )}
       </div>
     </div>

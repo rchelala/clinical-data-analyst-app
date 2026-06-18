@@ -94,39 +94,3 @@ export function computePositionInWedge(
 
   return { x, y, angle };
 }
-
-/**
- * Places up to ~8 request "moons" in a tight ring around a dashboard's
- * (x, y) position, evenly spaced by angle starting from angle 0 (the
- * rightmost point of the ring, per standard SVG/math angle convention --
- * this is purely a local decorative ring around the dashboard, not tied to
- * the 12-o'clock/clockwise convention used for dashboard placement).
- *
- * Returns an empty array when `requestCount` is 0. Does not implement the
- * ">8 collapses to a badge" rendering decision -- that's the component
- * layer's responsibility; this function just computes positions for
- * however many moons are requested.
- */
-export function computeRequestMoonPositions(
-  dashboardX: number,
-  dashboardY: number,
-  requestCount: number,
-  moonRadius: number = 24
-): { x: number; y: number }[] {
-  if (requestCount <= 0) {
-    return [];
-  }
-
-  const positions: { x: number; y: number }[] = [];
-  const angleStep = (2 * Math.PI) / requestCount;
-
-  for (let i = 0; i < requestCount; i++) {
-    const angleRad = i * angleStep;
-    positions.push({
-      x: dashboardX + moonRadius * Math.cos(angleRad),
-      y: dashboardY + moonRadius * Math.sin(angleRad),
-    });
-  }
-
-  return positions;
-}

@@ -136,7 +136,8 @@ export function DivisionGraphBrain({
       }
 
       if (n.kind === "dashboard" || n.kind === "subscription") {
-        ctx.font = `${12 / globalScale}px Inter, sans-serif`;
+        const fontSize = Math.max(8, Math.min(16, 12 / globalScale));
+        ctx.font = `${fontSize}px Inter, sans-serif`;
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
         ctx.fillStyle = textColor;

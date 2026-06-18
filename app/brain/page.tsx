@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, ClipboardPlus } from "lucide-react";
 import { AnalystSelector } from "@/components/brain/AnalystSelector";
 import { DivisionBrain, DivisionNode } from "@/components/brain/DivisionBrain";
-import { DivisionDetailBrain } from "@/components/brain/DivisionDetailBrain";
+import { DivisionGraphBrain } from "@/components/brain/DivisionGraphBrain";
 import { RequestSidePanel, RequestSidePanelEntity } from "@/components/brain/RequestSidePanel";
 import { AddRequestForm } from "@/components/brain/AddRequestForm";
 import { AddSubscriptionForm } from "@/components/brain/AddSubscriptionForm";
@@ -33,6 +33,7 @@ export default function BrainPage() {
   const [allSubscriptions, setAllSubscriptions] = useState<ReportSubscriptionWithUrgency[]>([]);
   const [selectedDivisionId, setSelectedDivisionId] = useState<number | null>(null);
   const [selectedEntity, setSelectedEntity] = useState<SelectedEntity | null>(null);
+  const [selectedRequestId, setSelectedRequestId] = useState<number | undefined>(undefined);
   const [showAddRequestForm, setShowAddRequestForm] = useState(false);
   const [showAddSubscriptionForm, setShowAddSubscriptionForm] = useState(false);
   // Bumping this re-runs the dashboards/subscriptions-fetching effect below,
@@ -288,11 +289,14 @@ export default function BrainPage() {
         )}
 
         {currentAnalystId !== null && !loading && !error && hasAnyEntities && selectedDivision && (
-          <DivisionDetailBrain
+          <DivisionGraphBrain
             division={selectedDivision}
             dashboards={divisionDashboards}
             subscriptions={divisionSubscriptions}
-            onSelectEntity={(kind, id) => setSelectedEntity({ kind, id })}
+            onSelectEntity={(kind, id, focusRequestId) => {
+              setSelectedEntity({ kind, id });
+              setSelectedRequestId(focusRequestId);
+            }}
             onBack={() => setSelectedDivisionId(null)}
             onAddSubscription={() => setShowAddSubscriptionForm(true)}
           />
@@ -303,7 +307,11 @@ export default function BrainPage() {
         <RequestSidePanel
           entity={sidePanelEntity}
           currentAnalystId={currentAnalystId}
-          onClose={() => setSelectedEntity(null)}
+          focusRequestId={selectedRequestId}
+          onClose={() => {
+            setSelectedEntity(null);
+            setSelectedRequestId(undefined);
+          }}
         />
       )}
 

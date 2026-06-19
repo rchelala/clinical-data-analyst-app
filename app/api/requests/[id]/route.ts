@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { del } from '@vercel/blob';
 import { sql } from '@/lib/db';
 import { mapRequestRow } from '@/lib/brain-mappers';
 import { RequestStatus } from '@/lib/brain-types';
@@ -75,6 +76,52 @@ export async function PATCH(
     return NextResponse.json(mapRequestRow({ ...rows[0], ...tagsAndLinks[0] }));
   } catch (err: unknown) {
     console.error('Update request error:', err);
+    const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const requestId = Number(id);
+    if (!Number.isFinite(requestId)) {
+      return NextResponse.json({ error: 'Invalid request id.' }, { status: 400 });
+    }
+
+    // request_tags and request_links both have ON DELETE CASCADE on their
+    // requests foreign keys (see scripts/migrations/005_tags_and_links.sql),
+    // so deleting the row cleans those up automatically.
+    const rows = await sql`
+      DELETE FROM requests
+      WHERE id = ${requestId}
+      RETURNING attachment_url
+    `;
+
+    if (rows.length === 0) {
+      return NextResponse.json({ error: 'Request not found.' }, { status: 404 });
+    }
+
+    const attachmentUrl: string | null = rows[0].attachment_url;
+    if (attachmentUrl) {
+      try {
+        const pathname = new URL(attachmentUrl, 'http://localhost').searchParams.get('pathname');
+        if (pathname) {
+          await del(pathname);
+        }
+      } catch (blobErr: unknown) {
+        // The DB row is already gone; a failed blob cleanup shouldn't fail
+        // the overall request for the user.
+        console.error('Delete request attachment blob error:', blobErr);
+      }
+    }
+
+    return NextResponse.json({ id: requestId }, { status: 200 });
+  } catch (err: unknown) {
+    console.error('Delete request error:', err);
     const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
     return NextResponse.json({ error: message }, { status: 500 });
   }

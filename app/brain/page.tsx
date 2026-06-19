@@ -230,6 +230,17 @@ export default function BrainPage() {
     });
   }, []);
 
+  // Depth/identity of the currently rendered zoom target, passed to every
+  // GalaxyCanvas instance below so it can play its "flying into"/"pulling
+  // back from" transition (GALAXY_VIEW_SPEC.md section 7) whenever the
+  // target changes. zoomKey intentionally omits viewerAnalystId/loading/error
+  // state — it should only change when the rendered zoom target itself
+  // changes, not on every unrelated re-render.
+  const zoomDepth = zoom.level === "galaxy" ? 0 : zoom.level === "analyst" ? 1 : 2;
+  const zoomKey = `${zoom.level}-${"analystId" in zoom ? zoom.analystId : ""}-${
+    "divisionId" in zoom ? zoom.divisionId : ""
+  }`;
+
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-primary">
       <div className="fixed inset-0 -z-10 bg-[#0d1117]" />
@@ -293,7 +304,7 @@ export default function BrainPage() {
         )}
 
         {viewerAnalystId !== null && !brainData.loading && !brainData.error && zoom.level === "galaxy" && (
-          <GalaxyCanvas onBackgroundClick={handleBackgroundClick}>
+          <GalaxyCanvas onBackgroundClick={handleBackgroundClick} zoomDepth={zoomDepth} zoomKey={zoomKey}>
             <GalaxyView
               summaries={"galaxySummaries" in brainData ? brainData.galaxySummaries : []}
               viewerAnalystId={viewerAnalystId}
@@ -307,7 +318,7 @@ export default function BrainPage() {
           !brainData.error &&
           zoom.level === "analyst" &&
           !hasAnyDivisions && (
-            <GalaxyCanvas onBackgroundClick={handleBackgroundClick}>
+            <GalaxyCanvas onBackgroundClick={handleBackgroundClick} zoomDepth={zoomDepth} zoomKey={zoomKey}>
               <div className="flex items-center justify-center h-full">
                 <p className="text-sm text-secondary">
                   No divisions yet — use &ldquo;Add Division&rdquo; above to create one.
@@ -321,7 +332,7 @@ export default function BrainPage() {
           !brainData.error &&
           zoom.level === "analyst" &&
           hasAnyDivisions && (
-            <GalaxyCanvas onBackgroundClick={handleBackgroundClick}>
+            <GalaxyCanvas onBackgroundClick={handleBackgroundClick} zoomDepth={zoomDepth} zoomKey={zoomKey}>
               <SolarSystemView
                 divisionNodes={divisionNodes}
                 dashboards={dashboards}
@@ -340,7 +351,7 @@ export default function BrainPage() {
           !brainData.error &&
           zoom.level === "division" &&
           selectedDivision && (
-            <GalaxyCanvas onBackgroundClick={handleBackgroundClick}>
+            <GalaxyCanvas onBackgroundClick={handleBackgroundClick} zoomDepth={zoomDepth} zoomKey={zoomKey}>
               <PlanetView
                 division={selectedDivision}
                 dashboards={divisionDashboards}

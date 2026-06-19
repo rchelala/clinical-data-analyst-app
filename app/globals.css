@@ -88,3 +88,30 @@
 .bg-primary-glass {
   background: rgba(13, 17, 23, 0.70);
 }
+
+/* ── Galaxy zoom transitions ──
+   "Flying into"/"pulling back from" a system when the zoom level changes
+   (GALAXY_VIEW_SPEC.md section 7). Applied to GalaxyCanvas's content
+   wrapper, which is remounted (via React `key`) whenever the rendered zoom
+   target changes, so these keyframes re-trigger on every zoom change. */
+@keyframes zoom-enter-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes zoom-enter-out {
+  from { opacity: 0; transform: scale(1.08); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .zoom-enter-in {
+    transform-origin: 50% 50%;
+    animation: zoom-enter-in 400ms ease-in-out;
+  }
+
+  .zoom-enter-out {
+    transform-origin: 50% 50%;
+    animation: zoom-enter-out 400ms ease-in-out;
+  }
+}

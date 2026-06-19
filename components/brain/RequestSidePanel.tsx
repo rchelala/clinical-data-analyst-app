@@ -383,7 +383,7 @@ export function RequestSidePanel({ entity, currentAnalystId, focusRequestId, onC
 
                   {confirmingDeleteIds.has(request.id) && (
                     <div className="flex items-center justify-between gap-2 mt-1.5 rounded-md border border-theme bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5">
-                      <span className="text-xs text-secondary">Delete this request?</span>
+                      <span className="text-xs text-secondary truncate">Delete &quot;{request.title}&quot;?</span>
                       <div className="flex items-center gap-1.5 flex-shrink-0">
                         <button
                           type="button"

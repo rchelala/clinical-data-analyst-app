@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Loader2, ClipboardPlus, ArrowLeft, FolderPlus } from "lucide-react";
 import { AnalystSelector } from "@/components/brain/AnalystSelector";
-import { DivisionBrain, DivisionNode } from "@/components/brain/DivisionBrain";
+import { SolarSystemView, DivisionNode } from "@/components/brain/SolarSystemView";
 import { DivisionGraphBrain } from "@/components/brain/DivisionGraphBrain";
 import { GalaxyCanvas } from "@/components/brain/GalaxyCanvas";
 import { GalaxyView } from "@/components/brain/GalaxyView";
@@ -322,11 +322,12 @@ export default function BrainPage() {
           zoom.level === "analyst" &&
           hasAnyDivisions && (
             <GalaxyCanvas onBackgroundClick={handleBackgroundClick}>
-              <DivisionBrain
+              <SolarSystemView
                 divisionNodes={divisionNodes}
-                allDashboards={allDashboards}
-                allSubscriptions={allSubscriptions}
-                analysts={analysts}
+                dashboards={dashboards}
+                subscriptions={subscriptions}
+                viewedAnalystId={zoom.analystId}
+                viewerAnalystId={viewerAnalystId}
                 onSelectDivision={(divisionId) =>
                   setZoom({ level: "division", analystId: zoom.analystId, divisionId })
                 }

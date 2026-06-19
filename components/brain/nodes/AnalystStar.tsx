@@ -1,6 +1,7 @@
 "use client";
 
 import { computeEvenlySpacedPositions } from "@/lib/layout-math";
+import { truncateLabel } from "@/lib/text-utils";
 
 // Presentational only — purely renders an analyst as a "star" at (x, y) plus
 // a faint ring of small dots representing that analyst's divisions. No
@@ -11,21 +12,10 @@ const STAR_RADIUS = 14;
 const VIEWER_STAR_RADIUS = 16; // viewer's own star drawn slightly larger, with a distinct ring color, so it reads as "you" at a glance
 const DIVISION_DOT_RADIUS = 3;
 const DIVISION_RING_RADIUS = 26; // small ring around the star — must stay noticeably smaller than inter-star spacing so it reads as "this star's ring," not galaxy-wide noise
-const MAX_LABEL_LENGTH = 16;
 
 export const ANALYST_COLOR = "#7aa2f7";
 export const DIVISION_COLOR = "#bb9af7";
 export const VIEWER_RING_COLOR = "#f6c177"; // warm accent ring distinguishing the viewer's own star from every other analyst
-
-// Same truncation convention as DivisionBrain.tsx's truncateLabel/
-// MAX_LABEL_LENGTH — replicated locally since DivisionBrain.tsx is staying
-// untouched (it'll be absorbed into SolarSystemView in a later task, not
-// extracted into a shared util now).
-function truncateLabel(name: string): string {
-  return name.length > MAX_LABEL_LENGTH
-    ? `${name.slice(0, MAX_LABEL_LENGTH - 1).trimEnd()}…`
-    : name;
-}
 
 export interface AnalystStarProps {
   x: number;

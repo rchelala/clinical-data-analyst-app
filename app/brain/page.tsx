@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Loader2, ClipboardPlus, ArrowLeft, FolderPlus } from "lucide-react";
 import { AnalystSelector } from "@/components/brain/AnalystSelector";
 import { SolarSystemView, DivisionNode } from "@/components/brain/SolarSystemView";
-import { DivisionGraphBrain } from "@/components/brain/DivisionGraphBrain";
+import { PlanetView } from "@/components/brain/PlanetView";
 import { GalaxyCanvas } from "@/components/brain/GalaxyCanvas";
 import { GalaxyView } from "@/components/brain/GalaxyView";
 import { Breadcrumb } from "@/components/brain/Breadcrumb";
@@ -341,7 +341,7 @@ export default function BrainPage() {
           zoom.level === "division" &&
           selectedDivision && (
             <GalaxyCanvas onBackgroundClick={handleBackgroundClick}>
-              <DivisionGraphBrain
+              <PlanetView
                 division={selectedDivision}
                 dashboards={divisionDashboards}
                 subscriptions={divisionSubscriptions}

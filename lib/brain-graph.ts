@@ -7,6 +7,7 @@ import {
   DashboardStatus,
   DashboardWithUrgency,
   ReportSubscriptionWithUrgency,
+  RequestStatus,
   RequestWithCreator,
 } from './brain-types';
 
@@ -32,6 +33,9 @@ export interface GraphNode {
 export interface GraphLink {
   source: string;
   target: string;
+  // Present only on request->entity tethers, so rendering code can tell them
+  // apart from entity->center links (which have no request state to show).
+  requestStatus?: RequestStatus;
 }
 
 export interface GraphData {
@@ -69,9 +73,12 @@ function requestNodeId(requestId: number): string {
 /**
  * Builds the full node/link graph for a division's detail view: a center
  * "you" node, one node per dashboard/subscription (colored by type, ringed
- * by status), and one node per open (non-"done") request, linked to its
- * parent entity. `requestsByEntity` is keyed by `${kind}-${id}` (see
- * `entityNodeId`), matching how DivisionGraphBrain fetches per-entity.
+ * by status), and one node per request (open, in-progress, or done), linked
+ * to its parent entity. Closed ("done") requests are kept — not filtered —
+ * so the rendering layer can show them as faded tethers per the Galaxy View
+ * spec, rather than dropping them from the graph entirely.
+ * `requestsByEntity` is keyed by `${kind}-${id}` (see `entityNodeId`),
+ * matching how DivisionGraphBrain fetches per-entity.
  */
 export function buildGraphData(
   dashboards: DashboardWithUrgency[],
@@ -109,8 +116,6 @@ export function buildGraphData(
 
     const requests = requestsByEntity.get(nodeId) ?? [];
     for (const request of requests) {
-      if (request.status === 'done') continue; // only open/in_progress are "open"
-
       const reqNodeId = requestNodeId(request.id);
       nodes.push({
         id: reqNodeId,
@@ -122,7 +127,7 @@ export function buildGraphData(
         entityId: entity.id,
         requestId: request.id,
       });
-      links.push({ source: nodeId, target: reqNodeId });
+      links.push({ source: nodeId, target: reqNodeId, requestStatus: request.status });
     }
   };
 

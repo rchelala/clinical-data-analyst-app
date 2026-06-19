@@ -119,7 +119,25 @@ export function DivisionGraphBrain({
 
   const textColor = resolvedTheme === "dark" ? "#e6edf3" : "#0f172a";
 
-  const linkColor = resolvedTheme === "dark" ? "rgba(148, 163, 184, 0.55)" : "rgba(71, 85, 105, 0.55)";
+  // Base tether color (used for entity->center links, and as the color
+  // family for request->entity links, whose opacity/dash varies by status).
+  const linkRgb = resolvedTheme === "dark" ? "148, 163, 184" : "71, 85, 105";
+  const linkColor = `rgba(${linkRgb}, 0.55)`;
+  const linkColorFaded = `rgba(${linkRgb}, 0.2)`;
+
+  const getLinkColor = useCallback(
+    (link: any) => {
+      const l = link as GraphData["links"][number];
+      if (l.requestStatus === "done") return linkColorFaded;
+      return linkColor;
+    },
+    [linkColor, linkColorFaded]
+  );
+
+  const getLinkDash = useCallback((link: any) => {
+    const l = link as GraphData["links"][number];
+    return l.requestStatus === "in_progress" ? [4, 3] : null;
+  }, []);
 
   const paintNode = useCallback(
     (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
@@ -206,7 +224,8 @@ export function DivisionGraphBrain({
             backgroundColor={backgroundColor}
             nodeId="id"
             nodeVal="val"
-            linkColor={() => linkColor}
+            linkColor={getLinkColor}
+            linkLineDash={getLinkDash}
             linkWidth={1.5}
             nodeCanvasObject={paintNode}
             onNodeClick={handleNodeClick}
@@ -269,6 +288,27 @@ export function DivisionGraphBrain({
                 style={{ borderColor: "#64748b" }}
               />
               Retired
+            </div>
+          </div>
+          <div className="border-t border-theme my-1.5" />
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1.5 text-xs text-primary">
+              <svg width="16" height="10" className="flex-shrink-0">
+                <line x1="0" y1="5" x2="16" y2="5" stroke={linkColor} strokeWidth="1.5" />
+              </svg>
+              Open
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-primary">
+              <svg width="16" height="10" className="flex-shrink-0">
+                <line x1="0" y1="5" x2="16" y2="5" stroke={linkColor} strokeWidth="1.5" strokeDasharray="4 3" />
+              </svg>
+              In progress
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-primary">
+              <svg width="16" height="10" className="flex-shrink-0">
+                <line x1="0" y1="5" x2="16" y2="5" stroke={linkColorFaded} strokeWidth="1.5" />
+              </svg>
+              Closed
             </div>
           </div>
         </div>

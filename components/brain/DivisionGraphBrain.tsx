@@ -124,6 +124,7 @@ export function DivisionGraphBrain({
   const linkRgb = resolvedTheme === "dark" ? "148, 163, 184" : "71, 85, 105";
   const linkColor = `rgba(${linkRgb}, 0.55)`;
   const linkColorFaded = `rgba(${linkRgb}, 0.2)`;
+  const LINK_DASH = [4, 3];
 
   const getLinkColor = useCallback(
     (link: any) => {
@@ -136,7 +137,7 @@ export function DivisionGraphBrain({
 
   const getLinkDash = useCallback((link: any) => {
     const l = link as GraphData["links"][number];
-    return l.requestStatus === "in_progress" ? [4, 3] : null;
+    return l.requestStatus === "in_progress" ? LINK_DASH : null;
   }, []);
 
   const paintNode = useCallback(
@@ -300,7 +301,7 @@ export function DivisionGraphBrain({
             </div>
             <div className="flex items-center gap-1.5 text-xs text-primary">
               <svg width="16" height="10" className="flex-shrink-0">
-                <line x1="0" y1="5" x2="16" y2="5" stroke={linkColor} strokeWidth="1.5" strokeDasharray="4 3" />
+                <line x1="0" y1="5" x2="16" y2="5" stroke={linkColor} strokeWidth="1.5" strokeDasharray={LINK_DASH.join(" ")} />
               </svg>
               In progress
             </div>

@@ -33,8 +33,10 @@ export interface GraphNode {
 export interface GraphLink {
   source: string;
   target: string;
-  // Present only on request->entity tethers, so rendering code can tell them
-  // apart from entity->center links (which have no request state to show).
+  // Present only on request->entity tethers. Left unset on entity->center
+  // links, which have no request state to show, for clarity/debuggability —
+  // rendering itself only branches on the value ("done"/"in_progress"), not
+  // on whether this field is present.
   requestStatus?: RequestStatus;
 }
 

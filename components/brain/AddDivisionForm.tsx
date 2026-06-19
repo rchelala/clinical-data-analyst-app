@@ -1,24 +1,17 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { ClipboardPlus } from "lucide-react";
+import { FolderPlus } from "lucide-react";
 import { Division } from "@/lib/brain-types";
 
-interface AddSubscriptionFormProps {
-  division: Division; // the division currently being viewed — pre-filled, not user-selectable
+interface AddDivisionFormProps {
   currentAnalystId: number;
-  onCreated: () => void;
+  onCreated: (division: Division) => void;
   onCancel: () => void;
 }
 
-export function AddSubscriptionForm({
-  division,
-  currentAnalystId,
-  onCreated,
-  onCancel,
-}: AddSubscriptionFormProps) {
+export function AddDivisionForm({ currentAnalystId, onCreated, onCancel }: AddDivisionFormProps) {
   const [name, setName] = useState("");
-  const [stakeholder, setStakeholder] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,33 +27,26 @@ export function AddSubscriptionForm({
 
       setSubmitting(true);
       try {
-        const res = await fetch("/api/report-subscriptions", {
+        const res = await fetch("/api/divisions", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: name.trim(),
-            divisionId: division.id,
-            analystId: currentAnalystId,
-            stakeholder: stakeholder.trim() ? stakeholder.trim() : undefined,
-          }),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: name.trim(), analystId: currentAnalystId }),
         });
         const data = await res.json();
 
         if (!res.ok) {
-          setError(data.error ?? "Could not create subscription.");
+          setError(data.error ?? "Could not create division.");
           return;
         }
 
-        onCreated();
+        onCreated(data as Division);
       } catch {
         setError("Network error — could not reach the server.");
       } finally {
         setSubmitting(false);
       }
     },
-    [name, stakeholder, division.id, currentAnalystId, onCreated]
+    [name, currentAnalystId, onCreated]
   );
 
   return (
@@ -68,42 +54,30 @@ export function AddSubscriptionForm({
       <div className="w-full max-w-md mx-4 rounded-lg border border-theme bg-panel shadow-xl">
         <div className="flex items-center gap-3 px-5 py-4 border-b border-theme">
           <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-secondary-glass">
-            <ClipboardPlus className="w-5 h-5 text-secondary" />
+            <FolderPlus className="w-5 h-5 text-secondary" />
           </div>
           <div>
             <h2 className="text-sm font-semibold text-primary leading-none">
-              Add subscription
+              Add division
             </h2>
             <p className="text-xs text-secondary mt-0.5">
-              Adding to: {division.name}
+              Create a new division for an incoming dashboard or report subscription.
             </p>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="px-5 py-4 flex flex-col gap-4">
           <div className="flex flex-col gap-1">
-            <label htmlFor="subscriptionName" className="text-xs font-medium text-secondary">
+            <label htmlFor="divisionName" className="text-xs font-medium text-secondary">
               Name <span className="text-red-500">*</span>
             </label>
             <input
-              id="subscriptionName"
+              id="divisionName"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
-              className="text-sm rounded-md border border-theme px-3 py-2 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500"
-            />
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <label htmlFor="subscriptionStakeholder" className="text-xs font-medium text-secondary">
-              Stakeholder
-            </label>
-            <input
-              id="subscriptionStakeholder"
-              type="text"
-              value={stakeholder}
-              onChange={(e) => setStakeholder(e.target.value)}
+              autoFocus
               className="text-sm rounded-md border border-theme px-3 py-2 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
           </div>
@@ -126,7 +100,7 @@ export function AddSubscriptionForm({
               disabled={submitting}
               className="px-3 py-1.5 text-xs font-medium rounded-md bg-brand-600 hover:bg-brand-700 text-white transition-colors disabled:opacity-60"
             >
-              {submitting ? "Creating…" : "Create subscription"}
+              {submitting ? "Creating…" : "Create division"}
             </button>
           </div>
         </form>

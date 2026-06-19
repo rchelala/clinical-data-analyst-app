@@ -7,9 +7,10 @@ CREATE TABLE analysts (
 );
 
 CREATE TABLE divisions (
-   id          serial PRIMARY KEY,
-   name        text NOT NULL UNIQUE,
-   sort_order  int  NOT NULL DEFAULT 0
+   id                    serial PRIMARY KEY,
+   name                  text NOT NULL UNIQUE,
+   sort_order            int  NOT NULL DEFAULT 0,
+   created_by_analyst_id int REFERENCES analysts(id)
 );
 
 -- status: 'active' | 'maintenance' | 'retired' (not enforced by a DB enum/check constraint, documented only)
@@ -51,5 +52,7 @@ CREATE TABLE requests (
    jira_ticket_id  text,
    created_date    date NOT NULL DEFAULT CURRENT_DATE,
    completed_date  date,
+   attachment_url      text,
+   attachment_filename text,
    CHECK (num_nonnulls(dashboard_id, subscription_id) = 1)
 );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import Link from "next/link";
 import { Header } from "@/components/Header";
 import { CodePanel } from "@/components/CodePanel";
 import { DiffPanel } from "@/components/DiffPanel";
@@ -14,7 +15,7 @@ import { HistoryPanel } from "@/components/HistoryPanel";
 import { Language, Density } from "@/lib/prompts";
 import { HistoryEntry, loadHistory, addHistoryEntry, removeHistoryEntry } from "@/lib/history";
 import { AIProvider, loadProvider, saveProvider, PROVIDER_LABELS } from "@/lib/providers";
-import { Sparkles, Copy, Check, RotateCcw, AlertCircle, Loader2, FileText, ChevronDown, ChevronUp, Code2, TableProperties, Download, GitCompare, History, Bot, Users, Search } from "lucide-react";
+import { Sparkles, Copy, Check, RotateCcw, AlertCircle, Loader2, FileText, ChevronDown, ChevronUp, Code2, TableProperties, Download, GitCompare, History, Bot, Users, Search, BrainCircuit } from "lucide-react";
 
 const APP_TABS = [
   { id: "field-request",    label: "Field Request",   Icon: TableProperties },
@@ -191,6 +192,13 @@ export default function Home() {
             {label}
           </button>
         ))}
+        <Link
+          href="/brain"
+          className="flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 border-transparent text-secondary hover:text-primary transition-colors"
+        >
+          <BrainCircuit className="w-4 h-4" />
+          Brain
+        </Link>
       </div>
 
       {/* ── Field Request tab ── */}

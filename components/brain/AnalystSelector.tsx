@@ -6,7 +6,7 @@ import { Analyst } from "@/lib/brain-types";
 import { loadAnalystId, saveAnalystId } from "@/lib/analyst-identity";
 
 interface AnalystSelectorProps {
-  onSelect: (analystId: number) => void;
+  onSelect: (analystId: number, analystName: string) => void;
 }
 
 export function AnalystSelector({ onSelect }: AnalystSelectorProps) {
@@ -14,8 +14,10 @@ export function AnalystSelector({ onSelect }: AnalystSelectorProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   // Modal is shown either because no analyst id was stored yet, or because
-  // the user deliberately clicked "Switch" to re-open the selector.
+  // the user deliberately clicked the current-analyst button to re-open the
+  // selector.
   const [modalOpen, setModalOpen] = useState(false);
+  const [selectedAnalyst, setSelectedAnalyst] = useState<Analyst | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -35,7 +37,9 @@ export function AnalystSelector({ onSelect }: AnalystSelectorProps) {
 
         const storedId = loadAnalystId();
         if (storedId !== null) {
-          onSelect(storedId);
+          const stored = (data as Analyst[]).find((a) => a.id === storedId);
+          if (stored) setSelectedAnalyst(stored);
+          onSelect(storedId, stored?.name ?? "");
         } else {
           setModalOpen(true);
         }
@@ -53,24 +57,30 @@ export function AnalystSelector({ onSelect }: AnalystSelectorProps) {
   }, []);
 
   const handlePick = useCallback(
-    (analystId: number) => {
-      saveAnalystId(analystId);
+    (analyst: Analyst) => {
+      saveAnalystId(analyst.id);
       setModalOpen(false);
-      onSelect(analystId);
+      setSelectedAnalyst(analyst);
+      onSelect(analyst.id, analyst.name);
     },
     [onSelect]
   );
 
   return (
     <>
-      {/* Small inline control to deliberately re-open the selector later. */}
+      {/* Shows the current analyst's name; clicking re-opens the selector
+          to switch to a different one. */}
       <button
         onClick={() => setModalOpen(true)}
         title="Switch analyst"
         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
       >
-        <RefreshCw className="w-3 h-3" />
-        Switch analyst
+        {selectedAnalyst ? (
+          <UserCircle2 className="w-3 h-3" />
+        ) : (
+          <RefreshCw className="w-3 h-3" />
+        )}
+        {selectedAnalyst ? selectedAnalyst.name : "Select analyst"}
       </button>
 
       {modalOpen && (
@@ -108,7 +118,7 @@ export function AnalystSelector({ onSelect }: AnalystSelectorProps) {
                   {analysts.map((analyst) => (
                     <button
                       key={analyst.id}
-                      onClick={() => handlePick(analyst.id)}
+                      onClick={() => handlePick(analyst)}
                       className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md border border-theme text-primary hover:bg-slate-200 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-colors"
                     >
                       <UserCircle2 className="w-4 h-4 text-secondary flex-shrink-0" />

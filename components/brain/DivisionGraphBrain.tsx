@@ -23,7 +23,7 @@ interface DivisionGraphBrainProps {
   subscriptions: ReportSubscriptionWithUrgency[]; // already filtered by caller to just this division
   onSelectEntity: (kind: BrainEntityKind, id: number, focusRequestId?: number) => void;
   onBack: () => void;
-  onAddSubscription?: () => void;
+  onAddEntity?: () => void;
 }
 
 const LIGHT_BG = "#f8fafc";
@@ -35,7 +35,7 @@ export function DivisionGraphBrain({
   subscriptions,
   onSelectEntity,
   onBack,
-  onAddSubscription,
+  onAddEntity,
 }: DivisionGraphBrainProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -119,6 +119,8 @@ export function DivisionGraphBrain({
 
   const textColor = resolvedTheme === "dark" ? "#e6edf3" : "#0f172a";
 
+  const linkColor = resolvedTheme === "dark" ? "rgba(148, 163, 184, 0.55)" : "rgba(71, 85, 105, 0.55)";
+
   const paintNode = useCallback(
     (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
       const n = node as GraphData["nodes"][number] & { x?: number; y?: number };
@@ -136,7 +138,8 @@ export function DivisionGraphBrain({
         ctx.stroke();
       }
 
-      if (n.kind === "dashboard" || n.kind === "subscription") {
+      const isHovered = hoveredNode?.id === n.id;
+      if ((n.kind === "dashboard" || n.kind === "subscription") && isHovered) {
         const fontSize = Math.max(8, Math.min(16, 12 / globalScale));
         ctx.font = `${fontSize}px Inter, sans-serif`;
         ctx.textAlign = "center";
@@ -145,7 +148,7 @@ export function DivisionGraphBrain({
         ctx.fillText(n.label, x, y + n.val + 4);
       }
     },
-    [textColor]
+    [textColor, hoveredNode]
   );
 
   const handleNodeClick = useCallback(
@@ -183,13 +186,13 @@ export function DivisionGraphBrain({
         {requestsError && (
           <span className="text-xs text-red-600 dark:text-red-400">{requestsError}</span>
         )}
-        {onAddSubscription && (
+        {onAddEntity && (
           <button
-            onClick={onAddSubscription}
+            onClick={onAddEntity}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors ml-auto"
           >
             <ClipboardPlus className="w-3 h-3" />
-            Add Subscription
+            Add Dashboard / Subscription
           </button>
         )}
       </div>
@@ -203,6 +206,8 @@ export function DivisionGraphBrain({
             backgroundColor={backgroundColor}
             nodeId="id"
             nodeVal="val"
+            linkColor={() => linkColor}
+            linkWidth={1.5}
             nodeCanvasObject={paintNode}
             onNodeClick={handleNodeClick}
             onNodeHover={handleNodeHover}
@@ -225,6 +230,48 @@ export function DivisionGraphBrain({
             </p>
           </div>
         )}
+
+        <div className="absolute bottom-4 right-4 rounded-lg border border-theme bg-panel shadow-lg px-3 py-2.5 pointer-events-none">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-secondary mb-1.5">Legend</p>
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1.5 text-xs text-primary">
+              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: "#22c55e" }} />
+              Dashboard
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-primary">
+              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: "#a855f7" }} />
+              Subscription
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-primary">
+              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: "#94a3b8" }} />
+              Open request
+            </div>
+          </div>
+          <div className="border-t border-theme my-1.5" />
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-1.5 text-xs text-primary">
+              <span
+                className="w-2.5 h-2.5 rounded-full flex-shrink-0 border-2"
+                style={{ borderColor: "#22c55e" }}
+              />
+              Active
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-primary">
+              <span
+                className="w-2.5 h-2.5 rounded-full flex-shrink-0 border-2"
+                style={{ borderColor: "#f59e0b" }}
+              />
+              Maintenance
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-primary">
+              <span
+                className="w-2.5 h-2.5 rounded-full flex-shrink-0 border-2"
+                style={{ borderColor: "#64748b" }}
+              />
+              Retired
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

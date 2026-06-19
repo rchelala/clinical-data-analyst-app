@@ -12,6 +12,9 @@ export function computeUrgency(
   return daysStale * 1.0 + openRequestCount * 7 + oldestOpenRequestAgeDays * 0.5;
 }
 
+export const MIN_RADIUS = 80;
+export const MAX_RADIUS = 400;
+
 /**
  * Min-max normalizes urgency scores into a radius band. Urgency is inverted
  * relative to radius: per the design doc, higher urgency pulls a dashboard
@@ -20,8 +23,8 @@ export function computeUrgency(
  */
 export function normalizeRadius(
   urgencyScores: number[],
-  minRadius = 80,
-  maxRadius = 400
+  minRadius = MIN_RADIUS,
+  maxRadius = MAX_RADIUS
 ): number[] {
   const min = Math.min(...urgencyScores);
   const max = Math.max(...urgencyScores);

@@ -67,18 +67,19 @@ export function Starfield() {
   }, []);
 
   // Twinkle animation loop — skipped entirely under prefers-reduced-motion,
-  // since this is purely decorative chrome with no functional purpose.
+  // since this is purely decorative chrome with no functional purpose. Reacts
+  // live to the OS-level setting changing while the page is open (no reload
+  // required), starting/stopping the rAF loop in response.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (prefersReducedMotion) return;
-
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    let frameId: number;
+    const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+    let frameId: number | undefined;
 
     const render = (time: number) => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -92,9 +93,24 @@ export function Starfield() {
       frameId = requestAnimationFrame(render);
     };
 
-    frameId = requestAnimationFrame(render);
+    const startOrStop = () => {
+      if (motionQuery.matches) {
+        if (frameId !== undefined) {
+          cancelAnimationFrame(frameId);
+          frameId = undefined;
+        }
+      } else if (frameId === undefined) {
+        frameId = requestAnimationFrame(render);
+      }
+    };
 
-    return () => cancelAnimationFrame(frameId);
+    startOrStop();
+    motionQuery.addEventListener("change", startOrStop);
+
+    return () => {
+      motionQuery.removeEventListener("change", startOrStop);
+      if (frameId !== undefined) cancelAnimationFrame(frameId);
+    };
   }, []);
 
   return (

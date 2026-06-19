@@ -1,7 +1,7 @@
 "use client";
 
 import { truncateLabel } from "@/lib/text-utils";
-import { Glow } from "@/components/brain/nodes/Glow";
+import { Glow, GLOW_SCALE } from "@/components/brain/nodes/Glow";
 
 // Presentational only — purely renders a division as a "planet" at (x, y).
 // No fetch/state of its own; all interactivity is reported via callback
@@ -9,7 +9,6 @@ import { Glow } from "@/components/brain/nodes/Glow";
 // the AnalystStar.tsx pattern from the Galaxy zoom.
 
 const PLANET_RADIUS = 18;
-const GLOW_SCALE = 2; // glow circle drawn at 2x the planet's own radius, per spec's "low-opacity larger circle" callout
 
 export const DIVISION_PLANET_COLOR = "#bb9af7"; // purple, per spec's color table
 

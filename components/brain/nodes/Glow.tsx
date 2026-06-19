@@ -13,6 +13,13 @@
 // interface simple and lets each caller tune the glow size to its own node
 // without a magic number buried in here.
 
+// Glow circle is drawn at this multiple of the node's own radius, per the
+// spec's "low-opacity larger circle" callout. Hoisted here so AnalystStar.tsx
+// and DivisionPlanet.tsx share one definition instead of each declaring their
+// own copy — the same duplication this codebase has already been burned by
+// twice before (color constants, label truncation).
+export const GLOW_SCALE = 2;
+
 export interface GlowProps {
   cx: number;
   cy: number;

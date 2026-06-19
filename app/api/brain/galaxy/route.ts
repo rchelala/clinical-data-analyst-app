@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
+import { fetchDashboardRowsWithStaleness, fetchSubscriptionRowsWithStaleness } from '@/lib/dashboard-queries';
 import { mapAnalystRow } from '@/lib/brain-mappers';
 import { computeUrgency, bucketUrgencies } from '@/lib/urgency';
 import { AnalystSummary } from '@/lib/brain-types';
@@ -16,47 +17,10 @@ export async function GET() {
       SELECT id, created_by_analyst_id FROM divisions
     `;
 
-    // Mirror of the unscoped branch in app/api/dashboards/route.ts.
-    const dashboardRows = await sql`
-      SELECT
-        d.id,
-        d.division_id,
-        d.analyst_id,
-        COALESCE(agg.open_request_count, 0) AS open_request_count,
-        (CURRENT_DATE - d.last_touched_date) AS days_stale,
-        COALESCE(agg.oldest_open_request_age_days, 0) AS oldest_open_request_age_days
-      FROM dashboards d
-      LEFT JOIN (
-        SELECT
-          dashboard_id,
-          COUNT(*) AS open_request_count,
-          MAX(CURRENT_DATE - created_date) AS oldest_open_request_age_days
-        FROM requests
-        WHERE status != 'done'
-        GROUP BY dashboard_id
-      ) agg ON agg.dashboard_id = d.id
-    `;
-
-    // Mirror of the unscoped branch in app/api/report-subscriptions/route.ts.
-    const subscriptionRows = await sql`
-      SELECT
-        s.id,
-        s.division_id,
-        s.analyst_id,
-        COALESCE(agg.open_request_count, 0) AS open_request_count,
-        (CURRENT_DATE - s.last_touched_date) AS days_stale,
-        COALESCE(agg.oldest_open_request_age_days, 0) AS oldest_open_request_age_days
-      FROM report_subscriptions s
-      LEFT JOIN (
-        SELECT
-          subscription_id,
-          COUNT(*) AS open_request_count,
-          MAX(CURRENT_DATE - created_date) AS oldest_open_request_age_days
-        FROM requests
-        WHERE status != 'done'
-        GROUP BY subscription_id
-      ) agg ON agg.subscription_id = s.id
-    `;
+    // Unscoped (org-wide) rows — same shared query used by the per-analyst
+    // routes in app/api/dashboards/route.ts and app/api/report-subscriptions/route.ts.
+    const dashboardRows = await fetchDashboardRowsWithStaleness();
+    const subscriptionRows = await fetchSubscriptionRowsWithStaleness();
 
     // Combine dashboard + subscription rows into one urgency-driving set so
     // bucketUrgencies() classifies terciles across the whole org at once.

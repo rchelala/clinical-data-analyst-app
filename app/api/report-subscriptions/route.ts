@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
+import { fetchSubscriptionRowsWithStaleness } from '@/lib/dashboard-queries';
 import { mapReportSubscriptionRow } from '@/lib/brain-mappers';
 import { computeUrgency, normalizeRadius } from '@/lib/urgency';
 import { ReportSubscriptionWithUrgency } from '@/lib/brain-types';
@@ -9,61 +10,7 @@ export async function GET(req: NextRequest) {
     const analystIdHeader = req.headers.get('x-analyst-id');
     const analystId = analystIdHeader ? Number(analystIdHeader) : null;
 
-    // Aggregate open-request stats per subscription in one round trip, then
-    // join onto report_subscriptions, so we avoid N+1 queries. `daysStale`
-    // and `oldestOpenRequestAgeDays` are computed in SQL as integer day diffs.
-    const rows = analystId
-      ? await sql`
-          SELECT
-            s.id,
-            s.name,
-            s.division_id,
-            s.analyst_id,
-            s.stakeholder,
-            s.status,
-            s.jira_ticket_id,
-            s.last_touched_date,
-            s.created_date,
-            COALESCE(agg.open_request_count, 0) AS open_request_count,
-            (CURRENT_DATE - s.last_touched_date) AS days_stale,
-            COALESCE(agg.oldest_open_request_age_days, 0) AS oldest_open_request_age_days
-          FROM report_subscriptions s
-          LEFT JOIN (
-            SELECT
-              subscription_id,
-              COUNT(*) AS open_request_count,
-              MAX(CURRENT_DATE - created_date) AS oldest_open_request_age_days
-            FROM requests
-            WHERE status != 'done'
-            GROUP BY subscription_id
-          ) agg ON agg.subscription_id = s.id
-          WHERE s.analyst_id = ${analystId}
-        `
-      : await sql`
-          SELECT
-            s.id,
-            s.name,
-            s.division_id,
-            s.analyst_id,
-            s.stakeholder,
-            s.status,
-            s.jira_ticket_id,
-            s.last_touched_date,
-            s.created_date,
-            COALESCE(agg.open_request_count, 0) AS open_request_count,
-            (CURRENT_DATE - s.last_touched_date) AS days_stale,
-            COALESCE(agg.oldest_open_request_age_days, 0) AS oldest_open_request_age_days
-          FROM report_subscriptions s
-          LEFT JOIN (
-            SELECT
-              subscription_id,
-              COUNT(*) AS open_request_count,
-              MAX(CURRENT_DATE - created_date) AS oldest_open_request_age_days
-            FROM requests
-            WHERE status != 'done'
-            GROUP BY subscription_id
-          ) agg ON agg.subscription_id = s.id
-        `;
+    const rows = await fetchSubscriptionRowsWithStaleness(analystId ?? undefined);
 
     const urgencyScores = rows.map((row: any) =>
       computeUrgency(

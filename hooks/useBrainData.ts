@@ -43,9 +43,9 @@ type CacheEntry =
 
 async function fetchGalaxySummaries(): Promise<AnalystSummary[]> {
   const res = await fetch("/api/brain/galaxy");
-  const data = await res.json();
+  const data = await res.json().catch(() => null);
   if (!res.ok) {
-    throw new Error(data.error ?? "Could not load galaxy summary.");
+    throw new Error(data?.error ?? "Could not load galaxy summary.");
   }
   return data;
 }
@@ -64,19 +64,19 @@ async function fetchAnalystScopedData(analystId: number): Promise<{
   ]);
 
   const [divisionsData, dashboardsData, subscriptionsData] = await Promise.all([
-    divisionsRes.json(),
-    dashboardsRes.json(),
-    subscriptionsRes.json(),
+    divisionsRes.json().catch(() => null),
+    dashboardsRes.json().catch(() => null),
+    subscriptionsRes.json().catch(() => null),
   ]);
 
   if (!divisionsRes.ok) {
-    throw new Error(divisionsData.error ?? "Could not load divisions.");
+    throw new Error(divisionsData?.error ?? "Could not load divisions.");
   }
   if (!dashboardsRes.ok) {
-    throw new Error(dashboardsData.error ?? "Could not load dashboards.");
+    throw new Error(dashboardsData?.error ?? "Could not load dashboards.");
   }
   if (!subscriptionsRes.ok) {
-    throw new Error(subscriptionsData.error ?? "Could not load report subscriptions.");
+    throw new Error(subscriptionsData?.error ?? "Could not load report subscriptions.");
   }
 
   return {

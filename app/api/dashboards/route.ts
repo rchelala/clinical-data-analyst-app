@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
+import { fetchDashboardRowsWithStaleness } from '@/lib/dashboard-queries';
 import { mapDashboardRow } from '@/lib/brain-mappers';
 import { computeUrgency, normalizeRadius } from '@/lib/urgency';
 import { DashboardWithUrgency } from '@/lib/brain-types';
@@ -9,61 +10,7 @@ export async function GET(req: NextRequest) {
     const analystIdHeader = req.headers.get('x-analyst-id');
     const analystId = analystIdHeader ? Number(analystIdHeader) : null;
 
-    // Aggregate open-request stats per dashboard in one round trip, then join
-    // onto dashboards, so we avoid N+1 queries. `daysStale` and
-    // `oldestOpenRequestAgeDays` are computed in SQL as integer day diffs.
-    const rows = analystId
-      ? await sql`
-          SELECT
-            d.id,
-            d.name,
-            d.division_id,
-            d.analyst_id,
-            d.stakeholder,
-            d.status,
-            d.jira_ticket_id,
-            d.last_touched_date,
-            d.created_date,
-            COALESCE(agg.open_request_count, 0) AS open_request_count,
-            (CURRENT_DATE - d.last_touched_date) AS days_stale,
-            COALESCE(agg.oldest_open_request_age_days, 0) AS oldest_open_request_age_days
-          FROM dashboards d
-          LEFT JOIN (
-            SELECT
-              dashboard_id,
-              COUNT(*) AS open_request_count,
-              MAX(CURRENT_DATE - created_date) AS oldest_open_request_age_days
-            FROM requests
-            WHERE status != 'done'
-            GROUP BY dashboard_id
-          ) agg ON agg.dashboard_id = d.id
-          WHERE d.analyst_id = ${analystId}
-        `
-      : await sql`
-          SELECT
-            d.id,
-            d.name,
-            d.division_id,
-            d.analyst_id,
-            d.stakeholder,
-            d.status,
-            d.jira_ticket_id,
-            d.last_touched_date,
-            d.created_date,
-            COALESCE(agg.open_request_count, 0) AS open_request_count,
-            (CURRENT_DATE - d.last_touched_date) AS days_stale,
-            COALESCE(agg.oldest_open_request_age_days, 0) AS oldest_open_request_age_days
-          FROM dashboards d
-          LEFT JOIN (
-            SELECT
-              dashboard_id,
-              COUNT(*) AS open_request_count,
-              MAX(CURRENT_DATE - created_date) AS oldest_open_request_age_days
-            FROM requests
-            WHERE status != 'done'
-            GROUP BY dashboard_id
-          ) agg ON agg.dashboard_id = d.id
-        `;
+    const rows = await fetchDashboardRowsWithStaleness(analystId ?? undefined);
 
     const urgencyScores = rows.map((row: any) =>
       computeUrgency(

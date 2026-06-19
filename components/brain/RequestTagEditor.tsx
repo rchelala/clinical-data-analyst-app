@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { Tag } from "@/lib/brain-types";
 
@@ -21,6 +21,8 @@ export function RequestTagEditor({ requestId, tags, allTags, onTagsChange }: Req
   const [removingTagId, setRemovingTagId] = useState<number | null>(null);
   const [addPending, setAddPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
   const suggestions = useMemo(() => {
     const query = inputValue.trim().toLowerCase();
@@ -30,6 +32,13 @@ export function RequestTagEditor({ requestId, tags, allTags, onTagsChange }: Req
       .filter((t) => !assignedIds.has(t.id) && t.name.toLowerCase().includes(query))
       .slice(0, MAX_SUGGESTIONS);
   }, [inputValue, allTags, tags]);
+
+  // Reset the highlighted suggestion whenever the candidate list changes
+  // (e.g. as the user types), so a stale index from a previous keystroke
+  // doesn't linger.
+  useEffect(() => {
+    setHighlightedIndex(-1);
+  }, [suggestions]);
 
   const handleRemove = async (tagId: number) => {
     setError(null);
@@ -55,6 +64,8 @@ export function RequestTagEditor({ requestId, tags, allTags, onTagsChange }: Req
   };
 
   const handleAdd = async (tagName: string) => {
+    if (addPending) return;
+
     const trimmed = tagName.trim();
     if (!trimmed) return;
 
@@ -85,9 +96,18 @@ export function RequestTagEditor({ requestId, tags, allTags, onTagsChange }: Req
   };
 
   const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
+    if (e.key === "ArrowDown") {
       e.preventDefault();
-      handleAdd(inputValue);
+      if (suggestions.length === 0) return;
+      setHighlightedIndex((prev) => (prev + 1) % suggestions.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (suggestions.length === 0) return;
+      setHighlightedIndex((prev) => (prev - 1 + suggestions.length) % suggestions.length);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const highlighted = suggestions[highlightedIndex];
+      handleAdd(highlighted ? highlighted.name : inputValue);
     } else if (e.key === "Escape") {
       setAdding(false);
       setInputValue("");
@@ -108,7 +128,7 @@ export function RequestTagEditor({ requestId, tags, allTags, onTagsChange }: Req
               onClick={() => handleRemove(tag.id)}
               disabled={removingTagId === tag.id}
               aria-label={`Remove tag ${tag.name}`}
-              className="flex items-center justify-center disabled:opacity-60"
+              className="flex items-center justify-center disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
               <X className="w-2.5 h-2.5" />
             </button>
@@ -119,7 +139,8 @@ export function RequestTagEditor({ requestId, tags, allTags, onTagsChange }: Req
           <button
             type="button"
             onClick={() => setAdding(true)}
-            className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full border border-theme text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            aria-label="Add tag"
+            className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full border border-theme text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
             <Plus className="w-2.5 h-2.5" />
             tag
@@ -127,40 +148,47 @@ export function RequestTagEditor({ requestId, tags, allTags, onTagsChange }: Req
         )}
 
         {adding && (
-          <div className="relative">
+          <div className="relative" ref={wrapperRef}>
             <input
               type="text"
               autoFocus
+              role="combobox"
+              aria-expanded={suggestions.length > 0}
+              aria-autocomplete="list"
+              aria-controls="tag-suggestions-listbox"
               value={inputValue}
               disabled={addPending}
               onChange={(e) => setInputValue(e.target.value)}
               onKeyDown={handleInputKeyDown}
-              onBlur={() => {
-                // Defer collapse so a click on a suggestion (which fires
-                // before blur settles) still registers as an add.
-                window.setTimeout(() => {
+              onBlur={(e) => {
+                // Only collapse if focus is moving outside this wrapper
+                // (i.e. not to one of the suggestion buttons below).
+                if (!wrapperRef.current?.contains(e.relatedTarget as Node | null)) {
                   setAdding(false);
                   setInputValue("");
-                }, 150);
+                }
               }}
               placeholder="Tag name…"
               className="text-[10px] font-medium rounded-full border border-theme px-2 py-0.5 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-60 w-24"
             />
 
             {suggestions.length > 0 && (
-              <div className="absolute left-0 top-full mt-1 z-10 min-w-full rounded-md border border-theme bg-panel shadow-lg overflow-hidden">
-                {suggestions.map((tag) => (
+              <div
+                id="tag-suggestions-listbox"
+                role="listbox"
+                className="absolute left-0 top-full mt-1 z-10 min-w-full rounded-md border border-theme bg-panel shadow-lg overflow-hidden"
+              >
+                {suggestions.map((tag, index) => (
                   <button
                     key={tag.id}
                     type="button"
+                    role="option"
+                    aria-selected={index === highlightedIndex}
                     disabled={addPending}
-                    onMouseDown={(e) => {
-                      // Use onMouseDown instead of onClick so this fires
-                      // before the input's onBlur collapses the editor.
-                      e.preventDefault();
-                      handleAdd(tag.name);
-                    }}
-                    className="block w-full text-left px-2 py-1 text-[10px] text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-60 whitespace-nowrap"
+                    onClick={() => handleAdd(tag.name)}
+                    className={`block w-full text-left px-2 py-1 text-[10px] text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-60 whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-brand-500 ${
+                      index === highlightedIndex ? "bg-slate-200 dark:bg-slate-700" : ""
+                    }`}
                   >
                     {tag.name}
                   </button>

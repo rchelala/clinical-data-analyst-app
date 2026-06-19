@@ -11,6 +11,7 @@ export interface Division {
   id: number;
   name: string;
   sortOrder: number;
+  createdByAnalystId: number | null;
 }
 
 export type DashboardStatus = 'active' | 'maintenance' | 'retired';
@@ -56,6 +57,20 @@ export interface ReportSubscriptionWithUrgency extends ReportSubscription {
 export type RequestType = 'feature' | 'bug' | 'field_request';
 export type RequestStatus = 'open' | 'in_progress' | 'done';
 
+export interface Tag {
+  id: number;
+  name: string;
+}
+
+export interface RelatedRequestSummary {
+  id: number;
+  title: string;
+  status: RequestStatus;
+  dashboardId: number | null;
+  subscriptionId: number | null;
+  contextName?: string; // parent dashboard/subscription name, for picker display
+}
+
 export interface Request {
   id: number;
   dashboardId: number | null;
@@ -68,6 +83,10 @@ export interface Request {
   jiraTicketId: string | null;
   createdDate: string;
   completedDate: string | null;
+  attachmentUrl: string | null;
+  attachmentFilename: string | null;
+  tags: Tag[];
+  relatedRequests: RelatedRequestSummary[];
 }
 
 export interface RequestWithCreator extends Request {

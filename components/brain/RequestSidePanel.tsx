@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { X, Loader2, ClipboardList, Paperclip } from "lucide-react";
+import { X, Loader2, ClipboardList, Paperclip, Trash2 } from "lucide-react";
 import { BrainEntityKind, RequestStatus, RequestWithCreator, Tag } from "@/lib/brain-types";
 import { AttachFieldRequestForm } from "@/components/brain/AttachFieldRequestForm";
 import { RequestTagEditor } from "./RequestTagEditor";
@@ -70,6 +70,14 @@ export function RequestSidePanel({ entity, currentAnalystId, focusRequestId, onC
   // Tracks which request ids currently have an in-flight attachment download,
   // so we can disable that row's button without blocking the rest of the list.
   const [downloadingIds, setDownloadingIds] = useState<Set<number>>(new Set());
+  // Per-request error message, keyed by request id, for failed deletes.
+  const [deleteErrors, setDeleteErrors] = useState<Record<number, string>>({});
+  // Tracks which request ids currently have an in-flight DELETE, so we can
+  // disable that row's confirm/cancel buttons without blocking the rest of the list.
+  const [deletingIds, setDeletingIds] = useState<Set<number>>(new Set());
+  // Tracks which request ids are showing the inline "are you sure?" confirm
+  // step (clicked the trash icon but haven't confirmed or cancelled yet).
+  const [confirmingDeleteIds, setConfirmingDeleteIds] = useState<Set<number>>(new Set());
   const [attachFieldRequestOpen, setAttachFieldRequestOpen] = useState(false);
   // Bumping this re-runs the request-list fetch effect below, letting us
   // refresh the list after a field request is attached from this panel.
@@ -225,6 +233,68 @@ export function RequestSidePanel({ entity, currentAnalystId, focusRequestId, onC
     [currentAnalystId]
   );
 
+  const handleRequestDelete = useCallback((requestId: number) => {
+    setDeleteErrors((prev) => {
+      const next = { ...prev };
+      delete next[requestId];
+      return next;
+    });
+    setConfirmingDeleteIds((prev) => new Set(prev).add(requestId));
+  }, []);
+
+  const handleCancelDelete = useCallback((requestId: number) => {
+    setConfirmingDeleteIds((prev) => {
+      const next = new Set(prev);
+      next.delete(requestId);
+      return next;
+    });
+    setDeleteErrors((prev) => {
+      const next = { ...prev };
+      delete next[requestId];
+      return next;
+    });
+  }, []);
+
+  const handleConfirmDelete = useCallback(async (requestId: number) => {
+    setDeleteErrors((prev) => {
+      const next = { ...prev };
+      delete next[requestId];
+      return next;
+    });
+    setDeletingIds((prev) => new Set(prev).add(requestId));
+
+    try {
+      const res = await fetch(`/api/requests/${requestId}`, { method: "DELETE" });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setDeleteErrors((prev) => ({
+          ...prev,
+          [requestId]: data.error ?? "Could not delete request.",
+        }));
+        return;
+      }
+
+      setRequests((prev) => prev.filter((r) => r.id !== requestId));
+      setConfirmingDeleteIds((prev) => {
+        const next = new Set(prev);
+        next.delete(requestId);
+        return next;
+      });
+    } catch {
+      setDeleteErrors((prev) => ({
+        ...prev,
+        [requestId]: "Network error — could not reach the server.",
+      }));
+    } finally {
+      setDeletingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(requestId);
+        return next;
+      });
+    }
+  }, []);
+
   if (!entity) return null;
 
   return (
@@ -299,7 +369,50 @@ export function RequestSidePanel({ entity, currentAnalystId, focusRequestId, onC
                 >
                   <div className="flex items-start justify-between gap-2">
                     <p className="text-sm font-medium text-primary">{request.title}</p>
+                    {!confirmingDeleteIds.has(request.id) && (
+                      <button
+                        type="button"
+                        onClick={() => handleRequestDelete(request.id)}
+                        aria-label="Delete request"
+                        className="flex items-center justify-center w-6 h-6 rounded-md text-secondary hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex-shrink-0"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
+
+                  {confirmingDeleteIds.has(request.id) && (
+                    <div className="flex items-center justify-between gap-2 mt-1.5 rounded-md border border-theme bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5">
+                      <span className="text-xs text-secondary">Delete this request?</span>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleCancelDelete(request.id)}
+                          disabled={deletingIds.has(request.id)}
+                          className="px-2 py-1 text-xs font-medium rounded-md border border-theme text-secondary hover:text-primary transition-colors disabled:opacity-60"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleConfirmDelete(request.id)}
+                          disabled={deletingIds.has(request.id)}
+                          className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-red-600 hover:bg-red-700 text-white transition-colors disabled:opacity-60"
+                        >
+                          {deletingIds.has(request.id) && (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                          )}
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {deleteErrors[request.id] && (
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                      {deleteErrors[request.id]}
+                    </p>
+                  )}
 
                   {request.description && (
                     <p className="text-xs text-secondary mt-1">{request.description}</p>

@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { X, Loader2, ClipboardList } from "lucide-react";
-import { BrainEntityKind, RequestStatus, RequestWithCreator } from "@/lib/brain-types";
+import { X, Loader2, ClipboardList, Paperclip } from "lucide-react";
+import { BrainEntityKind, RequestStatus, RequestWithCreator, Tag } from "@/lib/brain-types";
 import { AttachFieldRequestForm } from "@/components/brain/AttachFieldRequestForm";
+import { RequestTagEditor } from "./RequestTagEditor";
+import { RequestLinkPicker } from "./RequestLinkPicker";
 
 export interface RequestSidePanelEntity {
   kind: BrainEntityKind;
@@ -47,6 +49,7 @@ export function RequestSidePanel({ entity, currentAnalystId, focusRequestId, onC
   // Bumping this re-runs the request-list fetch effect below, letting us
   // refresh the list after a field request is attached from this panel.
   const [refreshKey, setRefreshKey] = useState(0);
+  const [allTags, setAllTags] = useState<Tag[]>([]);
   const rowRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
   useEffect(() => {
@@ -89,6 +92,32 @@ export function RequestSidePanel({ entity, currentAnalystId, focusRequestId, onC
     // so the list reflects the newly created request.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entity?.kind, entity?.id, refreshKey]);
+
+  // Fetches the full tag list once the panel opens, for tag-autocomplete
+  // suggestions in RequestTagEditor. Kept separate from the requests-fetch
+  // effect above so a failure here (silently degrading to no suggestions)
+  // can never block the request list from loading.
+  useEffect(() => {
+    if (!entity) return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await fetch("/api/tags");
+        const data = await res.json();
+        if (cancelled) return;
+        if (!res.ok) return;
+        setAllTags(data);
+      } catch {
+        // Silently degrade — tag autocomplete just won't have suggestions.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [entity?.kind, entity?.id]);
 
   useEffect(() => {
     if (!focusRequestId) return;
@@ -224,6 +253,18 @@ export function RequestSidePanel({ entity, currentAnalystId, focusRequestId, onC
                     <p className="text-xs text-secondary mt-1">{request.description}</p>
                   )}
 
+                  {request.attachmentUrl && (
+                    <a
+                      href={request.attachmentUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 text-xs text-brand-600 dark:text-brand-400 hover:underline mt-1.5 truncate"
+                    >
+                      <Paperclip className="w-3 h-3 flex-shrink-0" />
+                      {request.attachmentFilename ?? "Attachment"}
+                    </a>
+                  )}
+
                   <div className="flex items-center gap-2 mt-2 text-xs text-secondary">
                     <span className="capitalize">{request.requestType.replace("_", " ")}</span>
                     <span>·</span>
@@ -259,6 +300,30 @@ export function RequestSidePanel({ entity, currentAnalystId, focusRequestId, onC
                     {updatingIds.has(request.id) && (
                       <Loader2 className="w-3 h-3 text-brand-500 animate-spin" />
                     )}
+                  </div>
+
+                  <div className="mt-2 pt-2 border-t border-theme">
+                    <RequestTagEditor
+                      requestId={request.id}
+                      tags={request.tags}
+                      allTags={allTags}
+                      onTagsChange={(tags) =>
+                        setRequests((prev) =>
+                          prev.map((r) => (r.id === request.id ? { ...r, tags } : r))
+                        )
+                      }
+                    />
+                  </div>
+                  <div className="mt-2 pt-2 border-t border-theme">
+                    <RequestLinkPicker
+                      requestId={request.id}
+                      relatedRequests={request.relatedRequests}
+                      onRelatedRequestsChange={(relatedRequests) =>
+                        setRequests((prev) =>
+                          prev.map((r) => (r.id === request.id ? { ...r, relatedRequests } : r))
+                        )
+                      }
+                    />
                   </div>
 
                   {statusErrors[request.id] && (

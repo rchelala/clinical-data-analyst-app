@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { ClipboardPlus } from "lucide-react";
+import { useState, useCallback, useRef } from "react";
+import { ClipboardPlus, Paperclip, X } from "lucide-react";
 import {
   DashboardWithUrgency,
   ReportSubscriptionWithUrgency,
@@ -40,6 +40,8 @@ export function AddRequestForm({
   const [requestType, setRequestType] = useState<RequestType>("feature");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -62,6 +64,25 @@ export function AddRequestForm({
 
       setSubmitting(true);
       try {
+        let attachmentUrl: string | undefined;
+        let attachmentFilename: string | undefined;
+
+        if (attachmentFile) {
+          const uploadBody = new FormData();
+          uploadBody.append("file", attachmentFile);
+          const uploadRes = await fetch("/api/requests/attachment", {
+            method: "POST",
+            body: uploadBody,
+          });
+          const uploadData = await uploadRes.json();
+          if (!uploadRes.ok) {
+            setError(uploadData.error ?? "Could not upload attachment.");
+            return;
+          }
+          attachmentUrl = uploadData.url;
+          attachmentFilename = uploadData.filename;
+        }
+
         const res = await fetch("/api/requests", {
           method: "POST",
           headers: {
@@ -74,6 +95,8 @@ export function AddRequestForm({
             title: title.trim(),
             description: description.trim() ? description.trim() : undefined,
             requestType,
+            attachmentUrl,
+            attachmentFilename,
           }),
         });
         const data = await res.json();
@@ -90,7 +113,7 @@ export function AddRequestForm({
         setSubmitting(false);
       }
     },
-    [entityValue, title, description, requestType, currentAnalystId, onCreated]
+    [entityValue, title, description, requestType, attachmentFile, currentAnalystId, onCreated]
   );
 
   return (
@@ -189,6 +212,47 @@ export function AddRequestForm({
                 </option>
               ))}
             </select>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-secondary">
+              Attach a previously-built Excel request (optional)
+            </label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              className="hidden"
+              onChange={(e) => setAttachmentFile(e.target.files?.[0] ?? null)}
+            />
+            {attachmentFile ? (
+              <div className="flex items-center justify-between gap-2 text-sm rounded-md border border-theme px-3 py-2 bg-panel text-primary">
+                <span className="flex items-center gap-1.5 truncate">
+                  <Paperclip className="w-3.5 h-3.5 text-secondary flex-shrink-0" />
+                  {attachmentFile.name}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAttachmentFile(null);
+                    if (fileInputRef.current) fileInputRef.current.value = "";
+                  }}
+                  className="text-secondary hover:text-red-500 transition-colors flex-shrink-0"
+                  title="Remove attachment"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center justify-center gap-1.5 text-sm rounded-md border border-dashed border-theme px-3 py-2 text-secondary hover:text-primary hover:bg-panel transition-colors"
+              >
+                <Paperclip className="w-3.5 h-3.5" />
+                Choose Excel file…
+              </button>
+            )}
           </div>
 
           {error && (

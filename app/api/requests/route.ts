@@ -37,7 +37,25 @@ export async function GET(req: NextRequest) {
             r.jira_ticket_id,
             r.created_date,
             r.completed_date,
-            a.name AS created_by_name
+            r.attachment_url,
+            r.attachment_filename,
+            a.name AS created_by_name,
+            COALESCE(
+              (SELECT json_agg(json_build_object('id', t.id, 'name', t.name) ORDER BY t.name)
+               FROM request_tags rt JOIN tags t ON t.id = rt.tag_id
+               WHERE rt.request_id = r.id),
+              '[]'::json
+            ) AS tags,
+            COALESCE(
+              (SELECT json_agg(json_build_object(
+                  'id', other.id, 'title', other.title, 'status', other.status,
+                  'dashboardId', other.dashboard_id, 'subscriptionId', other.subscription_id
+                ))
+               FROM request_links rl
+               JOIN requests other ON other.id = (CASE WHEN rl.request_id_a = r.id THEN rl.request_id_b ELSE rl.request_id_a END)
+               WHERE rl.request_id_a = r.id OR rl.request_id_b = r.id),
+              '[]'::json
+            ) AS related_requests
           FROM requests r
           JOIN analysts a ON a.id = r.created_by_id
           WHERE r.dashboard_id = ${dashboardId}
@@ -56,7 +74,25 @@ export async function GET(req: NextRequest) {
             r.jira_ticket_id,
             r.created_date,
             r.completed_date,
-            a.name AS created_by_name
+            r.attachment_url,
+            r.attachment_filename,
+            a.name AS created_by_name,
+            COALESCE(
+              (SELECT json_agg(json_build_object('id', t.id, 'name', t.name) ORDER BY t.name)
+               FROM request_tags rt JOIN tags t ON t.id = rt.tag_id
+               WHERE rt.request_id = r.id),
+              '[]'::json
+            ) AS tags,
+            COALESCE(
+              (SELECT json_agg(json_build_object(
+                  'id', other.id, 'title', other.title, 'status', other.status,
+                  'dashboardId', other.dashboard_id, 'subscriptionId', other.subscription_id
+                ))
+               FROM request_links rl
+               JOIN requests other ON other.id = (CASE WHEN rl.request_id_a = r.id THEN rl.request_id_b ELSE rl.request_id_a END)
+               WHERE rl.request_id_a = r.id OR rl.request_id_b = r.id),
+              '[]'::json
+            ) AS related_requests
           FROM requests r
           JOIN analysts a ON a.id = r.created_by_id
           WHERE r.subscription_id = ${subscriptionId}
@@ -95,9 +131,20 @@ export async function POST(req: NextRequest) {
       description?: string;
       requestType?: string;
       jiraTicketId?: string;
+      attachmentUrl?: string;
+      attachmentFilename?: string;
     };
 
-    const { dashboardId, subscriptionId, title, description, requestType, jiraTicketId } = body;
+    const {
+      dashboardId,
+      subscriptionId,
+      title,
+      description,
+      requestType,
+      jiraTicketId,
+      attachmentUrl,
+      attachmentFilename,
+    } = body;
 
     const hasDashboardId = dashboardId !== undefined && dashboardId !== null;
     const hasSubscriptionId = subscriptionId !== undefined && subscriptionId !== null;
@@ -124,9 +171,9 @@ export async function POST(req: NextRequest) {
     }
 
     const rows = await sql`
-      INSERT INTO requests (dashboard_id, subscription_id, created_by_id, title, description, request_type, jira_ticket_id)
-      VALUES (${dashboardId ?? null}, ${subscriptionId ?? null}, ${createdById}, ${title}, ${description ?? null}, ${requestType ?? 'feature'}, ${jiraTicketId ?? null})
-      RETURNING id, dashboard_id, subscription_id, created_by_id, title, description, request_type, status, jira_ticket_id, created_date, completed_date
+      INSERT INTO requests (dashboard_id, subscription_id, created_by_id, title, description, request_type, jira_ticket_id, attachment_url, attachment_filename)
+      VALUES (${dashboardId ?? null}, ${subscriptionId ?? null}, ${createdById}, ${title}, ${description ?? null}, ${requestType ?? 'feature'}, ${jiraTicketId ?? null}, ${attachmentUrl ?? null}, ${attachmentFilename ?? null})
+      RETURNING id, dashboard_id, subscription_id, created_by_id, title, description, request_type, status, jira_ticket_id, created_date, completed_date, attachment_url, attachment_filename
     `;
 
     return NextResponse.json(mapRequestRow(rows[0]), { status: 201 });

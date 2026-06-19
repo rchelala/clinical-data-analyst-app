@@ -36,20 +36,43 @@ export async function PATCH(
             UPDATE requests
             SET status = ${status}, completed_date = CURRENT_DATE
             WHERE id = ${requestId}
-            RETURNING id, dashboard_id, subscription_id, created_by_id, title, description, request_type, status, jira_ticket_id, created_date, completed_date
+            RETURNING id, dashboard_id, subscription_id, created_by_id, title, description, request_type, status, jira_ticket_id, created_date, completed_date, attachment_url, attachment_filename
           `
         : await sql`
             UPDATE requests
             SET status = ${status}, completed_date = NULL
             WHERE id = ${requestId}
-            RETURNING id, dashboard_id, subscription_id, created_by_id, title, description, request_type, status, jira_ticket_id, created_date, completed_date
+            RETURNING id, dashboard_id, subscription_id, created_by_id, title, description, request_type, status, jira_ticket_id, created_date, completed_date, attachment_url, attachment_filename
           `;
 
     if (rows.length === 0) {
       return NextResponse.json({ error: 'Request not found.' }, { status: 404 });
     }
 
-    return NextResponse.json(mapRequestRow(rows[0]));
+    // UPDATE...RETURNING can't cleanly embed correlated subqueries against
+    // other tables here, so fetch tags/related_requests in a second query
+    // keyed by the known requestId and merge into the row before mapping.
+    const tagsAndLinks = await sql`
+      SELECT
+        COALESCE(
+          (SELECT json_agg(json_build_object('id', t.id, 'name', t.name) ORDER BY t.name)
+           FROM request_tags rt JOIN tags t ON t.id = rt.tag_id
+           WHERE rt.request_id = ${requestId}),
+          '[]'::json
+        ) AS tags,
+        COALESCE(
+          (SELECT json_agg(json_build_object(
+              'id', other.id, 'title', other.title, 'status', other.status,
+              'dashboardId', other.dashboard_id, 'subscriptionId', other.subscription_id
+            ))
+           FROM request_links rl
+           JOIN requests other ON other.id = (CASE WHEN rl.request_id_a = ${requestId} THEN rl.request_id_b ELSE rl.request_id_a END)
+           WHERE rl.request_id_a = ${requestId} OR rl.request_id_b = ${requestId}),
+          '[]'::json
+        ) AS related_requests
+    `;
+
+    return NextResponse.json(mapRequestRow({ ...rows[0], ...tagsAndLinks[0] }));
   } catch (err: unknown) {
     console.error('Update request error:', err);
     const message = err instanceof Error ? err.message : 'An unexpected error occurred.';

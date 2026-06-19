@@ -29,7 +29,6 @@ interface SelectedEntity {
 
 export default function BrainPage() {
   const [viewerAnalystId, setViewerAnalystId] = useState<number | null>(null);
-  const [viewerAnalystName, setViewerAnalystName] = useState<string>("");
   const [zoom, setZoom] = useState<ZoomState>({ level: "galaxy" });
 
   // All dashboards/subscriptions (not scoped to the current analyst), used to
@@ -46,9 +45,8 @@ export default function BrainPage() {
   // urgency/counts after a new request is created.
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const handleSelectAnalyst = useCallback((analystId: number, analystName: string) => {
+  const handleSelectAnalyst = useCallback((analystId: number) => {
     setViewerAnalystId(analystId);
-    setViewerAnalystName(analystName);
   }, []);
 
   const brainData = useBrainData(zoom);

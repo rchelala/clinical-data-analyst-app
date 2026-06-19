@@ -7,6 +7,17 @@ export interface Analyst {
   name: string;
 }
 
+export type UrgencyBucket = 'high' | 'med' | 'low';
+
+export interface AnalystSummary {
+  id: number;
+  name: string;
+  divisionCount: number;
+  dashboardCount: number;
+  subscriptionCount: number;
+  highUrgencyCount: number; // dashboards+subscriptions in the top urgency tercile, computed globally across ALL analysts, not just this one
+}
+
 export interface Division {
   id: number;
   name: string;

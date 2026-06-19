@@ -1,12 +1,11 @@
 "use client";
 
 // Generic hover/click detail panel — generalizes the hover-card pattern
-// originally inlined in DivisionBrain.tsx (the "absolute top-4 left-4 ...
-// rounded-lg border border-theme bg-panel shadow-lg" box). DivisionBrain
-// itself is left untouched; this is net-new and currently only consumed by
-// GalaxyView, but the { title, rows } shape is intentionally generic enough
-// to also fit the next task's Solar System hover content (per-division
-// dashboard/subscription/urgency stats) without modification.
+// originally inlined in the now-removed DivisionBrain.tsx (the "absolute
+// top-4 left-4 rounded-lg border border-theme bg-panel shadow-lg" box).
+// SolarSystemView is the current consumer, but the { title, rows } shape
+// is intentionally generic enough to also fit GalaxyView and future zoom
+// levels without modification.
 
 export interface DetailPanelRow {
   label: string;

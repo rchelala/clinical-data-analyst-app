@@ -1,10 +1,10 @@
 "use client";
 
 // Generic bottom-right legend box — generalizes the inline legend pattern
-// originally hardcoded in DivisionBrain.tsx (the "absolute bottom-4 right-4
-// border-theme bg-panel" box with colored dots + labels). DivisionBrain
-// itself is left untouched with its own inline legend; this is a separate,
-// reusable component for use by GalaxyView and future zoom levels.
+// originally hardcoded in the now-removed DivisionBrain.tsx (the "absolute
+// bottom-4 right-4 border-theme bg-panel" box with colored dots + labels).
+// SolarSystemView is the current consumer; this is a separate, reusable
+// component for use by GalaxyView and future zoom levels.
 
 export interface LegendItem {
   color: string;

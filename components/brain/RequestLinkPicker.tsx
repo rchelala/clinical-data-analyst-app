@@ -36,12 +36,23 @@ export function RequestLinkPicker({
   const wrapperRef = useRef<HTMLDivElement>(null);
   // Bumped on every search kicked off; only the response matching the latest
   // sequence number is applied, so a slow earlier response can't clobber a
-  // later, faster one.
+  // later, faster one. We use a sequence counter rather than AbortController
+  // because cancellation isn't required for correctness here — stale
+  // responses are simply ignored, not aborted — which keeps the
+  // try/catch/finally shape simple without needing to filter out
+  // AbortError in the catch block.
   const searchSeqRef = useRef(0);
+  // Mirrors the relatedRequests prop so the debounced search effect below
+  // can read the latest value without depending on it (see effect comment).
+  const relatedRequestsRef = useRef(relatedRequests);
 
   useEffect(() => {
     setHighlightedIndex(-1);
   }, [results]);
+
+  useEffect(() => {
+    relatedRequestsRef.current = relatedRequests;
+  }, [relatedRequests]);
 
   useEffect(() => {
     if (!linking) return;
@@ -71,7 +82,7 @@ export function RequestLinkPicker({
           return;
         }
 
-        const relatedIds = new Set(relatedRequests.map((r) => r.id));
+        const relatedIds = new Set(relatedRequestsRef.current.map((r) => r.id));
         setResults((data as RelatedRequestSummary[]).filter((r) => !relatedIds.has(r.id)));
       } catch {
         if (seq !== searchSeqRef.current) return;
@@ -83,7 +94,10 @@ export function RequestLinkPicker({
     }, SEARCH_DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
-  }, [inputValue, linking, requestId, relatedRequests]);
+    // relatedRequests is intentionally excluded: this effect only reads it
+    // (via the ref above) to filter results, it doesn't need to re-trigger
+    // the debounce/fetch when it changes for reasons unrelated to typing.
+  }, [inputValue, linking, requestId]);
 
   const handleUnlink = async (relatedRequestId: number) => {
     setError(null);

@@ -13,9 +13,9 @@ const DIVISION_DOT_RADIUS = 3;
 const DIVISION_RING_RADIUS = 26; // small ring around the star — must stay noticeably smaller than inter-star spacing so it reads as "this star's ring," not galaxy-wide noise
 const MAX_LABEL_LENGTH = 16;
 
-const ANALYST_COLOR = "#7aa2f7";
-const DIVISION_COLOR = "#bb9af7";
-const VIEWER_RING_COLOR = "#f6c177"; // warm accent ring distinguishing the viewer's own star from every other analyst
+export const ANALYST_COLOR = "#7aa2f7";
+export const DIVISION_COLOR = "#bb9af7";
+export const VIEWER_RING_COLOR = "#f6c177"; // warm accent ring distinguishing the viewer's own star from every other analyst
 
 // Same truncation convention as DivisionBrain.tsx's truncateLabel/
 // MAX_LABEL_LENGTH — replicated locally since DivisionBrain.tsx is staying

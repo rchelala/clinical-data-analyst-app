@@ -3,7 +3,12 @@
 import { useMemo, useState } from "react";
 import { computeEvenlySpacedPositions } from "@/lib/layout-math";
 import { AnalystSummary } from "@/lib/brain-types";
-import { AnalystStar } from "@/components/brain/nodes/AnalystStar";
+import {
+  AnalystStar,
+  ANALYST_COLOR,
+  DIVISION_COLOR,
+  VIEWER_RING_COLOR,
+} from "@/components/brain/nodes/AnalystStar";
 import { DetailPanel, DetailPanelRow } from "@/components/brain/DetailPanel";
 import { Legend } from "@/components/brain/Legend";
 
@@ -21,10 +26,6 @@ interface PositionedAnalyst {
 
 const VIEWBOX_HALF = 450;
 const GALAXY_RADIUS = 320; // distance of each analyst star from the galaxy center — large relative to each star's own division ring (26px) so stars/rings never visually collide
-
-const ANALYST_COLOR = "#7aa2f7";
-const DIVISION_COLOR = "#bb9af7";
-const VIEWER_RING_COLOR = "#f6c177";
 
 export function GalaxyView({ summaries, viewerAnalystId, onSelectAnalyst }: GalaxyViewProps) {
   const [hoveredId, setHoveredId] = useState<number | null>(null);

@@ -36,6 +36,26 @@ function formatDate(dateString: string | null): string {
   return d.toLocaleDateString();
 }
 
+// The attachment download route lives behind a private Blob store and
+// requires an x-analyst-id header to authorize the request, so a plain
+// <a href> navigation can't be used — we fetch the file as a Blob and
+// trigger a save via a temporary object URL + synthetic <a download> click.
+async function downloadAttachment(url: string, filename: string, analystId: number) {
+  const res = await fetch(url, { headers: { "x-analyst-id": String(analystId) } });
+  if (!res.ok) {
+    throw new Error("Could not download attachment.");
+  }
+  const blob = await res.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(objectUrl);
+}
+
 export function RequestSidePanel({ entity, currentAnalystId, focusRequestId, onClose }: RequestSidePanelProps) {
   const [requests, setRequests] = useState<RequestWithCreator[]>([]);
   const [loading, setLoading] = useState(false);
@@ -45,6 +65,11 @@ export function RequestSidePanel({ entity, currentAnalystId, focusRequestId, onC
   // Tracks which request ids currently have an in-flight PATCH, so we can
   // disable that row's control without blocking the rest of the list.
   const [updatingIds, setUpdatingIds] = useState<Set<number>>(new Set());
+  // Per-request error message, keyed by request id, for failed attachment downloads.
+  const [downloadErrors, setDownloadErrors] = useState<Record<number, string>>({});
+  // Tracks which request ids currently have an in-flight attachment download,
+  // so we can disable that row's button without blocking the rest of the list.
+  const [downloadingIds, setDownloadingIds] = useState<Set<number>>(new Set());
   const [attachFieldRequestOpen, setAttachFieldRequestOpen] = useState(false);
   // Bumping this re-runs the request-list fetch effect below, letting us
   // refresh the list after a field request is attached from this panel.
@@ -173,6 +198,33 @@ export function RequestSidePanel({ entity, currentAnalystId, focusRequestId, onC
     []
   );
 
+  const handleDownloadAttachment = useCallback(
+    async (requestId: number, url: string, filename: string) => {
+      setDownloadErrors((prev) => {
+        const next = { ...prev };
+        delete next[requestId];
+        return next;
+      });
+      setDownloadingIds((prev) => new Set(prev).add(requestId));
+
+      try {
+        await downloadAttachment(url, filename, currentAnalystId);
+      } catch {
+        setDownloadErrors((prev) => ({
+          ...prev,
+          [requestId]: "Could not download attachment.",
+        }));
+      } finally {
+        setDownloadingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(requestId);
+          return next;
+        });
+      }
+    },
+    [currentAnalystId]
+  );
+
   if (!entity) return null;
 
   return (
@@ -254,15 +306,28 @@ export function RequestSidePanel({ entity, currentAnalystId, focusRequestId, onC
                   )}
 
                   {request.attachmentUrl && (
-                    <a
-                      href={request.attachmentUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 text-xs text-brand-600 dark:text-brand-400 hover:underline mt-1.5 truncate"
-                    >
-                      <Paperclip className="w-3 h-3 flex-shrink-0" />
-                      {request.attachmentFilename ?? "Attachment"}
-                    </a>
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleDownloadAttachment(
+                            request.id,
+                            request.attachmentUrl!,
+                            request.attachmentFilename ?? "attachment"
+                          )
+                        }
+                        disabled={downloadingIds.has(request.id)}
+                        className="flex items-center gap-1.5 text-xs text-brand-600 dark:text-brand-400 hover:underline mt-1.5 truncate disabled:opacity-60"
+                      >
+                        <Paperclip className="w-3 h-3 flex-shrink-0" />
+                        {request.attachmentFilename ?? "Attachment"}
+                      </button>
+                      {downloadErrors[request.id] && (
+                        <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">
+                          {downloadErrors[request.id]}
+                        </p>
+                      )}
+                    </div>
                   )}
 
                   <div className="flex items-center gap-2 mt-2 text-xs text-secondary">

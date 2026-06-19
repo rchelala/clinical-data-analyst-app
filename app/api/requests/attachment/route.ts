@@ -23,10 +23,13 @@ export async function POST(req: NextRequest) {
     }
 
     const blob = await put(`request-attachments/${Date.now()}-${file.name}`, file, {
-      access: 'public',
+      access: 'private',
     });
 
-    return NextResponse.json({ url: blob.url, filename: file.name }, { status: 201 });
+    return NextResponse.json(
+      { url: `/api/requests/attachment/download?pathname=${encodeURIComponent(blob.pathname)}`, filename: file.name },
+      { status: 201 }
+    );
   } catch (err: unknown) {
     console.error('Upload request attachment error:', err);
     const message = err instanceof Error ? err.message : 'An unexpected error occurred.';

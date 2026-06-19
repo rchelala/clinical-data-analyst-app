@@ -4,8 +4,6 @@
 // by urgency, and are grouped into division-based angular wedges. Keeping
 // this file pure makes it independently unit-testable.
 
-import { Division } from './brain-types';
-
 export interface Wedge {
   startAngle: number;
   endAngle: number;
@@ -17,15 +15,23 @@ export interface PolarPosition {
   angle: number;
 }
 
+// Minimal shape computeDivisionWedges needs — deliberately narrower than
+// `Division` so this trig can be reused for any sortable, id-bearing item
+// (e.g. distributing analyst star-systems around the galaxy center).
+export interface SortableItem {
+  id: number;
+  sortOrder: number;
+}
+
 /**
- * Splits the full 360-degree circle into one equal-sized wedge per division,
+ * Splits the full 360-degree circle into one equal-sized wedge per item,
  * ordered by `sortOrder`. Wedges are contiguous and non-overlapping, and
  * collectively cover the full circle (sum of all wedge spans === 360).
  *
- * Returns a Map keyed by division.id -> { startAngle, endAngle } in degrees.
+ * Returns a Map keyed by item.id -> { startAngle, endAngle } in degrees.
  */
 export function computeDivisionWedges(
-  divisions: Division[]
+  divisions: SortableItem[]
 ): Map<number, Wedge> {
   const wedges = new Map<number, Wedge>();
   const divisionCount = divisions.length;
@@ -87,6 +93,32 @@ export function computePositionInWedge(
       ? usableStart + usableSpan / 2
       : usableStart + (usableSpan * index) / (count - 1);
 
+  const angleRad = (angle * Math.PI) / 180;
+
+  const x = radius * Math.sin(angleRad);
+  const y = -radius * Math.cos(angleRad);
+
+  return { x, y, angle };
+}
+
+/**
+ * Distributes `count` items evenly around the full 360-degree circle at a
+ * fixed `radius` from the center origin, starting at 12 o'clock and going
+ * clockwise (no wedge boundaries/padding — unlike `computePositionInWedge`,
+ * which carves out angular slices for divisions). Used for items that share
+ * one ring with no grouping, e.g. analyst star-systems around the galaxy
+ * center, or a single analyst's division dots around their own star.
+ *
+ * Same angle convention as `computePositionInWedge`: 0 degrees is straight
+ * up, increasing clockwise. Pass `count=1` to place the lone item at the top
+ * (angle 0) rather than dividing by zero.
+ */
+export function computeEvenlySpacedPositions(
+  radius: number,
+  index: number,
+  count: number
+): PolarPosition {
+  const angle = count <= 0 ? 0 : (360 * index) / count;
   const angleRad = (angle * Math.PI) / 180;
 
   const x = radius * Math.sin(angleRad);

@@ -7,6 +7,7 @@ import { AnalystSelector } from "@/components/brain/AnalystSelector";
 import { DivisionBrain, DivisionNode } from "@/components/brain/DivisionBrain";
 import { DivisionGraphBrain } from "@/components/brain/DivisionGraphBrain";
 import { GalaxyCanvas } from "@/components/brain/GalaxyCanvas";
+import { GalaxyView } from "@/components/brain/GalaxyView";
 import { Breadcrumb } from "@/components/brain/Breadcrumb";
 import { RequestSidePanel, RequestSidePanelEntity } from "@/components/brain/RequestSidePanel";
 import { AddRequestForm } from "@/components/brain/AddRequestForm";
@@ -15,7 +16,6 @@ import { AddDivisionForm } from "@/components/brain/AddDivisionForm";
 import { useBrainData, ZoomState } from "@/hooks/useBrainData";
 import {
   Analyst,
-  AnalystSummary,
   BrainEntityKind,
   DashboardWithUrgency,
   ReportSubscriptionWithUrgency,
@@ -294,10 +294,7 @@ export default function BrainPage() {
 
         {viewerAnalystId !== null && !brainData.loading && !brainData.error && zoom.level === "galaxy" && (
           <GalaxyCanvas onBackgroundClick={handleBackgroundClick}>
-            {/* TEMPORARY placeholder — Task 3 replaces this with the real
-                GalaxyView/AnalystStar SVG rendering. Do not build on top of
-                this; delete it when implementing the real galaxy view. */}
-            <GalaxyPlaceholderList
+            <GalaxyView
               summaries={"galaxySummaries" in brainData ? brainData.galaxySummaries : []}
               viewerAnalystId={viewerAnalystId}
               onSelectAnalyst={(analystId) => setZoom({ level: "analyst", analystId })}
@@ -405,40 +402,6 @@ export default function BrainPage() {
           onCancel={() => setShowAddEntityForm(false)}
         />
       )}
-    </div>
-  );
-}
-
-// TEMPORARY — throwaway placeholder for the galaxy level, replaced wholesale
-// by Task 3's real GalaxyView/AnalystStar SVG components. Exists only to let
-// the zoom state machine be navigated/verified end-to-end.
-function GalaxyPlaceholderList({
-  summaries,
-  viewerAnalystId,
-  onSelectAnalyst,
-}: {
-  summaries: AnalystSummary[];
-  viewerAnalystId: number | null;
-  onSelectAnalyst: (analystId: number) => void;
-}) {
-  return (
-    <div className="flex flex-col items-center justify-start h-full overflow-auto py-8 gap-2">
-      {summaries.map((summary) => (
-        <button
-          key={summary.id}
-          onClick={() => onSelectAnalyst(summary.id)}
-          className="w-full max-w-md flex items-center justify-between px-4 py-3 rounded-md border border-theme bg-panel text-left hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-        >
-          <span className="text-sm font-medium text-primary">
-            {summary.name}
-            {summary.id === viewerAnalystId ? " (You)" : ""}
-          </span>
-          <span className="text-xs text-secondary">
-            {summary.divisionCount} div · {summary.dashboardCount} dash · {summary.subscriptionCount} sub ·{" "}
-            {summary.highUrgencyCount} high-urgency
-          </span>
-        </button>
-      ))}
     </div>
   );
 }

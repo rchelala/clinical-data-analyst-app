@@ -253,7 +253,11 @@ export default function BrainPage() {
     return divisions.find((d) => d.id === zoom.divisionId)?.name ?? null;
   }, [zoom, divisions]);
 
-  const handleBackgroundClick = useCallback(() => {
+  // Zooms out exactly one level (division -> analyst -> galaxy; no-op at
+  // galaxy). Shared by the explicit "Back" button in the header and by
+  // GalaxyCanvas's onBackgroundClick (clicking empty canvas), so there's a
+  // single source of truth for "what's one level up from here."
+  const handleZoomOut = useCallback(() => {
     setZoom((current) => {
       if (current.level === "division") {
         return { level: "analyst", analystId: current.analystId };
@@ -278,7 +282,7 @@ export default function BrainPage() {
 
   // Shared props for every GalaxyCanvas instance below, so the 4 render
   // branches don't each repeat the same three identical props.
-  const canvasProps = { onBackgroundClick: handleBackgroundClick, zoomDepth, zoomKey };
+  const canvasProps = { onBackgroundClick: handleZoomOut, zoomDepth, zoomKey };
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-primary">
@@ -305,6 +309,14 @@ export default function BrainPage() {
               onNavigate={setZoom}
             />
           </div>
+          <button
+            onClick={handleZoomOut}
+            disabled={zoom.level === "galaxy"}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            <ArrowLeft className="w-3 h-3" />
+            Back
+          </button>
         </div>
 
         <div className="flex items-center gap-3">

@@ -1,7 +1,7 @@
 "use client";
 
 import { DashboardStatus } from "@/lib/brain-types";
-import { FADED_OPACITY } from "@/lib/filters";
+import { fadeOpacity } from "@/lib/filters";
 
 // Presentational only — a tiny decorative dot orbiting a DivisionPlanet,
 // representing one dashboard/subscription. No labels, no click handler:
@@ -27,7 +27,7 @@ export interface DashboardMoonProps {
   y: number;
   status: DashboardStatus;
   // True when this moon is filtered out by the status/urgency filters —
-  // fades it to FADED_OPACITY rather than hiding it, per the "fade, not
+  // fades it via fadeOpacity() rather than hiding it, per the "fade, not
   // disappear" rule (GALAXY_VIEW_SPEC.md section 8).
   isFaded?: boolean;
 }
@@ -47,7 +47,7 @@ export function DashboardMoon({ x, y, status, isFaded = false }: DashboardMoonPr
       fill={isMaintenance ? "none" : color}
       stroke={isMaintenance ? color : "none"}
       strokeWidth={isMaintenance ? 1.5 : 0}
-      opacity={isFaded ? FADED_OPACITY : 1}
+      opacity={fadeOpacity(1, isFaded)}
       style={{ pointerEvents: "none" }}
     />
   );

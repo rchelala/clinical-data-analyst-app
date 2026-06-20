@@ -2,7 +2,7 @@
 
 import { truncateLabel } from "@/lib/text-utils";
 import { Glow, GLOW_SCALE } from "@/components/brain/nodes/Glow";
-import { FADED_OPACITY } from "@/lib/filters";
+import { fadeOpacity } from "@/lib/filters";
 
 // Presentational only — purely renders a division as a "planet" at (x, y).
 // No fetch/state of its own; all interactivity is reported via callback
@@ -38,7 +38,7 @@ export function DivisionPlanet({
   onClick,
 }: DivisionPlanetProps) {
   return (
-    <g transform={`translate(${x}, ${y})`} opacity={isFaded ? FADED_OPACITY : 1}>
+    <g transform={`translate(${x}, ${y})`} opacity={fadeOpacity(1, isFaded)}>
       {/* Low-opacity, blurred glow behind the planet — must come before the
           solid circle below since SVG paints in document order. */}
       <Glow cx={0} cy={0} radius={PLANET_RADIUS * GLOW_SCALE} color={DIVISION_PLANET_COLOR} />

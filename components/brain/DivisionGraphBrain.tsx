@@ -13,7 +13,7 @@ import {
   RequestWithCreator,
   BrainEntityKind,
 } from "@/lib/brain-types";
-import { BrainFilters, FADED_OPACITY, FADE_MULTIPLIER, isRequestStatusVisible, isStatusVisible, isUrgencyVisible } from "@/lib/filters";
+import { BrainFilters, fadeOpacity, isRequestStatusVisible, isStatusVisible, isUrgencyVisible } from "@/lib/filters";
 
 const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
   ssr: false,
@@ -174,14 +174,14 @@ export function DivisionGraphBrain({
   const linkColorFaded = `rgba(${linkRgb}, 0.2)`;
   const LINK_DASH = [4, 3];
 
-  // Multiplies a "rgba(r, g, b, a)" color string's alpha channel by `factor`.
-  // Used to layer the request-state filter's fade on top of the existing
-  // request-status-based link color, rather than replacing it.
-  const scaleRgbaAlpha = useCallback((rgba: string, factor: number): string => {
+  // Applies the request-state filter's fade to a "rgba(r, g, b, a)" color
+  // string's alpha channel via fadeOpacity(), layering on top of the
+  // existing request-status-based link color rather than replacing it.
+  const fadeRgbaAlpha = useCallback((rgba: string, faded: boolean): string => {
     const match = rgba.match(/^rgba\(([^,]+),([^,]+),([^,]+),([^)]+)\)$/);
     if (!match) return rgba;
     const [, r, g, b, a] = match;
-    return `rgba(${r.trim()}, ${g.trim()}, ${b.trim()}, ${(parseFloat(a) * factor).toFixed(3)})`;
+    return `rgba(${r.trim()}, ${g.trim()}, ${b.trim()}, ${fadeOpacity(parseFloat(a), faded, "multiplicative").toFixed(3)})`;
   }, []);
 
   const getLinkColor = useCallback(
@@ -192,11 +192,11 @@ export function DivisionGraphBrain({
       // of the existing status-based color (solid/faded-by-status) — only
       // applies to request->entity tethers (requestStatus set), per spec.
       if (l.requestStatus && !isRequestStatusVisible(l.requestStatus, filters)) {
-        return scaleRgbaAlpha(base, FADE_MULTIPLIER);
+        return fadeRgbaAlpha(base, true);
       }
       return base;
     },
-    [linkColor, linkColorFaded, filters, scaleRgbaAlpha]
+    [linkColor, linkColorFaded, filters, fadeRgbaAlpha]
   );
 
   const getLinkDash = useCallback((link: any) => {
@@ -211,20 +211,20 @@ export function DivisionGraphBrain({
       const y = n.y ?? 0;
 
       // Fading: entity (dashboard/subscription) nodes fade via status/
-      // urgency filters using the shared standalone FADED_OPACITY constant
-      // (same convention as AnalystStar/DashboardMoon/DivisionPlanet);
-      // request nodes fade via the request-state filter using
-      // FADE_MULTIPLIER, matching the multiplicative tether-fade treatment.
-      // Center node is never faded.
+      // urgency filters using fadeOpacity()'s standalone convention (same
+      // as AnalystStar/DashboardMoon/DivisionPlanet); request nodes fade
+      // via the request-state filter using fadeOpacity()'s multiplicative
+      // convention, matching the tether-fade treatment. Center node is
+      // never faded.
       let opacity = 1;
       if (n.kind === "request") {
         const requestStatus = graphData.links.find(
           (l) => l.target === n.id && l.requestStatus !== undefined
         )?.requestStatus;
         const faded = requestStatus ? !isRequestStatusVisible(requestStatus, filters) : false;
-        opacity = faded ? FADE_MULTIPLIER : 1;
+        opacity = fadeOpacity(1, faded, "multiplicative");
       } else {
-        opacity = isEntityNodeFaded(n) ? FADED_OPACITY : 1;
+        opacity = fadeOpacity(1, isEntityNodeFaded(n));
       }
 
       ctx.save();

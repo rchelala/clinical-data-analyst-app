@@ -241,6 +241,10 @@ export default function BrainPage() {
     "divisionId" in zoom ? zoom.divisionId : ""
   }`;
 
+  // Shared props for every GalaxyCanvas instance below, so the 4 render
+  // branches don't each repeat the same three identical props.
+  const canvasProps = { onBackgroundClick: handleBackgroundClick, zoomDepth, zoomKey };
+
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-primary">
       <div className="fixed inset-0 -z-10 bg-[#0d1117]" />
@@ -304,7 +308,7 @@ export default function BrainPage() {
         )}
 
         {viewerAnalystId !== null && !brainData.loading && !brainData.error && zoom.level === "galaxy" && (
-          <GalaxyCanvas onBackgroundClick={handleBackgroundClick} zoomDepth={zoomDepth} zoomKey={zoomKey}>
+          <GalaxyCanvas {...canvasProps}>
             <GalaxyView
               summaries={"galaxySummaries" in brainData ? brainData.galaxySummaries : []}
               viewerAnalystId={viewerAnalystId}
@@ -318,7 +322,7 @@ export default function BrainPage() {
           !brainData.error &&
           zoom.level === "analyst" &&
           !hasAnyDivisions && (
-            <GalaxyCanvas onBackgroundClick={handleBackgroundClick} zoomDepth={zoomDepth} zoomKey={zoomKey}>
+            <GalaxyCanvas {...canvasProps}>
               <div className="flex items-center justify-center h-full">
                 <p className="text-sm text-secondary">
                   No divisions yet — use &ldquo;Add Division&rdquo; above to create one.
@@ -332,7 +336,7 @@ export default function BrainPage() {
           !brainData.error &&
           zoom.level === "analyst" &&
           hasAnyDivisions && (
-            <GalaxyCanvas onBackgroundClick={handleBackgroundClick} zoomDepth={zoomDepth} zoomKey={zoomKey}>
+            <GalaxyCanvas {...canvasProps}>
               <SolarSystemView
                 divisionNodes={divisionNodes}
                 dashboards={dashboards}
@@ -351,7 +355,7 @@ export default function BrainPage() {
           !brainData.error &&
           zoom.level === "division" &&
           selectedDivision && (
-            <GalaxyCanvas onBackgroundClick={handleBackgroundClick} zoomDepth={zoomDepth} zoomKey={zoomKey}>
+            <GalaxyCanvas {...canvasProps}>
               <PlanetView
                 division={selectedDivision}
                 dashboards={divisionDashboards}

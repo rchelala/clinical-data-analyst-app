@@ -39,6 +39,10 @@ export function GalaxyCanvas({ children, onBackgroundClick, zoomDepth, zoomKey }
   const prevDepth = prevDepthRef.current;
   prevDepthRef.current = zoomDepth;
 
+  // Computed synchronously here (not in a useEffect) so the class is already
+  // set on the very first render of the new keyed element below — React never
+  // paints an unstyled intermediate frame, which is what avoids a flash/flicker
+  // on remount. Moving this into an effect would reintroduce that flash.
   let animationClass = "";
   if (prevDepth !== undefined && prevDepth !== zoomDepth) {
     animationClass = zoomDepth > prevDepth ? "zoom-enter-in" : "zoom-enter-out";

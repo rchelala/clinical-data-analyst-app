@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, ClipboardPlus } from "lucide-react";
+import { ClipboardPlus } from "lucide-react";
 import { useTheme } from "next-themes";
 import { buildGraphData, GraphData } from "@/lib/brain-graph";
 import { bucketUrgencies } from "@/lib/urgency";
@@ -24,21 +24,20 @@ interface DivisionGraphBrainProps {
   dashboards: DashboardWithUrgency[]; // already filtered by caller to just this division
   subscriptions: ReportSubscriptionWithUrgency[]; // already filtered by caller to just this division
   filters: BrainFilters;
+  centerLabel: string; // the VIEWED analyst's name, shown on the center node
+  isViewerCenter: boolean; // true only when the viewed analyst IS the viewer
   onSelectEntity: (kind: BrainEntityKind, id: number, focusRequestId?: number) => void;
-  onBack: () => void;
   onAddEntity?: () => void;
 }
-
-const LIGHT_BG = "#f8fafc";
-const DARK_BG = "#0d1117";
 
 export function DivisionGraphBrain({
   division,
   dashboards,
   subscriptions,
   filters,
+  centerLabel,
+  isViewerCenter,
   onSelectEntity,
-  onBack,
   onAddEntity,
 }: DivisionGraphBrainProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -115,8 +114,8 @@ export function DivisionGraphBrain({
   }, [dashboards, subscriptions]);
 
   const graphData: GraphData = useMemo(
-    () => buildGraphData(dashboards, subscriptions, requestsByEntity),
-    [dashboards, subscriptions, requestsByEntity]
+    () => buildGraphData(dashboards, subscriptions, requestsByEntity, centerLabel, isViewerCenter),
+    [dashboards, subscriptions, requestsByEntity, centerLabel, isViewerCenter]
   );
 
   // Urgency bucketing for THIS division's dashboards+subscriptions only,
@@ -163,7 +162,10 @@ export function DivisionGraphBrain({
     [filters, statusByNodeId, urgencyBucketByNodeId]
   );
 
-  const backgroundColor = resolvedTheme === "dark" ? DARK_BG : LIGHT_BG;
+  // Fully transparent so the page's starfield/ambient gradient (rendered
+  // behind GalaxyCanvas in app/brain/page.tsx) shows through, matching every
+  // other zoom level — this view no longer paints its own opaque background.
+  const backgroundColor = "rgba(0,0,0,0)";
 
   const textColor = resolvedTheme === "dark" ? "#e6edf3" : "#0f172a";
 
@@ -233,7 +235,18 @@ export function DivisionGraphBrain({
       ctx.beginPath();
       ctx.arc(x, y, n.val, 0, 2 * Math.PI, false);
       ctx.fillStyle = n.color;
+
+      // Glow halo on primary nodes only — the center node and dashboard/
+      // subscription entity nodes — mirroring the rest of the app's
+      // convention of reserving glow for "primary" nodes (analyst stars,
+      // division planets) and not small decorative/leaf nodes (here:
+      // request nodes, the canvas equivalent of a "moon").
+      if (n.kind === "center" || n.kind === "dashboard" || n.kind === "subscription") {
+        ctx.shadowColor = n.color;
+        ctx.shadowBlur = n.val;
+      }
       ctx.fill();
+      ctx.shadowBlur = 0;
 
       if (n.ringColor) {
         ctx.lineWidth = 2;
@@ -277,13 +290,6 @@ export function DivisionGraphBrain({
   return (
     <div className="relative w-full h-full flex flex-col">
       <div className="flex items-center gap-3 px-6 py-3 flex-shrink-0">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-        >
-          <ArrowLeft className="w-3 h-3" />
-          All divisions
-        </button>
         <h2 className="text-sm font-semibold text-primary">{division.name}</h2>
         {requestsLoading && (
           <span className="text-xs text-secondary">Loading requests…</span>
@@ -340,14 +346,6 @@ export function DivisionGraphBrain({
         <div className="absolute bottom-4 right-4 rounded-lg border border-theme bg-panel shadow-lg px-3 py-2.5 pointer-events-none">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-secondary mb-1.5">Legend</p>
           <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-1.5 text-xs text-primary">
-              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: "#22c55e" }} />
-              Dashboard
-            </div>
-            <div className="flex items-center gap-1.5 text-xs text-primary">
-              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: "#a855f7" }} />
-              Subscription
-            </div>
             <div className="flex items-center gap-1.5 text-xs text-primary">
               <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: "#94a3b8" }} />
               Open request

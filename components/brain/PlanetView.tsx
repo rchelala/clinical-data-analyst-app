@@ -19,8 +19,9 @@ interface PlanetViewProps {
   dashboards: DashboardWithUrgency[];
   subscriptions: ReportSubscriptionWithUrgency[];
   filters: BrainFilters;
+  centerLabel: string;
+  isViewerCenter: boolean;
   onSelectEntity: (kind: BrainEntityKind, id: number, focusRequestId?: number) => void;
-  onBack: () => void;
   onAddEntity?: () => void;
 }
 

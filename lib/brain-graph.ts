@@ -10,6 +10,7 @@ import {
   RequestStatus,
   RequestWithCreator,
 } from './brain-types';
+import { ANALYST_COLOR, VIEWER_RING_COLOR } from './brain-colors';
 
 export type GraphNodeKind = 'center' | BrainEntityKind | 'request';
 
@@ -47,11 +48,6 @@ export interface GraphData {
 
 export const CENTER_NODE_ID = 'center';
 
-const TYPE_COLORS: Record<BrainEntityKind, string> = {
-  dashboard: '#22c55e', // green-500
-  subscription: '#a855f7', // purple-500
-};
-
 const STATUS_RING_COLORS: Record<DashboardStatus, string> = {
   active: '#22c55e',
   maintenance: '#f59e0b',
@@ -59,8 +55,9 @@ const STATUS_RING_COLORS: Record<DashboardStatus, string> = {
 };
 
 const REQUEST_NODE_COLOR = '#94a3b8'; // slate-400
-const CENTER_NODE_COLOR = '#3b82f6';
 const REQUEST_NODE_VAL = 2;
+const CENTER_NODE_VAL = 6;
+const VIEWER_CENTER_NODE_VAL = 7; // subtle bump, mirroring SolarSystemView's VIEWER_CENTER_RADIUS vs CENTER_RADIUS
 
 type EntityWithUrgency = DashboardWithUrgency | ReportSubscriptionWithUrgency;
 
@@ -74,40 +71,50 @@ function requestNodeId(requestId: number): string {
 
 /**
  * Builds the full node/link graph for a division's detail view: a center
- * "you" node, one node per dashboard/subscription (colored by type, ringed
- * by status), and one node per request (open, in-progress, or done), linked
- * to its parent entity. Closed ("done") requests are kept — not filtered —
- * so the rendering layer can show them as faded tethers per the Galaxy View
- * spec, rather than dropping them from the graph entirely.
+ * node for the VIEWED analyst, one node per dashboard/subscription (colored
+ * solely by status — fill for active/retired, transparent fill + ring for
+ * maintenance, mirroring DashboardMoon.tsx's convention exactly, no
+ * type-based coloring), and one node per request (open, in-progress, or
+ * done), linked to its parent entity. Closed ("done") requests are kept —
+ * not filtered — so the rendering layer can show them as faded tethers per
+ * the Galaxy View spec, rather than dropping them from the graph entirely.
  * `requestsByEntity` is keyed by `${kind}-${id}` (see `entityNodeId`),
  * matching how DivisionGraphBrain fetches per-entity.
+ *
+ * `centerLabel` is the viewed analyst's name; `isViewerCenter` is true only
+ * when the viewed analyst IS the viewer, mirroring SolarSystemView's
+ * isViewerCenter treatment (distinct ring color + slightly larger radius).
  */
 export function buildGraphData(
   dashboards: DashboardWithUrgency[],
   subscriptions: ReportSubscriptionWithUrgency[],
-  requestsByEntity: Map<string, RequestWithCreator[]>
+  requestsByEntity: Map<string, RequestWithCreator[]>,
+  centerLabel: string,
+  isViewerCenter: boolean
 ): GraphData {
   const nodes: GraphNode[] = [
     {
       id: CENTER_NODE_ID,
       kind: 'center',
-      label: 'You',
-      val: 6,
-      color: CENTER_NODE_COLOR,
+      label: isViewerCenter ? `${centerLabel} (You)` : centerLabel,
+      val: isViewerCenter ? VIEWER_CENTER_NODE_VAL : CENTER_NODE_VAL,
+      color: ANALYST_COLOR,
+      ringColor: isViewerCenter ? VIEWER_RING_COLOR : undefined,
     },
   ];
   const links: GraphLink[] = [];
 
   const addEntity = (kind: BrainEntityKind, entity: EntityWithUrgency) => {
     const nodeId = entityNodeId(kind, entity.id);
+    const isMaintenance = entity.status === 'maintenance';
 
     nodes.push({
       id: nodeId,
       kind,
       label: entity.name,
       val: Math.max(4, Math.min(14, 2 + entity.openRequestCount)),
-      color: TYPE_COLORS[kind],
-      ringColor: STATUS_RING_COLORS[entity.status],
+      color: isMaintenance ? 'transparent' : STATUS_RING_COLORS[entity.status],
+      ringColor: isMaintenance ? STATUS_RING_COLORS[entity.status] : undefined,
       entityKind: kind,
       entityId: entity.id,
       stakeholder: entity.stakeholder,

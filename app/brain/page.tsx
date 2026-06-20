@@ -412,11 +412,12 @@ export default function BrainPage() {
                   dashboards={divisionDashboards}
                   subscriptions={divisionSubscriptions}
                   filters={filters}
+                  centerLabel={viewedAnalystName ?? ""}
+                  isViewerCenter={zoom.level === "division" && zoom.analystId === viewerAnalystId}
                   onSelectEntity={(kind, id, focusRequestId) => {
                     setSelectedEntity({ kind, id });
                     setSelectedRequestId(focusRequestId);
                   }}
-                  onBack={() => setZoom({ level: "analyst", analystId: zoom.analystId })}
                   onAddEntity={() => setShowAddEntityForm(true)}
                 />
               </GalaxyCanvas>

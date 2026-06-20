@@ -89,11 +89,16 @@ async function fetchAnalystScopedData(analystId: number): Promise<{
 /**
  * Fetches the data needed for a given zoom level, caching results in-memory
  * for the lifetime of the component tree so re-entering a previously visited
- * zoom level doesn't refetch. Refetch/invalidation is intentionally not
- * implemented — fetch-once-per-key, reuse-after is sufficient for now.
+ * zoom level doesn't refetch. Passing a `refreshKey` that changes (e.g. after
+ * a create-action) busts the entire cache and forces a refetch for whatever
+ * zoom level is currently active — this is intentionally a blunt, whole-cache
+ * invalidation rather than per-key, since refreshes are rare (only on
+ * create-actions) and the cost of one extra refetch on the next zoom
+ * navigation is negligible.
  */
-export function useBrainData(zoom: ZoomState): GalaxyData | AnalystData {
+export function useBrainData(zoom: ZoomState, refreshKey?: number): GalaxyData | AnalystData {
   const cacheRef = useRef<Map<string | number, CacheEntry>>(new Map());
+  const prevRefreshKeyRef = useRef(refreshKey);
 
   const [galaxySummaries, setGalaxySummaries] = useState<AnalystSummary[]>([]);
   const [divisions, setDivisions] = useState<Division[]>([]);
@@ -107,6 +112,11 @@ export function useBrainData(zoom: ZoomState): GalaxyData | AnalystData {
   useEffect(() => {
     let cancelled = false;
     const cache = cacheRef.current;
+
+    if (refreshKey !== prevRefreshKeyRef.current) {
+      prevRefreshKeyRef.current = refreshKey;
+      cache.clear();
+    }
 
     const cached = cache.get(cacheKey);
     if (cached) {
@@ -153,7 +163,7 @@ export function useBrainData(zoom: ZoomState): GalaxyData | AnalystData {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cacheKey, zoom.level]);
+  }, [cacheKey, zoom.level, refreshKey]);
 
   if (zoom.level === "galaxy") {
     return { galaxySummaries, loading, error };

@@ -58,7 +58,7 @@ export default function BrainPage() {
     setViewerAnalystId(analystId);
   }, []);
 
-  const brainData = useBrainData(zoom);
+  const brainData = useBrainData(zoom, refreshKey);
 
   // Shared fetch-and-parse logic for /api/dashboards, used by the unscoped
   // "all dashboards" fetch below.

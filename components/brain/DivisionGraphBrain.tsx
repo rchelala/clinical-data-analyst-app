@@ -246,6 +246,7 @@ export function DivisionGraphBrain({
         ctx.shadowBlur = n.val;
       }
       ctx.fill();
+      // Reset before the ring stroke below, so the status ring doesn't inherit the glow.
       ctx.shadowBlur = 0;
 
       if (n.ringColor) {

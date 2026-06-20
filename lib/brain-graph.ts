@@ -55,6 +55,7 @@ const STATUS_RING_COLORS: Record<DashboardStatus, string> = {
 };
 
 const REQUEST_NODE_COLOR = '#94a3b8'; // slate-400
+const NO_FILL = 'transparent'; // sentinel: maintenance-status entities render ring-only, no fill
 const REQUEST_NODE_VAL = 2;
 const CENTER_NODE_VAL = 6;
 const VIEWER_CENTER_NODE_VAL = 7; // subtle bump, mirroring SolarSystemView's VIEWER_CENTER_RADIUS vs CENTER_RADIUS
@@ -113,7 +114,7 @@ export function buildGraphData(
       kind,
       label: entity.name,
       val: Math.max(4, Math.min(14, 2 + entity.openRequestCount)),
-      color: isMaintenance ? 'transparent' : STATUS_RING_COLORS[entity.status],
+      color: isMaintenance ? NO_FILL : STATUS_RING_COLORS[entity.status],
       ringColor: isMaintenance ? STATUS_RING_COLORS[entity.status] : undefined,
       entityKind: kind,
       entityId: entity.id,

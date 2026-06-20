@@ -5,6 +5,18 @@ import { DashboardStatus } from '@/lib/brain-types';
 
 const VALID_STATUSES: DashboardStatus[] = ['active', 'maintenance', 'retired'];
 
+// Trims a provided string field to null when empty, matching the
+// null-vs-empty-string normalization EditEntityForm already applies
+// client-side. `undefined` (not provided) and `null` (explicit clear)
+// pass through unchanged.
+function normalizeNullableString(value: string | null | undefined): string | null | undefined {
+  if (typeof value !== 'string') {
+    return value;
+  }
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
+}
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -22,7 +34,9 @@ export async function PATCH(
       status?: string;
       jiraTicketId?: string | null;
     };
-    const { name, stakeholder, status, jiraTicketId } = body;
+    const { name, status } = body;
+    const stakeholder = normalizeNullableString(body.stakeholder);
+    const jiraTicketId = normalizeNullableString(body.jiraTicketId);
 
     if (
       name === undefined &&
@@ -57,6 +71,8 @@ export async function PATCH(
       return NextResponse.json({ error: 'Report subscription not found.' }, { status: 404 });
     }
 
+    // No optimistic lock on this fetch-merge-write; acceptable for
+    // single-admin use where concurrent edits to the same row are not expected.
     const merged = {
       name: name !== undefined ? name.trim() : current[0].name,
       stakeholder: stakeholder !== undefined ? stakeholder : current[0].stakeholder,

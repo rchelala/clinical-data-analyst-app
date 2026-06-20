@@ -104,18 +104,6 @@
   to   { opacity: 1; transform: scale(1); }
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .zoom-enter-in {
-    transform-origin: 50% 50%;
-    animation: zoom-enter-in 400ms ease-in-out;
-  }
-
-  .zoom-enter-out {
-    transform-origin: 50% 50%;
-    animation: zoom-enter-out 400ms ease-in-out;
-  }
-}
-
 /* ── Orbit rotation ──
    Slowly spins the decorative, label-free orbit rings (AnalystStar's
    division-dot ring, SolarSystemView's moon ring) per GALAXY_VIEW_SPEC.md
@@ -130,6 +118,16 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
+  .zoom-enter-in {
+    transform-origin: 50% 50%;
+    animation: zoom-enter-in 400ms ease-in-out;
+  }
+
+  .zoom-enter-out {
+    transform-origin: 50% 50%;
+    animation: zoom-enter-out 400ms ease-in-out;
+  }
+
   .orbit-rotate {
     transform-origin: 0px 0px;
     animation: orbit-spin 60s linear infinite;

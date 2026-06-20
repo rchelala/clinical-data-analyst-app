@@ -208,6 +208,8 @@ export default function BrainPage() {
         id: dashboard.id,
         name: dashboard.name,
         stakeholder: dashboard.stakeholder,
+        status: dashboard.status,
+        jiraTicketId: dashboard.jiraTicketId,
       };
     }
 
@@ -218,6 +220,8 @@ export default function BrainPage() {
       id: subscription.id,
       name: subscription.name,
       stakeholder: subscription.stakeholder,
+      status: subscription.status,
+      jiraTicketId: subscription.jiraTicketId,
     };
   }, [selectedEntity, dashboards, subscriptions]);
 
@@ -446,6 +450,12 @@ export default function BrainPage() {
             setSelectedEntity(null);
             setSelectedRequestId(undefined);
           }}
+          onEntityDeleted={() => {
+            setSelectedEntity(null);
+            setSelectedRequestId(undefined);
+            setRefreshKey((k) => k + 1);
+          }}
+          onEntityUpdated={() => setRefreshKey((k) => k + 1)}
         />
       )}
 

@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { X, Loader2, ClipboardList, Paperclip, Trash2 } from "lucide-react";
-import { BrainEntityKind, RequestStatus, RequestWithCreator, Tag } from "@/lib/brain-types";
+import { X, Loader2, ClipboardList, Paperclip, Trash2, Pencil } from "lucide-react";
+import { BrainEntityKind, DashboardStatus, RequestStatus, RequestWithCreator, Tag } from "@/lib/brain-types";
 import { AttachFieldRequestForm } from "@/components/brain/AttachFieldRequestForm";
+import { EditEntityForm } from "@/components/brain/EditEntityForm";
 import { RequestTagEditor } from "./RequestTagEditor";
 import { RequestLinkPicker } from "./RequestLinkPicker";
 
@@ -12,6 +13,8 @@ export interface RequestSidePanelEntity {
   id: number;
   name: string;
   stakeholder: string | null;
+  status: DashboardStatus;
+  jiraTicketId: string | null;
 }
 
 interface RequestSidePanelProps {
@@ -19,6 +22,8 @@ interface RequestSidePanelProps {
   currentAnalystId: number;
   focusRequestId?: number;
   onClose: () => void;
+  onEntityUpdated: () => void;
+  onEntityDeleted: () => void;
 }
 
 const STATUS_OPTIONS: RequestStatus[] = ["open", "in_progress", "done"];
@@ -56,7 +61,14 @@ async function downloadAttachment(url: string, filename: string, analystId: numb
   URL.revokeObjectURL(objectUrl);
 }
 
-export function RequestSidePanel({ entity, currentAnalystId, focusRequestId, onClose }: RequestSidePanelProps) {
+export function RequestSidePanel({
+  entity,
+  currentAnalystId,
+  focusRequestId,
+  onClose,
+  onEntityUpdated,
+  onEntityDeleted,
+}: RequestSidePanelProps) {
   const [requests, setRequests] = useState<RequestWithCreator[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -84,6 +96,13 @@ export function RequestSidePanel({ entity, currentAnalystId, focusRequestId, onC
   const [refreshKey, setRefreshKey] = useState(0);
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const rowRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  // Entity-level (dashboard/subscription) edit + delete state. Scoped to the
+  // single entity shown in this panel instance, unlike the per-request state
+  // above which tracks a Set across multiple requests in one list.
+  const [entityEditOpen, setEntityEditOpen] = useState(false);
+  const [entityConfirmingDelete, setEntityConfirmingDelete] = useState(false);
+  const [entityDeleting, setEntityDeleting] = useState(false);
+  const [entityDeleteError, setEntityDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!entity) return;
@@ -93,6 +112,12 @@ export function RequestSidePanel({ entity, currentAnalystId, focusRequestId, onC
     setLoading(true);
     setError(null);
     setStatusErrors({});
+    // Reset entity-level edit/delete UI state too — without this, switching
+    // from one entity to another while a confirm/error state is showing
+    // would leak that state onto the newly selected entity.
+    setEntityEditOpen(false);
+    setEntityConfirmingDelete(false);
+    setEntityDeleteError(null);
 
     (async () => {
       try {
@@ -295,6 +320,37 @@ export function RequestSidePanel({ entity, currentAnalystId, focusRequestId, onC
     }
   }, []);
 
+  const handleEntityDeleteClick = useCallback(() => {
+    setEntityDeleteError(null);
+    setEntityConfirmingDelete(true);
+  }, []);
+
+  const handleEntityCancelDelete = useCallback(() => {
+    setEntityConfirmingDelete(false);
+    setEntityDeleteError(null);
+  }, []);
+
+  const handleEntityConfirmDelete = useCallback(async () => {
+    if (!entity) return;
+    setEntityDeleting(true);
+    try {
+      const endpoint = entity.kind === "dashboard" ? "/api/dashboards" : "/api/report-subscriptions";
+      const res = await fetch(`${endpoint}/${entity.id}`, { method: "DELETE" });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setEntityDeleteError(data.error ?? `Could not delete ${entity.kind}.`);
+        return;
+      }
+
+      onEntityDeleted();
+    } catch {
+      setEntityDeleteError("Network error — could not reach the server.");
+    } finally {
+      setEntityDeleting(false);
+    }
+  }, [entity, onEntityDeleted]);
+
   if (!entity) return null;
 
   return (
@@ -327,6 +383,24 @@ export function RequestSidePanel({ entity, currentAnalystId, focusRequestId, onC
                 Attach Field Request
               </button>
             )}
+            {!entityConfirmingDelete && (
+              <>
+                <button
+                  onClick={() => setEntityEditOpen(true)}
+                  aria-label={`Edit ${entity.kind}`}
+                  className="flex items-center justify-center w-8 h-8 rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex-shrink-0"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={handleEntityDeleteClick}
+                  aria-label={`Delete ${entity.kind}`}
+                  className="flex items-center justify-center w-8 h-8 rounded-md border border-theme bg-panel text-secondary hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex-shrink-0"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </>
+            )}
             <button
               onClick={onClose}
               aria-label="Close"
@@ -336,6 +410,38 @@ export function RequestSidePanel({ entity, currentAnalystId, focusRequestId, onC
             </button>
           </div>
         </div>
+
+        {entityConfirmingDelete && (
+          <div className="flex flex-col gap-2 mx-5 mt-3 rounded-md border border-theme bg-slate-100 dark:bg-slate-800 px-3 py-2 flex-shrink-0">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-secondary">
+                Delete &quot;{entity.name}&quot;? This also deletes its requests.
+              </span>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={handleEntityCancelDelete}
+                  disabled={entityDeleting}
+                  className="px-2 py-1 text-xs font-medium rounded-md border border-theme text-secondary hover:text-primary transition-colors disabled:opacity-60"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleEntityConfirmDelete}
+                  disabled={entityDeleting}
+                  className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md bg-red-600 hover:bg-red-700 text-white transition-colors disabled:opacity-60"
+                >
+                  {entityDeleting && <Loader2 className="w-3 h-3 animate-spin" />}
+                  Delete
+                </button>
+              </div>
+            </div>
+            {entityDeleteError && (
+              <p className="text-xs text-red-600 dark:text-red-400">{entityDeleteError}</p>
+            )}
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
           {loading && (
@@ -523,6 +629,22 @@ export function RequestSidePanel({ entity, currentAnalystId, focusRequestId, onC
           analystId={currentAnalystId}
           onAttached={() => setRefreshKey((k) => k + 1)}
           onClose={() => setAttachFieldRequestOpen(false)}
+        />
+      )}
+
+      {entityEditOpen && entity && (
+        <EditEntityForm
+          kind={entity.kind}
+          id={entity.id}
+          initialName={entity.name}
+          initialStakeholder={entity.stakeholder}
+          initialStatus={entity.status}
+          initialJiraTicketId={entity.jiraTicketId}
+          onSaved={() => {
+            setEntityEditOpen(false);
+            onEntityUpdated();
+          }}
+          onCancel={() => setEntityEditOpen(false)}
         />
       )}
     </div>

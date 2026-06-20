@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { computeEvenlySpacedPositions } from "@/lib/layout-math";
 import { AnalystSummary } from "@/lib/brain-types";
+import { BrainFilters, isAnalystFocused } from "@/lib/filters";
 import {
   AnalystStar,
   ANALYST_COLOR,
@@ -15,6 +16,7 @@ import { Legend } from "@/components/brain/Legend";
 interface GalaxyViewProps {
   summaries: AnalystSummary[];
   viewerAnalystId: number | null;
+  filters: BrainFilters;
   onSelectAnalyst: (analystId: number) => void;
 }
 
@@ -27,7 +29,7 @@ interface PositionedAnalyst {
 const VIEWBOX_HALF = 450;
 const GALAXY_RADIUS = 320; // distance of each analyst star from the galaxy center — large relative to each star's own division ring (26px) so stars/rings never visually collide
 
-export function GalaxyView({ summaries, viewerAnalystId, onSelectAnalyst }: GalaxyViewProps) {
+export function GalaxyView({ summaries, viewerAnalystId, filters, onSelectAnalyst }: GalaxyViewProps) {
   const [hoveredId, setHoveredId] = useState<number | null>(null);
 
   // Analyst star-systems distributed evenly around one ring centered on the
@@ -71,6 +73,7 @@ export function GalaxyView({ summaries, viewerAnalystId, onSelectAnalyst }: Gala
             divisionCount={summary.divisionCount}
             isViewer={summary.id === viewerAnalystId}
             isHovered={hoveredId === summary.id}
+            isFaded={!isAnalystFocused(summary.id, filters)}
             onHover={() => setHoveredId(summary.id)}
             onLeave={() => setHoveredId((id) => (id === summary.id ? null : id))}
             onClick={() => onSelectAnalyst(summary.id)}

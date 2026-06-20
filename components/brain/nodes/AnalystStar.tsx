@@ -3,6 +3,7 @@
 import { computeEvenlySpacedPositions } from "@/lib/layout-math";
 import { truncateLabel } from "@/lib/text-utils";
 import { Glow, GLOW_SCALE } from "@/components/brain/nodes/Glow";
+import { FADED_OPACITY } from "@/lib/filters";
 
 // Presentational only — purely renders an analyst as a "star" at (x, y) plus
 // a faint ring of small dots representing that analyst's divisions. No
@@ -25,6 +26,10 @@ export interface AnalystStarProps {
   divisionCount: number;
   isViewer: boolean;
   isHovered: boolean;
+  // True when this analyst is faded out by the analyst-focus filter (solo/
+  // compare picker in FilterRail) — fades the whole star system to
+  // FADED_OPACITY rather than hiding it, per the "fade, not disappear" rule.
+  isFaded: boolean;
   onHover: () => void;
   onLeave: () => void;
   onClick: () => void;
@@ -37,6 +42,7 @@ export function AnalystStar({
   divisionCount,
   isViewer,
   isHovered,
+  isFaded,
   onHover,
   onLeave,
   onClick,
@@ -48,7 +54,7 @@ export function AnalystStar({
   );
 
   return (
-    <g transform={`translate(${x}, ${y})`}>
+    <g transform={`translate(${x}, ${y})`} opacity={isFaded ? FADED_OPACITY : 1}>
       {/* Faint ring + dots representing this analyst's divisions — purely
           decorative at this zoom level, no labels, no interactivity. */}
       <circle

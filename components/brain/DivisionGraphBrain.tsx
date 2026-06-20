@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, ClipboardPlus } from "lucide-react";
 import { useTheme } from "next-themes";
 import { buildGraphData, GraphData } from "@/lib/brain-graph";
+import { bucketUrgencies } from "@/lib/urgency";
 import {
   Division,
   DashboardWithUrgency,
@@ -12,6 +13,7 @@ import {
   RequestWithCreator,
   BrainEntityKind,
 } from "@/lib/brain-types";
+import { BrainFilters, FADE_MULTIPLIER, isRequestStatusVisible, isStatusVisible, isUrgencyVisible } from "@/lib/filters";
 
 const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
   ssr: false,
@@ -21,6 +23,7 @@ interface DivisionGraphBrainProps {
   division: Division;
   dashboards: DashboardWithUrgency[]; // already filtered by caller to just this division
   subscriptions: ReportSubscriptionWithUrgency[]; // already filtered by caller to just this division
+  filters: BrainFilters;
   onSelectEntity: (kind: BrainEntityKind, id: number, focusRequestId?: number) => void;
   onBack: () => void;
   onAddEntity?: () => void;
@@ -33,6 +36,7 @@ export function DivisionGraphBrain({
   division,
   dashboards,
   subscriptions,
+  filters,
   onSelectEntity,
   onBack,
   onAddEntity,
@@ -115,6 +119,50 @@ export function DivisionGraphBrain({
     [dashboards, subscriptions, requestsByEntity]
   );
 
+  // Urgency bucketing for THIS division's dashboards+subscriptions only,
+  // same technique SolarSystemView.tsx already uses (bucketUrgencies() over
+  // the entities currently in scope) — keyed by the same `${kind}-${id}`
+  // node id buildGraphData() uses, so it's directly joinable against
+  // graphData nodes below.
+  const urgencyBucketByNodeId = useMemo(() => {
+    const ids: string[] = [];
+    const scores: number[] = [];
+    dashboards.forEach((d) => {
+      ids.push(`dashboard-${d.id}`);
+      scores.push(d.urgency);
+    });
+    subscriptions.forEach((s) => {
+      ids.push(`subscription-${s.id}`);
+      scores.push(s.urgency);
+    });
+    const buckets = bucketUrgencies(scores);
+    return new Map(ids.map((id, i) => [id, buckets[i]]));
+  }, [dashboards, subscriptions]);
+
+  // Direct id->status map (same `${kind}-${id}` node id scheme as above),
+  // avoiding any need to reverse-engineer status from the node's rendered
+  // ringColor.
+  const statusByNodeId = useMemo(() => {
+    const map = new Map<string, DashboardWithUrgency["status"]>();
+    dashboards.forEach((d) => map.set(`dashboard-${d.id}`, d.status));
+    subscriptions.forEach((s) => map.set(`subscription-${s.id}`, s.status));
+    return map;
+  }, [dashboards, subscriptions]);
+
+  // Per-entity-node faded flag: status filter OR urgency filter excludes it.
+  // analystFocus has no effect at this zoom level per spec.
+  const isEntityNodeFaded = useCallback(
+    (node: GraphData["nodes"][number]): boolean => {
+      if (node.kind !== "dashboard" && node.kind !== "subscription") return false;
+      const status = statusByNodeId.get(node.id);
+      const statusVisible = status ? isStatusVisible(status, filters) : true;
+      const bucket = urgencyBucketByNodeId.get(node.id);
+      const urgencyVisible = bucket ? isUrgencyVisible(bucket, filters) : true;
+      return !statusVisible || !urgencyVisible;
+    },
+    [filters, statusByNodeId, urgencyBucketByNodeId]
+  );
+
   const backgroundColor = resolvedTheme === "dark" ? DARK_BG : LIGHT_BG;
 
   const textColor = resolvedTheme === "dark" ? "#e6edf3" : "#0f172a";
@@ -126,13 +174,29 @@ export function DivisionGraphBrain({
   const linkColorFaded = `rgba(${linkRgb}, 0.2)`;
   const LINK_DASH = [4, 3];
 
+  // Multiplies a "rgba(r, g, b, a)" color string's alpha channel by `factor`.
+  // Used to layer the request-state filter's fade on top of the existing
+  // request-status-based link color, rather than replacing it.
+  const scaleRgbaAlpha = useCallback((rgba: string, factor: number): string => {
+    const match = rgba.match(/^rgba\(([^,]+),([^,]+),([^,]+),([^)]+)\)$/);
+    if (!match) return rgba;
+    const [, r, g, b, a] = match;
+    return `rgba(${r.trim()}, ${g.trim()}, ${b.trim()}, ${(parseFloat(a) * factor).toFixed(3)})`;
+  }, []);
+
   const getLinkColor = useCallback(
     (link: any) => {
       const l = link as GraphData["links"][number];
-      if (l.requestStatus === "done") return linkColorFaded;
-      return linkColor;
+      const base = l.requestStatus === "done" ? linkColorFaded : linkColor;
+      // Request-state filter layers an additional opacity reduction on top
+      // of the existing status-based color (solid/faded-by-status) — only
+      // applies to request->entity tethers (requestStatus set), per spec.
+      if (l.requestStatus && !isRequestStatusVisible(l.requestStatus, filters)) {
+        return scaleRgbaAlpha(base, FADE_MULTIPLIER);
+      }
+      return base;
     },
-    [linkColor, linkColorFaded]
+    [linkColor, linkColorFaded, filters, scaleRgbaAlpha]
   );
 
   const getLinkDash = useCallback((link: any) => {
@@ -146,6 +210,23 @@ export function DivisionGraphBrain({
       const x = n.x ?? 0;
       const y = n.y ?? 0;
 
+      // Fading: entity (dashboard/subscription) nodes fade via status/
+      // urgency filters; request nodes fade via the request-state filter.
+      // Center node is never faded.
+      let faded = false;
+      if (n.kind === "request") {
+        const requestStatus = graphData.links.find(
+          (l) => l.target === n.id && l.requestStatus !== undefined
+        )?.requestStatus;
+        faded = requestStatus ? !isRequestStatusVisible(requestStatus, filters) : false;
+      } else {
+        faded = isEntityNodeFaded(n);
+      }
+      const opacity = faded ? FADE_MULTIPLIER : 1;
+
+      ctx.save();
+      ctx.globalAlpha = opacity;
+
       ctx.beginPath();
       ctx.arc(x, y, n.val, 0, 2 * Math.PI, false);
       ctx.fillStyle = n.color;
@@ -157,6 +238,8 @@ export function DivisionGraphBrain({
         ctx.stroke();
       }
 
+      ctx.restore();
+
       const isHovered = hoveredNode?.id === n.id;
       if ((n.kind === "dashboard" || n.kind === "subscription") && isHovered) {
         const fontSize = Math.max(8, Math.min(16, 12 / globalScale));
@@ -167,7 +250,7 @@ export function DivisionGraphBrain({
         ctx.fillText(n.label, x, y + n.val + 4);
       }
     },
-    [textColor, hoveredNode]
+    [textColor, hoveredNode, isEntityNodeFaded, filters, graphData.links]
   );
 
   const handleNodeClick = useCallback(

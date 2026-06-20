@@ -12,11 +12,13 @@ import {
   ReportSubscriptionWithUrgency,
   BrainEntityKind,
 } from "@/lib/brain-types";
+import { BrainFilters } from "@/lib/filters";
 
 interface PlanetViewProps {
   division: Division;
   dashboards: DashboardWithUrgency[];
   subscriptions: ReportSubscriptionWithUrgency[];
+  filters: BrainFilters;
   onSelectEntity: (kind: BrainEntityKind, id: number, focusRequestId?: number) => void;
   onBack: () => void;
   onAddEntity?: () => void;

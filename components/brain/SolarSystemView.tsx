@@ -8,6 +8,7 @@ import {
 } from "@/lib/layout-math";
 import { bucketUrgencies } from "@/lib/urgency";
 import { DashboardWithUrgency, Division, ReportSubscriptionWithUrgency } from "@/lib/brain-types";
+import { BrainFilters, isStatusVisible, isUrgencyVisible } from "@/lib/filters";
 import {
   DivisionPlanet,
   DIVISION_PLANET_COLOR,
@@ -28,6 +29,7 @@ interface SolarSystemViewProps {
   subscriptions: ReportSubscriptionWithUrgency[]; // this analyst's subscriptions (already scoped by useBrainData)
   viewedAnalystId: number;
   viewerAnalystId: number | null;
+  filters: BrainFilters;
   onSelectDivision: (divisionId: number) => void;
 }
 
@@ -48,6 +50,7 @@ export function SolarSystemView({
   subscriptions,
   viewedAnalystId,
   viewerAnalystId,
+  filters,
   onSelectDivision,
 }: SolarSystemViewProps) {
   const [hoveredId, setHoveredId] = useState<number | null>(null);
@@ -66,27 +69,6 @@ export function SolarSystemView({
     }
     return result;
   }, [divisionNodes, wedges]);
-
-  // Moons: one per dashboard/subscription, grouped by divisionId, placed on
-  // a small ring around that division's planet — same technique
-  // AnalystStar.tsx uses for its decorative division dots. Purely
-  // decorative: no tethers, no click handlers.
-  const moonsByDivisionId = useMemo(() => {
-    const map = new Map<number, DashboardWithUrgency["status"][]>();
-    const push = (divisionId: number, status: DashboardWithUrgency["status"]) => {
-      const existing = map.get(divisionId);
-      if (existing) {
-        existing.push(status);
-      } else {
-        map.set(divisionId, [status]);
-      }
-    };
-    dashboards.forEach((d) => push(d.divisionId, d.status));
-    subscriptions.forEach((s) => push(s.divisionId, s.status));
-    return map;
-  }, [dashboards, subscriptions]);
-
-  const hovered = positioned.find((p) => p.node.division.id === hoveredId) ?? null;
 
   // Urgency-mix bucketing: bucket across ALL of the viewed analyst's
   // dashboards+subscriptions (the full props passed in), then filter the
@@ -109,6 +91,44 @@ export function SolarSystemView({
     const buckets = bucketUrgencies(scores);
     return ids.map((entry, i) => ({ ...entry, bucket: buckets[i] }));
   }, [dashboards, subscriptions]);
+
+  // Moons: one per dashboard/subscription, grouped by divisionId, placed on
+  // a small ring around that division's planet — same technique
+  // AnalystStar.tsx uses for its decorative division dots. Carries each
+  // moon's status AND urgency bucket (reusing urgencyBucketsById above, the
+  // same bucketing SolarSystemView already does for its hover-panel
+  // "urgency mix") so the status/urgency filters can fade individual moons.
+  const moonsByDivisionId = useMemo(() => {
+    const bucketByKey = new Map(
+      urgencyBucketsById.map((entry) => [`${entry.kind}-${entry.id}`, entry.bucket])
+    );
+
+    const map = new Map<
+      number,
+      { status: DashboardWithUrgency["status"]; bucket: ReturnType<typeof bucketUrgencies>[number] }[]
+    >();
+    const push = (
+      divisionId: number,
+      status: DashboardWithUrgency["status"],
+      bucket: ReturnType<typeof bucketUrgencies>[number]
+    ) => {
+      const existing = map.get(divisionId);
+      if (existing) {
+        existing.push({ status, bucket });
+      } else {
+        map.set(divisionId, [{ status, bucket }]);
+      }
+    };
+    dashboards.forEach((d) =>
+      push(d.divisionId, d.status, bucketByKey.get(`dashboard-${d.id}`) ?? "med")
+    );
+    subscriptions.forEach((s) =>
+      push(s.divisionId, s.status, bucketByKey.get(`subscription-${s.id}`) ?? "med")
+    );
+    return map;
+  }, [dashboards, subscriptions, urgencyBucketsById]);
+
+  const hovered = positioned.find((p) => p.node.division.id === hoveredId) ?? null;
 
   const hoveredRows = useMemo<DetailPanelRow[]>(() => {
     if (!hovered) return [];
@@ -167,15 +187,29 @@ export function SolarSystemView({
 
         {/* Division planets, each with a small ring of decorative moons. */}
         {positioned.map(({ node, x, y }) => {
-          const moonStatuses = moonsByDivisionId.get(node.division.id) ?? [];
+          const moons = moonsByDivisionId.get(node.division.id) ?? [];
+          const moonFadedFlags = moons.map(
+            (moon) => !isStatusVisible(moon.status, filters) || !isUrgencyVisible(moon.bucket, filters)
+          );
+          // Planet itself fades only when EVERY moon in this division is
+          // faded by the status/urgency filters (i.e. nothing here currently
+          // matches) — a division with no moons at all is never faded by
+          // this rule, since there's nothing to be filtered out.
+          const planetFaded = moons.length > 0 && moonFadedFlags.every(Boolean);
 
           return (
             <g key={node.division.id}>
               {/* Moons drawn first so the planet renders on top of its own ring. */}
-              {moonStatuses.map((status, i) => {
-                const pos = computeEvenlySpacedPositions(MOON_RING_RADIUS, i, moonStatuses.length);
+              {moons.map((moon, i) => {
+                const pos = computeEvenlySpacedPositions(MOON_RING_RADIUS, i, moons.length);
                 return (
-                  <DashboardMoon key={i} x={x + pos.x} y={y + pos.y} status={status} />
+                  <DashboardMoon
+                    key={i}
+                    x={x + pos.x}
+                    y={y + pos.y}
+                    status={moon.status}
+                    isFaded={moonFadedFlags[i]}
+                  />
                 );
               })}
 
@@ -184,6 +218,7 @@ export function SolarSystemView({
                 y={y}
                 name={node.division.name}
                 isHovered={hoveredId === node.division.id}
+                isFaded={planetFaded}
                 onHover={() => setHoveredId(node.division.id)}
                 onLeave={() => setHoveredId((id) => (id === node.division.id ? null : id))}
                 onClick={() => onSelectDivision(node.division.id)}

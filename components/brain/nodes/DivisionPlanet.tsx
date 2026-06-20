@@ -2,6 +2,7 @@
 
 import { truncateLabel } from "@/lib/text-utils";
 import { Glow, GLOW_SCALE } from "@/components/brain/nodes/Glow";
+import { FADED_OPACITY } from "@/lib/filters";
 
 // Presentational only — purely renders a division as a "planet" at (x, y).
 // No fetch/state of its own; all interactivity is reported via callback
@@ -17,6 +18,10 @@ export interface DivisionPlanetProps {
   y: number;
   name: string;
   isHovered: boolean;
+  // True when every moon in this division is faded by the status/urgency
+  // filters — fades the planet itself too, signaling "nothing here
+  // currently matches" without over-complicating partial-match cases.
+  isFaded?: boolean;
   onHover: () => void;
   onLeave: () => void;
   onClick: () => void;
@@ -27,12 +32,13 @@ export function DivisionPlanet({
   y,
   name,
   isHovered,
+  isFaded = false,
   onHover,
   onLeave,
   onClick,
 }: DivisionPlanetProps) {
   return (
-    <g transform={`translate(${x}, ${y})`}>
+    <g transform={`translate(${x}, ${y})`} opacity={isFaded ? FADED_OPACITY : 1}>
       {/* Low-opacity, blurred glow behind the planet — must come before the
           solid circle below since SVG paints in document order. */}
       <Glow cx={0} cy={0} radius={PLANET_RADIUS * GLOW_SCALE} color={DIVISION_PLANET_COLOR} />

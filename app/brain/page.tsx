@@ -13,14 +13,18 @@ import { RequestSidePanel, RequestSidePanelEntity } from "@/components/brain/Req
 import { AddRequestForm } from "@/components/brain/AddRequestForm";
 import { AddEntityForm } from "@/components/brain/AddEntityForm";
 import { AddDivisionForm } from "@/components/brain/AddDivisionForm";
+import { FilterRail } from "@/components/brain/FilterRail";
 import { useBrainData, ZoomState } from "@/hooks/useBrainData";
 import {
   Analyst,
   BrainEntityKind,
   DashboardWithUrgency,
+  Division,
   ReportSubscriptionWithUrgency,
 } from "@/lib/brain-types";
 import { MAX_RADIUS } from "@/lib/urgency";
+import { BrainFilters, createDefaultFilters } from "@/lib/filters";
+import { resolveSearchResults, SearchResult } from "@/lib/brain-search";
 
 interface SelectedEntity {
   kind: BrainEntityKind;
@@ -35,6 +39,9 @@ export default function BrainPage() {
   // populate the "Add Request" dropdown per the design doc.
   const [allDashboards, setAllDashboards] = useState<DashboardWithUrgency[]>([]);
   const [allSubscriptions, setAllSubscriptions] = useState<ReportSubscriptionWithUrgency[]>([]);
+  // All divisions (org-wide, not scoped to any one analyst) — used by the
+  // FilterRail search typeahead to match against division names.
+  const [allDivisions, setAllDivisions] = useState<Division[]>([]);
   const [analysts, setAnalysts] = useState<Analyst[]>([]);
   const [selectedEntity, setSelectedEntity] = useState<SelectedEntity | null>(null);
   const [selectedRequestId, setSelectedRequestId] = useState<number | undefined>(undefined);
@@ -44,6 +51,8 @@ export default function BrainPage() {
   // Bumping this re-runs the unscoped "all" fetch below, letting us refresh
   // urgency/counts after a new request is created.
   const [refreshKey, setRefreshKey] = useState(0);
+  const [filters, setFilters] = useState<BrainFilters>(createDefaultFilters());
+  const [searchQuery, setSearchQuery] = useState("");
 
   const handleSelectAnalyst = useCallback((analystId: number) => {
     setViewerAnalystId(analystId);
@@ -90,10 +99,11 @@ export default function BrainPage() {
 
     (async () => {
       try {
-        const [dashboardsData, subscriptionsData, analystsRes] = await Promise.all([
+        const [dashboardsData, subscriptionsData, analystsRes, divisionsRes] = await Promise.all([
           fetchDashboards(),
           fetchSubscriptions(),
           fetch("/api/analysts"),
+          fetch("/api/divisions"),
         ]);
         if (cancelled) return;
 
@@ -104,9 +114,14 @@ export default function BrainPage() {
         if (!cancelled && analystsRes.ok) {
           setAnalysts(analystsData);
         }
+
+        const divisionsData = await divisionsRes.json();
+        if (!cancelled && divisionsRes.ok) {
+          setAllDivisions(divisionsData);
+        }
       } catch {
         // Non-critical for the main view; dependent UI (Add Request dropdown,
-        // hover breakdown) will simply show as empty if this fails.
+        // hover breakdown, search) will simply show as empty if this fails.
       }
     })();
 
@@ -208,6 +223,26 @@ export default function BrainPage() {
 
   const hasAnyDivisions = divisionNodes.length > 0;
 
+  // Search typeahead results, resolved against the unscoped "all" data
+  // (dashboards/subscriptions/divisions/analysts) fetched above. Recomputes
+  // whenever the query or any of that underlying data changes.
+  const searchResults = useMemo<SearchResult[]>(
+    () =>
+      resolveSearchResults(searchQuery, {
+        allDashboards,
+        allSubscriptions,
+        allDivisions,
+        analysts,
+        viewerAnalystId,
+      }),
+    [searchQuery, allDashboards, allSubscriptions, allDivisions, analysts, viewerAnalystId]
+  );
+
+  const handleSelectSearchResult = useCallback((result: SearchResult) => {
+    setZoom(result.targetZoom);
+    setSearchQuery("");
+  }, []);
+
   const viewedAnalystName = useMemo(() => {
     if (viewedAnalystId === null) return null;
     return analysts.find((a) => a.id === viewedAnalystId)?.name ?? null;
@@ -293,82 +328,100 @@ export default function BrainPage() {
         </div>
       </header>
 
-      <main className="flex-1 overflow-hidden">
-        {viewerAnalystId !== null && brainData.loading && (
-          <div className="flex flex-col items-center justify-center h-full gap-3">
-            <Loader2 className="w-5 h-5 text-brand-500 animate-spin" />
-            <p className="text-sm text-secondary">Loading…</p>
-          </div>
+      <main className="flex-1 overflow-hidden flex flex-row">
+        {viewerAnalystId !== null && (
+          <FilterRail
+            filters={filters}
+            onFiltersChange={setFilters}
+            analysts={analysts}
+            showAnalystFocus={zoom.level === "galaxy"}
+            searchQuery={searchQuery}
+            onSearchQueryChange={setSearchQuery}
+            searchResults={searchResults}
+            onSelectSearchResult={handleSelectSearchResult}
+          />
         )}
 
-        {viewerAnalystId !== null && !brainData.loading && brainData.error && (
-          <div className="flex items-center justify-center h-full">
-            <p className="text-sm text-red-600 dark:text-red-400">{brainData.error}</p>
-          </div>
-        )}
-
-        {viewerAnalystId !== null && !brainData.loading && !brainData.error && zoom.level === "galaxy" && (
-          <GalaxyCanvas {...canvasProps}>
-            <GalaxyView
-              summaries={"galaxySummaries" in brainData ? brainData.galaxySummaries : []}
-              viewerAnalystId={viewerAnalystId}
-              onSelectAnalyst={(analystId) => setZoom({ level: "analyst", analystId })}
-            />
-          </GalaxyCanvas>
-        )}
-
-        {viewerAnalystId !== null &&
-          !brainData.loading &&
-          !brainData.error &&
-          zoom.level === "analyst" &&
-          !hasAnyDivisions && (
-            <GalaxyCanvas {...canvasProps}>
-              <div className="flex items-center justify-center h-full">
-                <p className="text-sm text-secondary">
-                  No divisions yet — use &ldquo;Add Division&rdquo; above to create one.
-                </p>
-              </div>
-            </GalaxyCanvas>
+        <div className="relative flex-1 overflow-hidden">
+          {viewerAnalystId !== null && brainData.loading && (
+            <div className="flex flex-col items-center justify-center h-full gap-3">
+              <Loader2 className="w-5 h-5 text-brand-500 animate-spin" />
+              <p className="text-sm text-secondary">Loading…</p>
+            </div>
           )}
 
-        {viewerAnalystId !== null &&
-          !brainData.loading &&
-          !brainData.error &&
-          zoom.level === "analyst" &&
-          hasAnyDivisions && (
+          {viewerAnalystId !== null && !brainData.loading && brainData.error && (
+            <div className="flex items-center justify-center h-full">
+              <p className="text-sm text-red-600 dark:text-red-400">{brainData.error}</p>
+            </div>
+          )}
+
+          {viewerAnalystId !== null && !brainData.loading && !brainData.error && zoom.level === "galaxy" && (
             <GalaxyCanvas {...canvasProps}>
-              <SolarSystemView
-                divisionNodes={divisionNodes}
-                dashboards={dashboards}
-                subscriptions={subscriptions}
-                viewedAnalystId={zoom.analystId}
+              <GalaxyView
+                summaries={"galaxySummaries" in brainData ? brainData.galaxySummaries : []}
                 viewerAnalystId={viewerAnalystId}
-                onSelectDivision={(divisionId) =>
-                  setZoom({ level: "division", analystId: zoom.analystId, divisionId })
-                }
+                filters={filters}
+                onSelectAnalyst={(analystId) => setZoom({ level: "analyst", analystId })}
               />
             </GalaxyCanvas>
           )}
 
-        {viewerAnalystId !== null &&
-          !brainData.loading &&
-          !brainData.error &&
-          zoom.level === "division" &&
-          selectedDivision && (
-            <GalaxyCanvas {...canvasProps}>
-              <PlanetView
-                division={selectedDivision}
-                dashboards={divisionDashboards}
-                subscriptions={divisionSubscriptions}
-                onSelectEntity={(kind, id, focusRequestId) => {
-                  setSelectedEntity({ kind, id });
-                  setSelectedRequestId(focusRequestId);
-                }}
-                onBack={() => setZoom({ level: "analyst", analystId: zoom.analystId })}
-                onAddEntity={() => setShowAddEntityForm(true)}
-              />
-            </GalaxyCanvas>
-          )}
+          {viewerAnalystId !== null &&
+            !brainData.loading &&
+            !brainData.error &&
+            zoom.level === "analyst" &&
+            !hasAnyDivisions && (
+              <GalaxyCanvas {...canvasProps}>
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-sm text-secondary">
+                    No divisions yet — use &ldquo;Add Division&rdquo; above to create one.
+                  </p>
+                </div>
+              </GalaxyCanvas>
+            )}
+
+          {viewerAnalystId !== null &&
+            !brainData.loading &&
+            !brainData.error &&
+            zoom.level === "analyst" &&
+            hasAnyDivisions && (
+              <GalaxyCanvas {...canvasProps}>
+                <SolarSystemView
+                  divisionNodes={divisionNodes}
+                  dashboards={dashboards}
+                  subscriptions={subscriptions}
+                  viewedAnalystId={zoom.analystId}
+                  viewerAnalystId={viewerAnalystId}
+                  filters={filters}
+                  onSelectDivision={(divisionId) =>
+                    setZoom({ level: "division", analystId: zoom.analystId, divisionId })
+                  }
+                />
+              </GalaxyCanvas>
+            )}
+
+          {viewerAnalystId !== null &&
+            !brainData.loading &&
+            !brainData.error &&
+            zoom.level === "division" &&
+            selectedDivision && (
+              <GalaxyCanvas {...canvasProps}>
+                <PlanetView
+                  division={selectedDivision}
+                  dashboards={divisionDashboards}
+                  subscriptions={divisionSubscriptions}
+                  filters={filters}
+                  onSelectEntity={(kind, id, focusRequestId) => {
+                    setSelectedEntity({ kind, id });
+                    setSelectedRequestId(focusRequestId);
+                  }}
+                  onBack={() => setZoom({ level: "analyst", analystId: zoom.analystId })}
+                  onAddEntity={() => setShowAddEntityForm(true)}
+                />
+              </GalaxyCanvas>
+            )}
+        </div>
       </main>
 
       {viewerAnalystId !== null && (

@@ -243,7 +243,12 @@ export function DivisionGraphBrain({
       // request nodes, the canvas equivalent of a "moon").
       if (n.kind === "center" || n.kind === "dashboard" || n.kind === "subscription") {
         ctx.shadowColor = n.color;
-        ctx.shadowBlur = n.val;
+        // shadowBlur is specified in screen pixels and is NOT affected by the
+        // canvas's current zoom/pan transform the way ctx.arc()'s geometry is.
+        // globalScale = screen pixels per graph-space unit, so multiplying the
+        // graph-space radius (n.val) by it converts the blur into screen-pixel
+        // terms, keeping the glow visually proportional to the node at any zoom.
+        ctx.shadowBlur = n.val * globalScale;
       }
       ctx.fill();
       // Reset before the ring stroke below, so the status ring doesn't inherit the glow.

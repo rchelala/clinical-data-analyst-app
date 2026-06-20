@@ -199,19 +199,28 @@ export function SolarSystemView({
 
           return (
             <g key={node.division.id}>
-              {/* Moons drawn first so the planet renders on top of its own ring. */}
-              {moons.map((moon, i) => {
-                const pos = computeEvenlySpacedPositions(MOON_RING_RADIUS, i, moons.length);
-                return (
-                  <DashboardMoon
-                    key={i}
-                    x={x + pos.x}
-                    y={y + pos.y}
-                    status={moon.status}
-                    isFaded={moonFadedFlags[i]}
-                  />
-                );
-              })}
+              {/* Moons drawn first so the planet renders on top of its own
+                  ring. Positioned in their own translated local-coordinate
+                  group (mirroring AnalystStar.tsx's pattern) so the nested
+                  orbit-rotate group below has a clean (0,0) rotation origin
+                  — the translate handles the division's offset, so moons use
+                  local pos.x/pos.y rather than x + pos.x/y + pos.y. */}
+              <g transform={`translate(${x}, ${y})`}>
+                <g className="orbit-rotate">
+                  {moons.map((moon, i) => {
+                    const pos = computeEvenlySpacedPositions(MOON_RING_RADIUS, i, moons.length);
+                    return (
+                      <DashboardMoon
+                        key={i}
+                        x={pos.x}
+                        y={pos.y}
+                        status={moon.status}
+                        isFaded={moonFadedFlags[i]}
+                      />
+                    );
+                  })}
+                </g>
+              </g>
 
               <DivisionPlanet
                 x={x}

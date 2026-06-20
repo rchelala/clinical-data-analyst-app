@@ -115,3 +115,23 @@
     animation: zoom-enter-out 400ms ease-in-out;
   }
 }
+
+/* ── Orbit rotation ──
+   Slowly spins the decorative, label-free orbit rings (AnalystStar's
+   division-dot ring, SolarSystemView's moon ring) per GALAXY_VIEW_SPEC.md
+   section 7. Never applied to labeled primary nodes (stars/planets
+   themselves), which would spin their text labels into unreadable
+   orientations. These rings always sit inside an outer <g
+   transform="translate(...)">, so their local origin is already (0,0) —
+   no per-instance dynamic transform-origin needed. */
+@keyframes orbit-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .orbit-rotate {
+    transform-origin: 0px 0px;
+    animation: orbit-spin 60s linear infinite;
+  }
+}

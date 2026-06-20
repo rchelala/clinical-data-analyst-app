@@ -56,26 +56,31 @@ export function AnalystStar({
   return (
     <g transform={`translate(${x}, ${y})`} opacity={fadeOpacity(1, isFaded)}>
       {/* Faint ring + dots representing this analyst's divisions — purely
-          decorative at this zoom level, no labels, no interactivity. */}
-      <circle
-        cx={0}
-        cy={0}
-        r={DIVISION_RING_RADIUS}
-        fill="none"
-        stroke={DIVISION_COLOR}
-        strokeOpacity={0.15}
-        strokeWidth={1}
-      />
-      {divisionDots.map((pos, i) => (
+          decorative at this zoom level, no labels, no interactivity. Wrapped
+          in its own group so the slow orbit-spin animation (GALAXY_VIEW_SPEC.md
+          section 7) can rotate just this ring without spinning the star or
+          its text label. */}
+      <g className="orbit-rotate">
         <circle
-          key={i}
-          cx={pos.x}
-          cy={pos.y}
-          r={DIVISION_DOT_RADIUS}
-          fill={DIVISION_COLOR}
-          fillOpacity={0.45}
+          cx={0}
+          cy={0}
+          r={DIVISION_RING_RADIUS}
+          fill="none"
+          stroke={DIVISION_COLOR}
+          strokeOpacity={0.15}
+          strokeWidth={1}
         />
-      ))}
+        {divisionDots.map((pos, i) => (
+          <circle
+            key={i}
+            cx={pos.x}
+            cy={pos.y}
+            r={DIVISION_DOT_RADIUS}
+            fill={DIVISION_COLOR}
+            fillOpacity={0.45}
+          />
+        ))}
+      </g>
 
       {/* Low-opacity, blurred glow behind the star — must come before the
           solid circle below since SVG paints in document order. */}

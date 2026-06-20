@@ -13,7 +13,7 @@ import {
   RequestWithCreator,
   BrainEntityKind,
 } from "@/lib/brain-types";
-import { BrainFilters, FADE_MULTIPLIER, isRequestStatusVisible, isStatusVisible, isUrgencyVisible } from "@/lib/filters";
+import { BrainFilters, FADED_OPACITY, FADE_MULTIPLIER, isRequestStatusVisible, isStatusVisible, isUrgencyVisible } from "@/lib/filters";
 
 const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
   ssr: false,
@@ -211,18 +211,21 @@ export function DivisionGraphBrain({
       const y = n.y ?? 0;
 
       // Fading: entity (dashboard/subscription) nodes fade via status/
-      // urgency filters; request nodes fade via the request-state filter.
+      // urgency filters using the shared standalone FADED_OPACITY constant
+      // (same convention as AnalystStar/DashboardMoon/DivisionPlanet);
+      // request nodes fade via the request-state filter using
+      // FADE_MULTIPLIER, matching the multiplicative tether-fade treatment.
       // Center node is never faded.
-      let faded = false;
+      let opacity = 1;
       if (n.kind === "request") {
         const requestStatus = graphData.links.find(
           (l) => l.target === n.id && l.requestStatus !== undefined
         )?.requestStatus;
-        faded = requestStatus ? !isRequestStatusVisible(requestStatus, filters) : false;
+        const faded = requestStatus ? !isRequestStatusVisible(requestStatus, filters) : false;
+        opacity = faded ? FADE_MULTIPLIER : 1;
       } else {
-        faded = isEntityNodeFaded(n);
+        opacity = isEntityNodeFaded(n) ? FADED_OPACITY : 1;
       }
-      const opacity = faded ? FADE_MULTIPLIER : 1;
 
       ctx.save();
       ctx.globalAlpha = opacity;

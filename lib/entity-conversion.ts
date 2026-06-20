@@ -86,6 +86,15 @@ export async function convertDashboardToSubscription(
     FROM ins
   `;
 
+  // rows can be empty if the dashboard was deleted by something else in the
+  // window between the existence check above and this statement (TOCTOU) —
+  // the ins CTE's source SELECT then matches no rows, so it's a legal
+  // zero-row insert rather than an error. Treat that the same as "never
+  // existed" instead of indexing into an empty array and throwing.
+  if (rows.length === 0) {
+    return null;
+  }
+
   return mapReportSubscriptionRow(rows[0]);
 }
 
@@ -142,6 +151,13 @@ export async function convertSubscriptionToDashboard(
     SELECT id, name, division_id, analyst_id, stakeholder, status, jira_ticket_id, last_touched_date, created_date
     FROM ins
   `;
+
+  // See the matching comment in convertDashboardToSubscription above: rows
+  // can be empty under the same TOCTOU race, and that must map to null, not
+  // a thrown TypeError from indexing an empty array.
+  if (rows.length === 0) {
+    return null;
+  }
 
   return mapDashboardRow(rows[0]);
 }

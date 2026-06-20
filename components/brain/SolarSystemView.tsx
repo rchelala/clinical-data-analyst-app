@@ -14,7 +14,7 @@ import {
   DIVISION_PLANET_COLOR,
 } from "@/components/brain/nodes/DivisionPlanet";
 import { DashboardMoon, MOON_STATUS_COLORS } from "@/components/brain/nodes/DashboardMoon";
-import { ANALYST_COLOR, VIEWER_RING_COLOR } from "@/components/brain/nodes/AnalystStar";
+import { ANALYST_COLOR, VIEWER_RING_COLOR } from "@/lib/brain-colors";
 import { DetailPanel, DetailPanelRow } from "@/components/brain/DetailPanel";
 import { Legend } from "@/components/brain/Legend";
 

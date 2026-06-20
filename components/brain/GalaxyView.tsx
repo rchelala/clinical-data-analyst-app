@@ -4,12 +4,8 @@ import { useMemo, useState } from "react";
 import { computeEvenlySpacedPositions } from "@/lib/layout-math";
 import { AnalystSummary } from "@/lib/brain-types";
 import { BrainFilters, isAnalystFocused } from "@/lib/filters";
-import {
-  AnalystStar,
-  ANALYST_COLOR,
-  DIVISION_COLOR,
-  VIEWER_RING_COLOR,
-} from "@/components/brain/nodes/AnalystStar";
+import { AnalystStar } from "@/components/brain/nodes/AnalystStar";
+import { ANALYST_COLOR, DIVISION_COLOR, VIEWER_RING_COLOR } from "@/lib/brain-colors";
 import { DetailPanel, DetailPanelRow } from "@/components/brain/DetailPanel";
 import { Legend } from "@/components/brain/Legend";
 

@@ -4,6 +4,7 @@ import { computeEvenlySpacedPositions } from "@/lib/layout-math";
 import { truncateLabel } from "@/lib/text-utils";
 import { Glow, GLOW_SCALE } from "@/components/brain/nodes/Glow";
 import { fadeOpacity } from "@/lib/filters";
+import { ANALYST_COLOR, DIVISION_COLOR, VIEWER_RING_COLOR } from "@/lib/brain-colors";
 
 // Presentational only — purely renders an analyst as a "star" at (x, y) plus
 // a faint ring of small dots representing that analyst's divisions. No
@@ -14,10 +15,6 @@ const STAR_RADIUS = 14;
 const VIEWER_STAR_RADIUS = 16; // viewer's own star drawn slightly larger, with a distinct ring color, so it reads as "you" at a glance
 const DIVISION_DOT_RADIUS = 3;
 const DIVISION_RING_RADIUS = 26; // small ring around the star — must stay noticeably smaller than inter-star spacing so it reads as "this star's ring," not galaxy-wide noise
-
-export const ANALYST_COLOR = "#7aa2f7";
-export const DIVISION_COLOR = "#bb9af7";
-export const VIEWER_RING_COLOR = "#f6c177"; // warm accent ring distinguishing the viewer's own star from every other analyst
 
 export interface AnalystStarProps {
   x: number;

@@ -54,9 +54,20 @@ export default function BrainPage() {
   const [filters, setFilters] = useState<BrainFilters>(createDefaultFilters());
   const [searchQuery, setSearchQuery] = useState("");
 
-  const handleSelectAnalyst = useCallback((analystId: number) => {
-    setViewerAnalystId(analystId);
-  }, []);
+  const handleSelectAnalyst = useCallback(
+    (analystId: number, _analystName: string, isManualSwitch: boolean) => {
+      setViewerAnalystId(analystId);
+      // Only navigate on a deliberate pick (clicking a name in the
+      // selector modal) — the silent on-mount restore of a previously
+      // stored identity must leave `zoom` alone so returning users still
+      // land on the Galaxy overview, not get auto-navigated into their
+      // own system.
+      if (isManualSwitch) {
+        setZoom({ level: "analyst", analystId });
+      }
+    },
+    []
+  );
 
   const brainData = useBrainData(zoom, refreshKey);
 

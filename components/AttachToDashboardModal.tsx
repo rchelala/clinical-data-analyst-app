@@ -97,7 +97,6 @@ export function AttachToDashboardModal({
     async function load() {
       setDashboardsLoading(true);
       setDashboards([]);
-      setDashboardId("");
       setError(null);
       try {
         const headers: HeadersInit | undefined =

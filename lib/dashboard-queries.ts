@@ -37,6 +37,7 @@ export async function fetchDashboardRowsWithStaleness(analystId?: number) {
           GROUP BY dashboard_id
         ) agg ON agg.dashboard_id = d.id
         WHERE d.analyst_id = ${analystId}
+        ORDER BY d.name
       `
     : await sql`
         SELECT
@@ -62,6 +63,7 @@ export async function fetchDashboardRowsWithStaleness(analystId?: number) {
           WHERE status != 'done'
           GROUP BY dashboard_id
         ) agg ON agg.dashboard_id = d.id
+        ORDER BY d.name
       `;
 }
 

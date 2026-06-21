@@ -11,7 +11,7 @@ interface EditEntityFormProps {
   initialStakeholder: string | null;
   initialStatus: DashboardStatus;
   initialJiraTicketId: string | null;
-  onSaved: () => void;
+  onSaved: (newIdentity: { kind: BrainEntityKind; id: number }) => void;
   onCancel: () => void;
 }
 
@@ -38,6 +38,7 @@ export function EditEntityForm({
   onSaved,
   onCancel,
 }: EditEntityFormProps) {
+  const [selectedKind, setSelectedKind] = useState<BrainEntityKind>(kind);
   const [name, setName] = useState(initialName);
   const [stakeholder, setStakeholder] = useState(initialStakeholder ?? "");
   const [status, setStatus] = useState<DashboardStatus>(initialStatus);
@@ -57,33 +58,41 @@ export function EditEntityForm({
 
       setSubmitting(true);
       try {
-        const res = await fetch(`${ENTITY_ENDPOINTS[kind]}/${id}`, {
-          method: "PATCH",
+        const fields = {
+          name: name.trim(),
+          stakeholder: stakeholder.trim() ? stakeholder.trim() : null,
+          status,
+          jiraTicketId: jiraTicketId.trim() ? jiraTicketId.trim() : null,
+        };
+
+        const url =
+          selectedKind === kind
+            ? `${ENTITY_ENDPOINTS[kind]}/${id}`
+            : `${ENTITY_ENDPOINTS[kind]}/${id}/convert`;
+        const method = selectedKind === kind ? "PATCH" : "POST";
+
+        const res = await fetch(url, {
+          method,
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            name: name.trim(),
-            stakeholder: stakeholder.trim() ? stakeholder.trim() : null,
-            status,
-            jiraTicketId: jiraTicketId.trim() ? jiraTicketId.trim() : null,
-          }),
+          body: JSON.stringify(fields),
         });
         const data = await res.json();
 
         if (!res.ok) {
-          setError(data.error ?? `Could not update ${kind}.`);
+          setError(data.error ?? (selectedKind !== kind ? `Could not convert ${kind} to ${selectedKind}.` : `Could not save ${kind}.`));
           return;
         }
 
-        onSaved();
+        onSaved(selectedKind === kind ? { kind, id } : { kind: selectedKind, id: data.id });
       } catch {
         setError("Network error — could not reach the server.");
       } finally {
         setSubmitting(false);
       }
     },
-    [kind, id, name, stakeholder, status, jiraTicketId, onSaved]
+    [kind, id, selectedKind, name, stakeholder, status, jiraTicketId, onSaved]
   );
 
   return (
@@ -104,6 +113,31 @@ export function EditEntityForm({
         </div>
 
         <form onSubmit={handleSubmit} className="px-5 py-4 flex flex-col gap-4">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-secondary">Type</label>
+            <div className="flex gap-2">
+              {(["dashboard", "subscription"] as BrainEntityKind[]).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => setSelectedKind(option)}
+                  className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md border transition-colors capitalize ${
+                    selectedKind === option
+                      ? "bg-brand-600 border-brand-600 text-white"
+                      : "border-theme text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700"
+                  }`}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+            {selectedKind !== kind && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Converting type will move this {kind} to {selectedKind}s.
+              </p>
+            )}
+          </div>
+
           <div className="flex flex-col gap-1">
             <label htmlFor="editEntityName" className="text-xs font-medium text-secondary">
               Name <span className="text-red-500">*</span>
@@ -180,7 +214,9 @@ export function EditEntityForm({
               disabled={submitting}
               className="px-3 py-1.5 text-xs font-medium rounded-md bg-brand-600 hover:bg-brand-700 text-white transition-colors disabled:opacity-60"
             >
-              {submitting ? "Saving…" : "Save changes"}
+              {submitting
+                ? (selectedKind !== kind ? "Converting…" : "Saving…")
+                : (selectedKind !== kind ? "Convert & save" : "Save changes")}
             </button>
           </div>
         </form>

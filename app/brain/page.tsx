@@ -54,9 +54,20 @@ export default function BrainPage() {
   const [filters, setFilters] = useState<BrainFilters>(createDefaultFilters());
   const [searchQuery, setSearchQuery] = useState("");
 
-  const handleSelectAnalyst = useCallback((analystId: number) => {
-    setViewerAnalystId(analystId);
-  }, []);
+  const handleSelectAnalyst = useCallback(
+    (analystId: number, _analystName: string, isManualSwitch: boolean) => {
+      setViewerAnalystId(analystId);
+      // Only navigate on a deliberate pick (clicking a name in the
+      // selector modal) — the silent on-mount restore of a previously
+      // stored identity must leave `zoom` alone so returning users still
+      // land on the Galaxy overview, not get auto-navigated into their
+      // own system.
+      if (isManualSwitch) {
+        setZoom({ level: "analyst", analystId });
+      }
+    },
+    []
+  );
 
   const brainData = useBrainData(zoom, refreshKey);
 
@@ -455,7 +466,18 @@ export default function BrainPage() {
             setSelectedRequestId(undefined);
             setRefreshKey((k) => k + 1);
           }}
-          onEntityUpdated={() => setRefreshKey((k) => k + 1)}
+          onEntityUpdated={(newIdentity) => {
+            // Follow the entity to its new kind/id. sidePanelEntity briefly
+            // resolves to null until the refreshKey-triggered refetch below
+            // picks up the entity under its new identity, so the panel
+            // flickers closed/reopen rather than ever showing stale data
+            // against the new id. Do not "fix" the flicker by falling back
+            // to the previous sidePanelEntity value instead of null — that
+            // would reintroduce a real race where the old entity's data is
+            // shown mislabeled under the new id.
+            setSelectedEntity(newIdentity);
+            setRefreshKey((k) => k + 1);
+          }}
         />
       )}
 

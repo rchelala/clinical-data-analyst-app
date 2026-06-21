@@ -22,7 +22,7 @@ interface RequestSidePanelProps {
   currentAnalystId: number;
   focusRequestId?: number;
   onClose: () => void;
-  onEntityUpdated: () => void;
+  onEntityUpdated: (newIdentity: { kind: BrainEntityKind; id: number }) => void;
   onEntityDeleted: () => void;
 }
 
@@ -640,9 +640,9 @@ export function RequestSidePanel({
           initialStakeholder={entity.stakeholder}
           initialStatus={entity.status}
           initialJiraTicketId={entity.jiraTicketId}
-          onSaved={() => {
+          onSaved={(newIdentity) => {
             setEntityEditOpen(false);
-            onEntityUpdated();
+            onEntityUpdated(newIdentity);
           }}
           onCancel={() => setEntityEditOpen(false)}
         />

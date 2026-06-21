@@ -6,7 +6,7 @@ import { Analyst } from "@/lib/brain-types";
 import { loadAnalystId, saveAnalystId } from "@/lib/analyst-identity";
 
 interface AnalystSelectorProps {
-  onSelect: (analystId: number, analystName: string) => void;
+  onSelect: (analystId: number, analystName: string, isManualSwitch: boolean) => void;
 }
 
 export function AnalystSelector({ onSelect }: AnalystSelectorProps) {
@@ -39,7 +39,7 @@ export function AnalystSelector({ onSelect }: AnalystSelectorProps) {
         if (storedId !== null) {
           const stored = (data as Analyst[]).find((a) => a.id === storedId);
           if (stored) setSelectedAnalyst(stored);
-          onSelect(storedId, stored?.name ?? "");
+          onSelect(storedId, stored?.name ?? "", false);
         } else {
           setModalOpen(true);
         }
@@ -61,7 +61,7 @@ export function AnalystSelector({ onSelect }: AnalystSelectorProps) {
       saveAnalystId(analyst.id);
       setModalOpen(false);
       setSelectedAnalyst(analyst);
-      onSelect(analyst.id, analyst.name);
+      onSelect(analyst.id, analyst.name, true);
     },
     [onSelect]
   );

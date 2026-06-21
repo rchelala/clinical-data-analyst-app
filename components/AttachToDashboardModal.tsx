@@ -24,6 +24,7 @@ export function AttachToDashboardModal({
   const [dashboardId, setDashboardId] = useState<string>("");
   const [showAllDashboards, setShowAllDashboards] = useState(false);
   const [analystsLoaded, setAnalystsLoaded] = useState(false);
+  const [analystsError, setAnalystsError] = useState(false);
   const [analystsLoading, setAnalystsLoading] = useState(true);
   const [dashboardsLoading, setDashboardsLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -38,6 +39,7 @@ export function AttachToDashboardModal({
     async function load() {
       setAnalystsLoading(true);
       setError(null);
+      setAnalystsError(false);
       try {
         const analystsRes = await fetch("/api/analysts");
         const analystsData = await analystsRes.json();
@@ -46,6 +48,7 @@ export function AttachToDashboardModal({
 
         if (!analystsRes.ok) {
           setError(analystsData.error ?? "Could not load analysts.");
+          setAnalystsError(true);
           return;
         }
 
@@ -60,7 +63,10 @@ export function AttachToDashboardModal({
             : loadedAnalysts[0]?.id;
         setAnalystId(preselectedAnalyst !== undefined ? String(preselectedAnalyst) : "");
       } catch {
-        if (!cancelled) setError("Network error — could not reach the server.");
+        if (!cancelled) {
+          setError("Network error — could not reach the server.");
+          setAnalystsError(true);
+        }
       } finally {
         if (!cancelled) {
           setAnalystsLoading(false);
@@ -78,11 +84,20 @@ export function AttachToDashboardModal({
   // Effect B: load dashboards, scoped to the selected analyst unless overridden.
   useEffect(() => {
     if (!analystsLoaded) return;
+    if (analystsError) {
+      // Analyst loading failed — don't clobber that error with a dashboard fetch.
+      setDashboardsLoading(false);
+      setDashboards([]);
+      setDashboardId("");
+      return;
+    }
 
     let cancelled = false;
 
     async function load() {
       setDashboardsLoading(true);
+      setDashboards([]);
+      setDashboardId("");
       setError(null);
       try {
         const headers: HeadersInit | undefined =
@@ -119,7 +134,7 @@ export function AttachToDashboardModal({
     return () => {
       cancelled = true;
     };
-  }, [analystId, showAllDashboards, analystsLoaded]);
+  }, [analystId, showAllDashboards, analystsLoaded, analystsError]);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {

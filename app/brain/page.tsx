@@ -467,6 +467,14 @@ export default function BrainPage() {
             setRefreshKey((k) => k + 1);
           }}
           onEntityUpdated={(newIdentity) => {
+            // Follow the entity to its new kind/id. sidePanelEntity briefly
+            // resolves to null until the refreshKey-triggered refetch below
+            // picks up the entity under its new identity, so the panel
+            // flickers closed/reopen rather than ever showing stale data
+            // against the new id. Do not "fix" the flicker by falling back
+            // to the previous sidePanelEntity value instead of null — that
+            // would reintroduce a real race where the old entity's data is
+            // shown mislabeled under the new id.
             setSelectedEntity(newIdentity);
             setRefreshKey((k) => k + 1);
           }}

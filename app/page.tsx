@@ -47,7 +47,7 @@ ORDER BY TotalSpend DESC;`;
 type AppTab = "commenter" | "field-request" | "it-reference" | "clinician-guide" | "pbix-explorer";
 
 export default function Home() {
-  const [activeTab, setActiveTab]       = useState<AppTab>("commenter");
+  const [activeTab, setActiveTab]       = useState<AppTab>("field-request");
   const [language, setLanguage]         = useState<Language>("dax");
   const [density, setDensity]           = useState<Density>("detailed");
   const [input, setInput]               = useState("");

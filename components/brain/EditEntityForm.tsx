@@ -81,7 +81,7 @@ export function EditEntityForm({
         const data = await res.json();
 
         if (!res.ok) {
-          setError(data.error ?? `Could not save ${kind}.`);
+          setError(data.error ?? (selectedKind !== kind ? `Could not convert ${kind} to ${selectedKind}.` : `Could not save ${kind}.`));
           return;
         }
 
@@ -131,6 +131,11 @@ export function EditEntityForm({
                 </button>
               ))}
             </div>
+            {selectedKind !== kind && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Converting type will move this {kind} to {selectedKind}s.
+              </p>
+            )}
           </div>
 
           <div className="flex flex-col gap-1">
@@ -209,7 +214,9 @@ export function EditEntityForm({
               disabled={submitting}
               className="px-3 py-1.5 text-xs font-medium rounded-md bg-brand-600 hover:bg-brand-700 text-white transition-colors disabled:opacity-60"
             >
-              {submitting ? "Saving…" : "Save changes"}
+              {submitting
+                ? (selectedKind !== kind ? "Converting…" : "Saving…")
+                : (selectedKind !== kind ? "Convert & save" : "Save changes")}
             </button>
           </div>
         </form>

@@ -2,7 +2,7 @@ import { sql } from './db';
 import { mapDashboardRow, mapReportSubscriptionRow } from './brain-mappers';
 import { Dashboard, DashboardStatus, ReportSubscription } from './brain-types';
 
-const VALID_STATUSES: DashboardStatus[] = ['active', 'maintenance', 'retired'];
+export const VALID_STATUSES: DashboardStatus[] = ['active', 'maintenance', 'retired'];
 
 export function isValidStatus(status: string): status is DashboardStatus {
   return VALID_STATUSES.includes(status as DashboardStatus);

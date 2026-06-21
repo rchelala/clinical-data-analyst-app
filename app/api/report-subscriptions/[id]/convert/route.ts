@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { convertSubscriptionToDashboard, isValidStatus } from '@/lib/entity-conversion';
-
-const VALID_STATUSES = ['active', 'maintenance', 'retired'];
+import { convertSubscriptionToDashboard, isValidStatus, VALID_STATUSES } from '@/lib/entity-conversion';
 
 // Trims a provided string field to null when empty, matching the
 // null-vs-empty-string normalization EditEntityForm already applies
@@ -26,12 +24,13 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid report subscription id.' }, { status: 400 });
     }
 
-    const body = await req.json().catch(() => ({})) as {
+    const rawBody = await req.text();
+    const body = rawBody ? JSON.parse(rawBody) as {
       name?: string;
       stakeholder?: string | null;
       status?: string;
       jiraTicketId?: string | null;
-    };
+    } : {};
     const { name, status } = body;
     const stakeholder = normalizeNullableString(body.stakeholder);
     const jiraTicketId = normalizeNullableString(body.jiraTicketId);

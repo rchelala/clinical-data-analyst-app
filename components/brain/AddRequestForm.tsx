@@ -50,6 +50,7 @@ export function AddRequestForm({
   const [titleAutoFilled, setTitleAutoFilled] = useState(false);
   const [parseNote, setParseNote] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const latestFileRef = useRef<File | null>(null);
 
   const acceptFile = useCallback(
     async (f: File) => {
@@ -60,8 +61,11 @@ export function AddRequestForm({
       setError(null);
       setParseNote(null);
       setAttachmentFile(f);
+      latestFileRef.current = f;
 
       const result = await parseFieldRequestExcel(f);
+      if (latestFileRef.current !== f) return; // a newer file was accepted while this parse was in flight — discard stale result
+
       if (result && result.rows.length > 0) {
         if (title.trim() === "" || titleAutoFilled) {
           setTitle(generateTitleFromParsedRows(result));
@@ -106,6 +110,7 @@ export function AddRequestForm({
   const handleRemoveAttachment = useCallback(() => {
     setAttachmentFile(null);
     setParseNote(null);
+    latestFileRef.current = null;
     if (fileInputRef.current) fileInputRef.current.value = "";
   }, []);
 

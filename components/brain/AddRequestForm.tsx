@@ -7,6 +7,11 @@ import {
   ReportSubscriptionWithUrgency,
   RequestType,
 } from "@/lib/brain-types";
+import {
+  parseFieldRequestExcel,
+  generateTitleFromParsedRows,
+  generateDescriptionFromParsedRows,
+} from "@/lib/parseFieldRequestExcel";
 
 interface AddRequestFormProps {
   dashboards: DashboardWithUrgency[];
@@ -41,7 +46,68 @@ export function AddRequestForm({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [titleAutoFilled, setTitleAutoFilled] = useState(false);
+  const [parseNote, setParseNote] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const acceptFile = useCallback(
+    async (f: File) => {
+      if (!/\.(xlsx|xls)$/i.test(f.name)) {
+        setError("Please attach a .xlsx or .xls file.");
+        return;
+      }
+      setError(null);
+      setParseNote(null);
+      setAttachmentFile(f);
+
+      const result = await parseFieldRequestExcel(f);
+      if (result && result.rows.length > 0) {
+        if (title.trim() === "" || titleAutoFilled) {
+          setTitle(generateTitleFromParsedRows(result));
+          setDescription(generateDescriptionFromParsedRows(result));
+          setTitleAutoFilled(true);
+        }
+        setRequestType("field_request");
+      } else {
+        setParseNote(
+          "Could not read field details from this file — it will still attach normally."
+        );
+      }
+    },
+    [title, titleAutoFilled]
+  );
+
+  const handleFileInputChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const f = e.target.files?.[0];
+      if (f) acceptFile(f);
+    },
+    [acceptFile]
+  );
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragging(false);
+      const f = e.dataTransfer.files?.[0];
+      if (f) acceptFile(f);
+    },
+    [acceptFile]
+  );
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback(() => setDragging(false), []);
+
+  const handleRemoveAttachment = useCallback(() => {
+    setAttachmentFile(null);
+    setParseNote(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }, []);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -177,7 +243,10 @@ export function AddRequestForm({
               id="title"
               type="text"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                setTitleAutoFilled(false);
+              }}
               required
               className="text-sm rounded-md border border-theme px-3 py-2 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
@@ -223,7 +292,7 @@ export function AddRequestForm({
               type="file"
               accept=".xlsx,.xls"
               className="hidden"
-              onChange={(e) => setAttachmentFile(e.target.files?.[0] ?? null)}
+              onChange={handleFileInputChange}
             />
             {attachmentFile ? (
               <div className="flex items-center justify-between gap-2 text-sm rounded-md border border-theme px-3 py-2 bg-panel text-primary">
@@ -233,10 +302,7 @@ export function AddRequestForm({
                 </span>
                 <button
                   type="button"
-                  onClick={() => {
-                    setAttachmentFile(null);
-                    if (fileInputRef.current) fileInputRef.current.value = "";
-                  }}
+                  onClick={handleRemoveAttachment}
                   className="text-secondary hover:text-red-500 transition-colors flex-shrink-0"
                   title="Remove attachment"
                 >
@@ -244,14 +310,31 @@ export function AddRequestForm({
                 </button>
               </div>
             ) : (
-              <button
-                type="button"
+              <div
+                role="button"
+                tabIndex={0}
                 onClick={() => fileInputRef.current?.click()}
-                className="flex items-center justify-center gap-1.5 text-sm rounded-md border border-dashed border-theme px-3 py-2 text-secondary hover:text-primary hover:bg-panel transition-colors"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    fileInputRef.current?.click();
+                  }
+                }}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`flex items-center justify-center gap-1.5 text-sm rounded-md border border-dashed px-3 py-2 cursor-pointer transition-colors ${
+                  dragging
+                    ? "border-brand-500 bg-brand-50 dark:bg-brand-950/20"
+                    : "border-theme text-secondary hover:text-primary hover:bg-panel"
+                }`}
               >
                 <Paperclip className="w-3.5 h-3.5" />
-                Choose Excel file…
-              </button>
+                Drop Excel file here, or click to browse…
+              </div>
+            )}
+            {parseNote && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">{parseNote}</p>
             )}
           </div>
 

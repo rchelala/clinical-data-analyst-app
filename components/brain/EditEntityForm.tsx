@@ -126,7 +126,10 @@ export function EditEntityForm({
                 <button
                   key={option}
                   type="button"
-                  onClick={() => setSelectedKind(option)}
+                  onClick={() => {
+                    setSelectedKind(option);
+                    setDivisionId(initialDivisionId);
+                  }}
                   className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md border transition-colors capitalize ${
                     selectedKind === option
                       ? "bg-brand-600 border-brand-600 text-white"
@@ -139,7 +142,7 @@ export function EditEntityForm({
             </div>
             {selectedKind !== kind && (
               <p className="text-xs text-amber-600 dark:text-amber-400">
-                Converting type will move this {kind} to {selectedKind}s.
+                Converting type will move this {kind} to {selectedKind}s. Division cannot be changed during a type conversion.
               </p>
             )}
           </div>
@@ -197,7 +200,8 @@ export function EditEntityForm({
               id="editEntityDivision"
               value={divisionId}
               onChange={(e) => setDivisionId(Number(e.target.value))}
-              className="text-sm rounded-md border border-theme px-3 py-2 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
+              disabled={selectedKind !== kind}
+              className="text-sm rounded-md border border-theme px-3 py-2 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {divisions.map((division) => (
                 <option key={division.id} value={division.id}>

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Loader2, ClipboardPlus, ArrowLeft, Home, FolderPlus, HelpCircle } from "lucide-react";
+import { Loader2, ClipboardPlus, ArrowLeft, Home, FolderPlus, HelpCircle, Trash2 } from "lucide-react";
 import { AnalystSelector } from "@/components/brain/AnalystSelector";
 import { UrgencyInfoModal } from "@/components/brain/UrgencyInfoModal";
 import { SolarSystemView, DivisionNode } from "@/components/brain/SolarSystemView";
@@ -14,6 +14,7 @@ import { RequestSidePanel, RequestSidePanelEntity } from "@/components/brain/Req
 import { AddRequestForm } from "@/components/brain/AddRequestForm";
 import { AddEntityForm } from "@/components/brain/AddEntityForm";
 import { AddDivisionForm } from "@/components/brain/AddDivisionForm";
+import { DeleteDivisionModal } from "@/components/brain/DeleteDivisionModal";
 import { FilterRail } from "@/components/brain/FilterRail";
 import { useBrainData, ZoomState } from "@/hooks/useBrainData";
 import {
@@ -49,6 +50,7 @@ export default function BrainPage() {
   const [showAddRequestForm, setShowAddRequestForm] = useState(false);
   const [showAddEntityForm, setShowAddEntityForm] = useState(false);
   const [showAddDivisionForm, setShowAddDivisionForm] = useState(false);
+  const [showDeleteDivision, setShowDeleteDivision] = useState(false);
   const [showUrgencyInfo, setShowUrgencyInfo] = useState(false);
   // Bumping this re-runs the unscoped "all" fetch below, letting us refresh
   // urgency/counts after a new request is created.
@@ -355,6 +357,15 @@ export default function BrainPage() {
             <FolderPlus className="w-3 h-3" />
             Add Division
           </button>
+          {zoom.level === "division" && selectedDivision && (
+            <button
+              onClick={() => setShowDeleteDivision(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-60"
+            >
+              <Trash2 className="w-3 h-3" />
+              Delete Division
+            </button>
+          )}
           <AnalystSelector onSelect={handleSelectAnalyst} />
           <button
             onClick={() => setShowUrgencyInfo(true)}
@@ -526,6 +537,20 @@ export default function BrainPage() {
             setRefreshKey((k) => k + 1);
           }}
           onCancel={() => setShowAddEntityForm(false)}
+        />
+      )}
+
+      {showDeleteDivision && zoom.level === "division" && selectedDivision && (
+        <DeleteDivisionModal
+          division={selectedDivision}
+          dashboardCount={divisionDashboards.length}
+          subscriptionCount={divisionSubscriptions.length}
+          onDeleted={() => {
+            setShowDeleteDivision(false);
+            handleZoomOut();
+            setRefreshKey((k) => k + 1);
+          }}
+          onCancel={() => setShowDeleteDivision(false)}
         />
       )}
 

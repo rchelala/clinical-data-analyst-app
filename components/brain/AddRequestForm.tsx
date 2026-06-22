@@ -42,7 +42,7 @@ export function AddRequestForm({
   const [entityValue, setEntityValue] = useState<string>(firstOptionValue);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [requestType, setRequestType] = useState<RequestType>("feature");
+  const [requestType, setRequestType] = useState<RequestType>("field_request");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [attachmentFile, setAttachmentFile] = useState<File | null>(null);

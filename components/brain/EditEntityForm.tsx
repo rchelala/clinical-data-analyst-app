@@ -127,8 +127,10 @@ export function EditEntityForm({
                   key={option}
                   type="button"
                   onClick={() => {
-                    setSelectedKind(option);
-                    setDivisionId(initialDivisionId);
+                    if (option !== selectedKind) {
+                      setSelectedKind(option);
+                      setDivisionId(initialDivisionId);
+                    }
                   }}
                   className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md border transition-colors capitalize ${
                     selectedKind === option

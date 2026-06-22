@@ -344,7 +344,7 @@ export function DivisionGraphBrain({
               </p>
             )}
             <p className="text-xs text-secondary">
-              Open requests: {hoveredNode.openRequestCount ?? 0}
+              Open requests: {(hoveredNode.openRequestCount ?? 0) - (hoveredNode.inProgressRequestCount ?? 0)}
             </p>
             <p className="text-xs text-secondary">
               In progress: {hoveredNode.inProgressRequestCount ?? 0}

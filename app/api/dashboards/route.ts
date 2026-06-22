@@ -16,6 +16,7 @@ export async function GET(req: NextRequest) {
       computeUrgency(
         Number(row.days_stale),
         Number(row.open_request_count),
+        Number(row.in_progress_request_count),
         Number(row.oldest_open_request_age_days)
       )
     );
@@ -26,6 +27,7 @@ export async function GET(req: NextRequest) {
     const dashboards: DashboardWithUrgency[] = rows.map((row: any, i: number) => ({
       ...mapDashboardRow(row),
       openRequestCount: Number(row.open_request_count),
+      inProgressRequestCount: Number(row.in_progress_request_count),
       urgency: urgencyScores[i],
       radius: radii[i],
     }));

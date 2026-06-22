@@ -41,6 +41,7 @@ export interface Dashboard {
 
 export interface DashboardWithUrgency extends Dashboard {
   openRequestCount: number;
+  inProgressRequestCount: number;
   urgency: number;
   radius: number;
 }
@@ -61,6 +62,7 @@ export interface ReportSubscription {
 
 export interface ReportSubscriptionWithUrgency extends ReportSubscription {
   openRequestCount: number;
+  inProgressRequestCount: number;
   urgency: number;
   radius: number;
 }

@@ -29,6 +29,7 @@ export async function GET() {
       computeUrgency(
         Number(row.days_stale),
         Number(row.open_request_count),
+        Number(row.in_progress_request_count),
         Number(row.oldest_open_request_age_days)
       )
     );

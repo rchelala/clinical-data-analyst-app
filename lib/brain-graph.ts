@@ -29,6 +29,7 @@ export interface GraphNode {
   stakeholder?: string | null;
   lastTouchedDate?: string;
   openRequestCount?: number;
+  inProgressRequestCount?: number;
 }
 
 export interface GraphLink {
@@ -121,6 +122,7 @@ export function buildGraphData(
       stakeholder: entity.stakeholder,
       lastTouchedDate: entity.lastTouchedDate,
       openRequestCount: entity.openRequestCount,
+      inProgressRequestCount: entity.inProgressRequestCount,
     });
     links.push({ source: CENTER_NODE_ID, target: nodeId });
 

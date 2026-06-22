@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Loader2, ClipboardPlus, ArrowLeft, Home, FolderPlus } from "lucide-react";
+import { Loader2, ClipboardPlus, ArrowLeft, Home, FolderPlus, HelpCircle } from "lucide-react";
 import { AnalystSelector } from "@/components/brain/AnalystSelector";
+import { UrgencyInfoModal } from "@/components/brain/UrgencyInfoModal";
 import { SolarSystemView, DivisionNode } from "@/components/brain/SolarSystemView";
 import { PlanetView } from "@/components/brain/PlanetView";
 import { GalaxyCanvas } from "@/components/brain/GalaxyCanvas";
@@ -48,6 +49,7 @@ export default function BrainPage() {
   const [showAddRequestForm, setShowAddRequestForm] = useState(false);
   const [showAddEntityForm, setShowAddEntityForm] = useState(false);
   const [showAddDivisionForm, setShowAddDivisionForm] = useState(false);
+  const [showUrgencyInfo, setShowUrgencyInfo] = useState(false);
   // Bumping this re-runs the unscoped "all" fetch below, letting us refresh
   // urgency/counts after a new request is created.
   const [refreshKey, setRefreshKey] = useState(0);
@@ -354,6 +356,13 @@ export default function BrainPage() {
             Add Division
           </button>
           <AnalystSelector onSelect={handleSelectAnalyst} />
+          <button
+            onClick={() => setShowUrgencyInfo(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+          >
+            <HelpCircle className="w-3 h-3" />
+            How distance works
+          </button>
         </div>
       </header>
 
@@ -519,6 +528,8 @@ export default function BrainPage() {
           onCancel={() => setShowAddEntityForm(false)}
         />
       )}
+
+      {showUrgencyInfo && <UrgencyInfoModal onClose={() => setShowUrgencyInfo(false)} />}
     </div>
   );
 }

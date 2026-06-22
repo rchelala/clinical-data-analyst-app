@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { X, Loader2, ClipboardList, Paperclip, Trash2, Pencil } from "lucide-react";
-import { BrainEntityKind, DashboardStatus, RequestStatus, RequestWithCreator, Tag } from "@/lib/brain-types";
+import { BrainEntityKind, DashboardStatus, Division, RequestStatus, RequestWithCreator, Tag } from "@/lib/brain-types";
 import { AttachFieldRequestForm } from "@/components/brain/AttachFieldRequestForm";
 import { EditEntityForm } from "@/components/brain/EditEntityForm";
 import { RequestTagEditor } from "./RequestTagEditor";
@@ -15,12 +15,14 @@ export interface RequestSidePanelEntity {
   stakeholder: string | null;
   status: DashboardStatus;
   jiraTicketId: string | null;
+  divisionId: number;
 }
 
 interface RequestSidePanelProps {
   entity: RequestSidePanelEntity | null;
   currentAnalystId: number;
   focusRequestId?: number;
+  divisions: Division[];
   onClose: () => void;
   onEntityUpdated: (newIdentity: { kind: BrainEntityKind; id: number }) => void;
   onEntityDeleted: () => void;
@@ -65,6 +67,7 @@ export function RequestSidePanel({
   entity,
   currentAnalystId,
   focusRequestId,
+  divisions,
   onClose,
   onEntityUpdated,
   onEntityDeleted,
@@ -640,6 +643,8 @@ export function RequestSidePanel({
           initialStakeholder={entity.stakeholder}
           initialStatus={entity.status}
           initialJiraTicketId={entity.jiraTicketId}
+          divisions={divisions}
+          initialDivisionId={entity.divisionId}
           onSaved={(newIdentity) => {
             setEntityEditOpen(false);
             onEntityUpdated(newIdentity);

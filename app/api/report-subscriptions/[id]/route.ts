@@ -33,8 +33,9 @@ export async function PATCH(
       stakeholder?: string | null;
       status?: string;
       jiraTicketId?: string | null;
+      divisionId?: number;
     };
-    const { name, status } = body;
+    const { name, status, divisionId } = body;
     const stakeholder = normalizeNullableString(body.stakeholder);
     const jiraTicketId = normalizeNullableString(body.jiraTicketId);
 
@@ -42,7 +43,8 @@ export async function PATCH(
       name === undefined &&
       stakeholder === undefined &&
       status === undefined &&
-      jiraTicketId === undefined
+      jiraTicketId === undefined &&
+      divisionId === undefined
     ) {
       return NextResponse.json(
         { error: 'At least one field must be provided.' },
@@ -62,7 +64,7 @@ export async function PATCH(
     }
 
     const current = await sql`
-      SELECT id, name, stakeholder, status, jira_ticket_id
+      SELECT id, name, division_id, stakeholder, status, jira_ticket_id
       FROM report_subscriptions
       WHERE id = ${subscriptionId}
     `;
@@ -78,6 +80,7 @@ export async function PATCH(
       stakeholder: stakeholder !== undefined ? stakeholder : current[0].stakeholder,
       status: status !== undefined ? status : current[0].status,
       jiraTicketId: jiraTicketId !== undefined ? jiraTicketId : current[0].jira_ticket_id,
+      divisionId: divisionId !== undefined ? divisionId : current[0].division_id,
     };
 
     // last_touched_date intentionally untouched here: it drives the
@@ -86,7 +89,7 @@ export async function PATCH(
     // bumping it would artificially suppress the urgency signal.
     const rows = await sql`
       UPDATE report_subscriptions
-      SET name = ${merged.name}, stakeholder = ${merged.stakeholder}, status = ${merged.status}, jira_ticket_id = ${merged.jiraTicketId}
+      SET name = ${merged.name}, stakeholder = ${merged.stakeholder}, status = ${merged.status}, jira_ticket_id = ${merged.jiraTicketId}, division_id = ${merged.divisionId}
       WHERE id = ${subscriptionId}
       RETURNING id, name, division_id, analyst_id, stakeholder, status, jira_ticket_id, last_touched_date, created_date
     `;
@@ -94,6 +97,12 @@ export async function PATCH(
     return NextResponse.json(mapReportSubscriptionRow(rows[0]));
   } catch (err: unknown) {
     console.error('Update report subscription error:', err);
+    if (err && typeof err === 'object' && 'code' in err && (err as { code?: string }).code === '23503') {
+      return NextResponse.json(
+        { error: 'Referenced divisionId does not exist.' },
+        { status: 400 }
+      );
+    }
     const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
     return NextResponse.json({ error: message }, { status: 500 });
   }

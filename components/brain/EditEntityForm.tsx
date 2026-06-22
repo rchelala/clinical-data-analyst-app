@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { Pencil } from "lucide-react";
-import { BrainEntityKind, DashboardStatus } from "@/lib/brain-types";
+import { BrainEntityKind, DashboardStatus, Division } from "@/lib/brain-types";
 
 interface EditEntityFormProps {
   kind: BrainEntityKind;
@@ -11,6 +11,8 @@ interface EditEntityFormProps {
   initialStakeholder: string | null;
   initialStatus: DashboardStatus;
   initialJiraTicketId: string | null;
+  divisions: Division[];
+  initialDivisionId: number;
   onSaved: (newIdentity: { kind: BrainEntityKind; id: number }) => void;
   onCancel: () => void;
 }
@@ -35,6 +37,8 @@ export function EditEntityForm({
   initialStakeholder,
   initialStatus,
   initialJiraTicketId,
+  divisions,
+  initialDivisionId,
   onSaved,
   onCancel,
 }: EditEntityFormProps) {
@@ -43,6 +47,7 @@ export function EditEntityForm({
   const [stakeholder, setStakeholder] = useState(initialStakeholder ?? "");
   const [status, setStatus] = useState<DashboardStatus>(initialStatus);
   const [jiraTicketId, setJiraTicketId] = useState(initialJiraTicketId ?? "");
+  const [divisionId, setDivisionId] = useState(initialDivisionId);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,6 +68,7 @@ export function EditEntityForm({
           stakeholder: stakeholder.trim() ? stakeholder.trim() : null,
           status,
           jiraTicketId: jiraTicketId.trim() ? jiraTicketId.trim() : null,
+          divisionId: Number(divisionId),
         };
 
         const url =
@@ -92,7 +98,7 @@ export function EditEntityForm({
         setSubmitting(false);
       }
     },
-    [kind, id, selectedKind, name, stakeholder, status, jiraTicketId, onSaved]
+    [kind, id, selectedKind, name, stakeholder, status, jiraTicketId, divisionId, onSaved]
   );
 
   return (
@@ -178,6 +184,24 @@ export function EditEntityForm({
               {STATUS_OPTIONS.map((option) => (
                 <option key={option} value={option}>
                   {STATUS_LABELS[option]}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label htmlFor="editEntityDivision" className="text-xs font-medium text-secondary">
+              Division
+            </label>
+            <select
+              id="editEntityDivision"
+              value={divisionId}
+              onChange={(e) => setDivisionId(Number(e.target.value))}
+              className="text-sm rounded-md border border-theme px-3 py-2 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
+            >
+              {divisions.map((division) => (
+                <option key={division.id} value={division.id}>
+                  {division.name}
                 </option>
               ))}
             </select>

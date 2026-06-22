@@ -221,6 +221,7 @@ export default function BrainPage() {
         stakeholder: dashboard.stakeholder,
         status: dashboard.status,
         jiraTicketId: dashboard.jiraTicketId,
+        divisionId: dashboard.divisionId,
       };
     }
 
@@ -233,6 +234,7 @@ export default function BrainPage() {
       stakeholder: subscription.stakeholder,
       status: subscription.status,
       jiraTicketId: subscription.jiraTicketId,
+      divisionId: subscription.divisionId,
     };
   }, [selectedEntity, dashboards, subscriptions]);
 
@@ -457,6 +459,7 @@ export default function BrainPage() {
           entity={sidePanelEntity}
           currentAnalystId={viewerAnalystId}
           focusRequestId={selectedRequestId}
+          divisions={allDivisions}
           onClose={() => {
             setSelectedEntity(null);
             setSelectedRequestId(undefined);

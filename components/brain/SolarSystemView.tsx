@@ -266,7 +266,7 @@ export function SolarSystemView({
                     const pos = computeEvenlySpacedPositions(MOON_RING_RADIUS, i, moons.length);
                     return (
                       <DashboardMoon
-                        key={i}
+                        key={`${moon.kind}-${moon.id}`}
                         x={pos.x}
                         y={pos.y}
                         status={moon.status}

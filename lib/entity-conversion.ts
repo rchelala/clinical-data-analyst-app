@@ -15,6 +15,14 @@ export interface ConvertEntityFields {
   jiraTicketId?: string | null;
 }
 
+// Note: report_subscriptions.linked_dashboard_id is intentionally NOT
+// carried over by either conversion direction. Converting a subscription
+// into a dashboard drops its outgoing link (dashboards can't link to other
+// dashboards, so there's nothing to carry it to); converting a dashboard
+// into a subscription deletes the dashboard row, which already triggers
+// `ON DELETE SET NULL` on any other subscriptions that were linked to it —
+// the link can be re-set afterward by editing the resulting subscription.
+
 // Both convert* functions below run their insert/repoint/delete as a single
 // SQL statement (a WITH CTE chain) rather than an array passed to
 // sql.transaction([...]). The neon serverless driver's transaction() array

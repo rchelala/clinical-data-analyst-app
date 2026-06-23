@@ -209,7 +209,15 @@ export function EditEntityForm({
             <select
               id="editEntityDivision"
               value={divisionId}
-              onChange={(e) => setDivisionId(Number(e.target.value))}
+              onChange={(e) => {
+                setDivisionId(Number(e.target.value));
+                // dashboardsInDivision is scoped to the entity's original
+                // division — once the user picks a different one, any
+                // previously selected link no longer refers to a dashboard
+                // in the (new) target division, so clear it rather than
+                // submit a stale id the API would reject as a 400.
+                setLinkedDashboardId("");
+              }}
               disabled={selectedKind !== kind}
               className="text-sm rounded-md border border-theme px-3 py-2 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             >
@@ -221,7 +229,7 @@ export function EditEntityForm({
             </select>
           </div>
 
-          {kind === "subscription" && (
+          {selectedKind === "subscription" && (
             <div className="flex flex-col gap-1">
               <label htmlFor="editEntityLinkedDashboard" className="text-xs font-medium text-secondary">
                 Link to dashboard (optional)
@@ -230,7 +238,7 @@ export function EditEntityForm({
                 id="editEntityLinkedDashboard"
                 value={linkedDashboardId}
                 onChange={(e) => setLinkedDashboardId(e.target.value)}
-                disabled={selectedKind !== kind}
+                disabled={selectedKind !== kind || divisionId !== initialDivisionId}
                 className="text-sm rounded-md border border-theme px-3 py-2 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <option value="">None</option>
@@ -240,6 +248,17 @@ export function EditEntityForm({
                   </option>
                 ))}
               </select>
+              {selectedKind !== kind && (
+                <p className="text-xs text-secondary">
+                  Linking isn&apos;t supported as part of a type conversion — save the
+                  conversion first, then edit the new subscription to set a link.
+                </p>
+              )}
+              {selectedKind === kind && divisionId !== initialDivisionId && (
+                <p className="text-xs text-secondary">
+                  Save the division change first, then reopen to link a dashboard in the new division.
+                </p>
+              )}
             </div>
           )}
 

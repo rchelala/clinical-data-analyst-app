@@ -33,6 +33,18 @@ interface SelectedEntity {
   id: number;
 }
 
+// Resolves a subscription's linkedDashboardId to the {id, name} shape the
+// side panel needs, looking the dashboard up in the unscoped "all" list so
+// this keeps working regardless of the current zoom's scoped data.
+function findLinkedDashboard(
+  linkedDashboardId: number | null,
+  allDashboards: DashboardWithUrgency[]
+): { id: number; name: string } | null {
+  if (linkedDashboardId === null) return null;
+  const dashboard = allDashboards.find((d) => d.id === linkedDashboardId);
+  return dashboard ? { id: dashboard.id, name: dashboard.name } : null;
+}
+
 export default function BrainPage() {
   const [viewerAnalystId, setViewerAnalystId] = useState<number | null>(null);
   const [zoom, setZoom] = useState<ZoomState>({ level: "galaxy" });
@@ -226,6 +238,10 @@ export default function BrainPage() {
         status: dashboard.status,
         jiraTicketId: dashboard.jiraTicketId,
         divisionId: dashboard.divisionId,
+        linkedDashboard: null,
+        linkedSubscriptions: allSubscriptions
+          .filter((s) => s.linkedDashboardId === dashboard.id)
+          .map((s) => ({ id: s.id, name: s.name })),
       };
     }
 
@@ -239,8 +255,23 @@ export default function BrainPage() {
       status: subscription.status,
       jiraTicketId: subscription.jiraTicketId,
       divisionId: subscription.divisionId,
+      linkedDashboard: findLinkedDashboard(subscription.linkedDashboardId, allDashboards),
+      linkedSubscriptions: [],
     };
-  }, [selectedEntity, dashboards, subscriptions]);
+  }, [selectedEntity, dashboards, subscriptions, allDashboards, allSubscriptions]);
+
+  // Dashboards available to link/show in the side panel, scoped to whichever
+  // division the side panel's CURRENT entity belongs to — not necessarily the
+  // same division as the currently-zoomed view.
+  const sidePanelDashboardsInDivision = useMemo(
+    () =>
+      sidePanelEntity
+        ? allDashboards
+            .filter((d) => d.divisionId === sidePanelEntity.divisionId)
+            .map((d) => ({ id: d.id, name: d.name }))
+        : [],
+    [sidePanelEntity, allDashboards]
+  );
 
   const hasAnyDivisions = divisionNodes.length > 0;
 
@@ -480,6 +511,7 @@ export default function BrainPage() {
           currentAnalystId={viewerAnalystId}
           focusRequestId={selectedRequestId}
           divisions={allDivisions}
+          dashboardsInDivision={sidePanelDashboardsInDivision}
           onClose={() => {
             setSelectedEntity(null);
             setSelectedRequestId(undefined);
@@ -488,6 +520,10 @@ export default function BrainPage() {
             setSelectedEntity(null);
             setSelectedRequestId(undefined);
             setRefreshKey((k) => k + 1);
+          }}
+          onNavigateToEntity={(kind, id) => {
+            setSelectedEntity({ kind, id });
+            setSelectedRequestId(undefined);
           }}
           onEntityUpdated={(newIdentity) => {
             // Follow the entity to its new kind/id. sidePanelEntity briefly
@@ -532,6 +568,7 @@ export default function BrainPage() {
         <AddEntityForm
           division={selectedDivision}
           currentAnalystId={viewerAnalystId}
+          dashboardsInDivision={divisionDashboards.map((d) => ({ id: d.id, name: d.name }))}
           onCreated={() => {
             setShowAddEntityForm(false);
             setRefreshKey((k) => k + 1);

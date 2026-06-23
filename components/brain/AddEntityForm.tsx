@@ -7,6 +7,7 @@ import { BrainEntityKind, Division } from "@/lib/brain-types";
 interface AddEntityFormProps {
   division: Division; // the division currently being viewed — pre-filled, not user-selectable
   currentAnalystId: number;
+  dashboardsInDivision: { id: number; name: string }[];
   onCreated: () => void;
   onCancel: () => void;
 }
@@ -19,12 +20,14 @@ const ENTITY_ENDPOINTS: Record<BrainEntityKind, string> = {
 export function AddEntityForm({
   division,
   currentAnalystId,
+  dashboardsInDivision,
   onCreated,
   onCancel,
 }: AddEntityFormProps) {
   const [kind, setKind] = useState<BrainEntityKind>("dashboard");
   const [name, setName] = useState("");
   const [stakeholder, setStakeholder] = useState("");
+  const [linkedDashboardId, setLinkedDashboardId] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,6 +53,7 @@ export function AddEntityForm({
             divisionId: division.id,
             analystId: currentAnalystId,
             stakeholder: stakeholder.trim() ? stakeholder.trim() : undefined,
+            linkedDashboardId: linkedDashboardId ? Number(linkedDashboardId) : undefined,
           }),
         });
         const data = await res.json();
@@ -66,7 +70,7 @@ export function AddEntityForm({
         setSubmitting(false);
       }
     },
-    [kind, name, stakeholder, division.id, currentAnalystId, onCreated]
+    [kind, name, stakeholder, linkedDashboardId, division.id, currentAnalystId, onCreated]
   );
 
   return (
@@ -133,6 +137,27 @@ export function AddEntityForm({
               className="text-sm rounded-md border border-theme px-3 py-2 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500"
             />
           </div>
+
+          {kind === "subscription" && (
+            <div className="flex flex-col gap-1">
+              <label htmlFor="entityLinkedDashboard" className="text-xs font-medium text-secondary">
+                Link to dashboard (optional)
+              </label>
+              <select
+                id="entityLinkedDashboard"
+                value={linkedDashboardId}
+                onChange={(e) => setLinkedDashboardId(e.target.value)}
+                className="text-sm rounded-md border border-theme px-3 py-2 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
+              >
+                <option value="">None</option>
+                {dashboardsInDivision.map((d) => (
+                  <option key={d.id} value={String(d.id)}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {error && (
             <p className="text-sm text-red-600 dark:text-red-400">{error}</p>

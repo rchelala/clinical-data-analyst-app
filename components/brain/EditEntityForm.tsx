@@ -13,6 +13,8 @@ interface EditEntityFormProps {
   initialJiraTicketId: string | null;
   divisions: Division[];
   initialDivisionId: number;
+  dashboardsInDivision: { id: number; name: string }[];
+  initialLinkedDashboardId: number | null;
   onSaved: (newIdentity: { kind: BrainEntityKind; id: number }) => void;
   onCancel: () => void;
 }
@@ -39,6 +41,8 @@ export function EditEntityForm({
   initialJiraTicketId,
   divisions,
   initialDivisionId,
+  dashboardsInDivision,
+  initialLinkedDashboardId,
   onSaved,
   onCancel,
 }: EditEntityFormProps) {
@@ -48,6 +52,9 @@ export function EditEntityForm({
   const [status, setStatus] = useState<DashboardStatus>(initialStatus);
   const [jiraTicketId, setJiraTicketId] = useState(initialJiraTicketId ?? "");
   const [divisionId, setDivisionId] = useState(initialDivisionId);
+  const [linkedDashboardId, setLinkedDashboardId] = useState(
+    initialLinkedDashboardId !== null ? String(initialLinkedDashboardId) : ""
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,6 +76,7 @@ export function EditEntityForm({
           status,
           jiraTicketId: jiraTicketId.trim() ? jiraTicketId.trim() : null,
           divisionId: Number(divisionId),
+          linkedDashboardId: linkedDashboardId ? Number(linkedDashboardId) : null,
         };
 
         const url =
@@ -98,7 +106,7 @@ export function EditEntityForm({
         setSubmitting(false);
       }
     },
-    [kind, id, selectedKind, name, stakeholder, status, jiraTicketId, divisionId, onSaved]
+    [kind, id, selectedKind, name, stakeholder, status, jiraTicketId, divisionId, linkedDashboardId, onSaved]
   );
 
   return (
@@ -212,6 +220,28 @@ export function EditEntityForm({
               ))}
             </select>
           </div>
+
+          {kind === "subscription" && (
+            <div className="flex flex-col gap-1">
+              <label htmlFor="editEntityLinkedDashboard" className="text-xs font-medium text-secondary">
+                Link to dashboard (optional)
+              </label>
+              <select
+                id="editEntityLinkedDashboard"
+                value={linkedDashboardId}
+                onChange={(e) => setLinkedDashboardId(e.target.value)}
+                disabled={selectedKind !== kind}
+                className="text-sm rounded-md border border-theme px-3 py-2 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <option value="">None</option>
+                {dashboardsInDivision.map((d) => (
+                  <option key={d.id} value={String(d.id)}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="flex flex-col gap-1">
             <label htmlFor="editEntityJiraTicketId" className="text-xs font-medium text-secondary">

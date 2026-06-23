@@ -16,6 +16,8 @@ export interface RequestSidePanelEntity {
   status: DashboardStatus;
   jiraTicketId: string | null;
   divisionId: number;
+  linkedDashboard: { id: number; name: string } | null;
+  linkedSubscriptions: { id: number; name: string }[];
 }
 
 interface RequestSidePanelProps {
@@ -23,9 +25,11 @@ interface RequestSidePanelProps {
   currentAnalystId: number;
   focusRequestId?: number;
   divisions: Division[];
+  dashboardsInDivision: { id: number; name: string }[];
   onClose: () => void;
   onEntityUpdated: (newIdentity: { kind: BrainEntityKind; id: number }) => void;
   onEntityDeleted: () => void;
+  onNavigateToEntity: (kind: BrainEntityKind, id: number) => void;
 }
 
 const STATUS_OPTIONS: RequestStatus[] = ["open", "in_progress", "done"];
@@ -68,9 +72,11 @@ export function RequestSidePanel({
   currentAnalystId,
   focusRequestId,
   divisions,
+  dashboardsInDivision,
   onClose,
   onEntityUpdated,
   onEntityDeleted,
+  onNavigateToEntity,
 }: RequestSidePanelProps) {
   const [requests, setRequests] = useState<RequestWithCreator[]>([]);
   const [loading, setLoading] = useState(false);
@@ -375,6 +381,35 @@ export function RequestSidePanel({
             <p className="text-xs text-secondary mt-0.5">
               Stakeholder: {entity.stakeholder ?? "—"}
             </p>
+            {entity.kind === "subscription" && entity.linkedDashboard && (
+              <p className="text-xs text-secondary mt-0.5">
+                Linked dashboard:{" "}
+                <button
+                  type="button"
+                  onClick={() => onNavigateToEntity("dashboard", entity.linkedDashboard!.id)}
+                  className="text-brand-600 dark:text-brand-400 hover:underline"
+                >
+                  {entity.linkedDashboard.name}
+                </button>
+              </p>
+            )}
+            {entity.kind === "dashboard" && entity.linkedSubscriptions.length > 0 && (
+              <p className="text-xs text-secondary mt-0.5">
+                Linked subscription(s):{" "}
+                {entity.linkedSubscriptions.map((sub, i) => (
+                  <span key={sub.id}>
+                    {i > 0 && ", "}
+                    <button
+                      type="button"
+                      onClick={() => onNavigateToEntity("subscription", sub.id)}
+                      className="text-brand-600 dark:text-brand-400 hover:underline"
+                    >
+                      {sub.name}
+                    </button>
+                  </span>
+                ))}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             {entity.kind === "dashboard" && (
@@ -645,6 +680,8 @@ export function RequestSidePanel({
           initialJiraTicketId={entity.jiraTicketId}
           divisions={divisions}
           initialDivisionId={entity.divisionId}
+          dashboardsInDivision={dashboardsInDivision}
+          initialLinkedDashboardId={entity.kind === "subscription" ? entity.linkedDashboard?.id ?? null : null}
           onSaved={(newIdentity) => {
             setEntityEditOpen(false);
             onEntityUpdated(newIdentity);

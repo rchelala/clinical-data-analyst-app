@@ -28,15 +28,16 @@ CREATE TABLE dashboards (
 
 -- status: 'active' | 'maintenance' | 'retired' (not enforced by a DB enum/check constraint, documented only)
 CREATE TABLE report_subscriptions (
-   id                 serial PRIMARY KEY,
-   name               text NOT NULL,
-   division_id        int NOT NULL REFERENCES divisions(id),
-   analyst_id         int REFERENCES analysts(id),
-   stakeholder        text,
-   status             text NOT NULL DEFAULT 'active',
-   jira_ticket_id     text,
-   last_touched_date  date NOT NULL DEFAULT CURRENT_DATE,
-   created_date       date NOT NULL DEFAULT CURRENT_DATE
+   id                   serial PRIMARY KEY,
+   name                 text NOT NULL,
+   division_id          int NOT NULL REFERENCES divisions(id),
+   analyst_id           int REFERENCES analysts(id),
+   linked_dashboard_id  int REFERENCES dashboards(id) ON DELETE SET NULL,
+   stakeholder          text,
+   status               text NOT NULL DEFAULT 'active',
+   jira_ticket_id       text,
+   last_touched_date    date NOT NULL DEFAULT CURRENT_DATE,
+   created_date         date NOT NULL DEFAULT CURRENT_DATE
 );
 
 -- request_type: 'feature' | 'bug' | 'field_request'; status: 'open' | 'in_progress' | 'done' (not enforced by a DB enum/check constraint, documented only)

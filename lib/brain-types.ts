@@ -53,6 +53,7 @@ export interface ReportSubscription {
   name: string;
   divisionId: number;
   analystId: number | null;
+  linkedDashboardId: number | null;
   stakeholder: string | null;
   status: DashboardStatus; // reuse the existing status union type, it's generic enough
   jiraTicketId: string | null;

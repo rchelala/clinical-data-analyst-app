@@ -40,6 +40,7 @@ export function mapReportSubscriptionRow(row: any): ReportSubscription {
     name: row.name,
     divisionId: row.division_id,
     analystId: row.analyst_id,
+    linkedDashboardId: row.linked_dashboard_id,
     stakeholder: row.stakeholder,
     status: row.status,
     jiraTicketId: row.jira_ticket_id,

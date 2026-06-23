@@ -18,6 +18,13 @@ export interface AnalystSummary {
   highUrgencyCount: number; // dashboards+subscriptions in the top urgency tercile, computed globally across ALL analysts, not just this one
 }
 
+export interface DivisionAnalystCoverage {
+  id: number;
+  name: string;
+  dashboardCount: number;
+  subscriptionCount: number;
+}
+
 export interface Division {
   id: number;
   name: string;

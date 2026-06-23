@@ -34,8 +34,9 @@ export async function PATCH(
       status?: string;
       jiraTicketId?: string | null;
       divisionId?: number;
+      linkedDashboardId?: number | null;
     };
-    const { name, status, divisionId } = body;
+    const { name, status, divisionId, linkedDashboardId } = body;
     const stakeholder = normalizeNullableString(body.stakeholder);
     const jiraTicketId = normalizeNullableString(body.jiraTicketId);
 
@@ -44,7 +45,8 @@ export async function PATCH(
       stakeholder === undefined &&
       status === undefined &&
       jiraTicketId === undefined &&
-      divisionId === undefined
+      divisionId === undefined &&
+      linkedDashboardId === undefined
     ) {
       return NextResponse.json(
         { error: 'At least one field must be provided.' },
@@ -64,13 +66,32 @@ export async function PATCH(
     }
 
     const current = await sql`
-      SELECT id, name, division_id, stakeholder, status, jira_ticket_id
+      SELECT id, name, division_id, stakeholder, status, jira_ticket_id, linked_dashboard_id
       FROM report_subscriptions
       WHERE id = ${subscriptionId}
     `;
 
     if (current.length === 0) {
       return NextResponse.json({ error: 'Report subscription not found.' }, { status: 404 });
+    }
+
+    if (linkedDashboardId !== undefined && linkedDashboardId !== null) {
+      const linkedDashboardRows = await sql`
+        SELECT division_id FROM dashboards WHERE id = ${linkedDashboardId}
+      `;
+      if (linkedDashboardRows.length === 0) {
+        return NextResponse.json(
+          { error: 'linkedDashboardId does not refer to an existing dashboard.' },
+          { status: 400 }
+        );
+      }
+      const effectiveDivisionId = divisionId !== undefined ? divisionId : current[0].division_id;
+      if (linkedDashboardRows[0].division_id !== effectiveDivisionId) {
+        return NextResponse.json(
+          { error: 'linkedDashboardId must be a dashboard in the same division.' },
+          { status: 400 }
+        );
+      }
     }
 
     // No optimistic lock on this fetch-merge-write; acceptable for
@@ -81,6 +102,7 @@ export async function PATCH(
       status: status !== undefined ? status : current[0].status,
       jiraTicketId: jiraTicketId !== undefined ? jiraTicketId : current[0].jira_ticket_id,
       divisionId: divisionId !== undefined ? divisionId : current[0].division_id,
+      linkedDashboardId: linkedDashboardId !== undefined ? linkedDashboardId : current[0].linked_dashboard_id,
     };
 
     // last_touched_date intentionally untouched here: it drives the
@@ -89,9 +111,9 @@ export async function PATCH(
     // bumping it would artificially suppress the urgency signal.
     const rows = await sql`
       UPDATE report_subscriptions
-      SET name = ${merged.name}, stakeholder = ${merged.stakeholder}, status = ${merged.status}, jira_ticket_id = ${merged.jiraTicketId}, division_id = ${merged.divisionId}
+      SET name = ${merged.name}, stakeholder = ${merged.stakeholder}, status = ${merged.status}, jira_ticket_id = ${merged.jiraTicketId}, division_id = ${merged.divisionId}, linked_dashboard_id = ${merged.linkedDashboardId}
       WHERE id = ${subscriptionId}
-      RETURNING id, name, division_id, analyst_id, stakeholder, status, jira_ticket_id, last_touched_date, created_date
+      RETURNING id, name, division_id, analyst_id, stakeholder, status, jira_ticket_id, last_touched_date, created_date, linked_dashboard_id
     `;
 
     return NextResponse.json(mapReportSubscriptionRow(rows[0]));

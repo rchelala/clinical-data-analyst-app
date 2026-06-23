@@ -103,29 +103,84 @@ export function SolarSystemView({
       urgencyBucketsById.map((entry) => [`${entry.kind}-${entry.id}`, entry.bucket])
     );
 
-    const map = new Map<
-      number,
-      { status: DashboardWithUrgency["status"]; bucket: ReturnType<typeof bucketUrgencies>[number] }[]
-    >();
-    const push = (
-      divisionId: number,
-      status: DashboardWithUrgency["status"],
-      bucket: ReturnType<typeof bucketUrgencies>[number]
-    ) => {
+    type Moon = {
+      kind: "dashboard" | "subscription";
+      id: number;
+      linkedDashboardId: number | null;
+      status: DashboardWithUrgency["status"];
+      bucket: ReturnType<typeof bucketUrgencies>[number];
+    };
+
+    const map = new Map<number, Moon[]>();
+    const push = (divisionId: number, moon: Moon) => {
       const existing = map.get(divisionId);
       if (existing) {
-        existing.push({ status, bucket });
+        existing.push(moon);
       } else {
-        map.set(divisionId, [{ status, bucket }]);
+        map.set(divisionId, [moon]);
       }
     };
     dashboards.forEach((d) =>
-      push(d.divisionId, d.status, bucketByKey.get(`dashboard-${d.id}`) ?? "med")
+      push(d.divisionId, {
+        kind: "dashboard",
+        id: d.id,
+        linkedDashboardId: null,
+        status: d.status,
+        bucket: bucketByKey.get(`dashboard-${d.id}`) ?? "med",
+      })
     );
     subscriptions.forEach((s) =>
-      push(s.divisionId, s.status, bucketByKey.get(`subscription-${s.id}`) ?? "med")
+      push(s.divisionId, {
+        kind: "subscription",
+        id: s.id,
+        linkedDashboardId: s.linkedDashboardId,
+        status: s.status,
+        bucket: bucketByKey.get(`subscription-${s.id}`) ?? "med",
+      })
     );
-    return map;
+
+    // Reorder each division's moons so a linked subscription's moon sits
+    // immediately after its dashboard's moon. computeEvenlySpacedPositions
+    // spaces moons purely by array index, so reordering here is sufficient
+    // to produce visual adjacency — no positioning math needs to change.
+    const reordered = new Map<number, Moon[]>();
+    for (const [divisionId, divisionMoons] of map) {
+      const dashboardMoons = divisionMoons.filter((m) => m.kind === "dashboard");
+      const subscriptionMoons = divisionMoons.filter((m) => m.kind === "subscription");
+
+      // Bucket subscription moons by the dashboard they link to (within this
+      // division). Subscriptions whose link doesn't resolve to a dashboard
+      // actually present here are left out and appended at the end below.
+      const linkedByDashboardId = new Map<number, Moon[]>();
+      const leftover: Moon[] = [];
+      const dashboardIdsInDivision = new Set(dashboardMoons.map((m) => m.id));
+      for (const sub of subscriptionMoons) {
+        if (sub.linkedDashboardId !== null && dashboardIdsInDivision.has(sub.linkedDashboardId)) {
+          const existing = linkedByDashboardId.get(sub.linkedDashboardId);
+          if (existing) {
+            existing.push(sub);
+          } else {
+            linkedByDashboardId.set(sub.linkedDashboardId, [sub]);
+          }
+        } else {
+          leftover.push(sub);
+        }
+      }
+
+      const result: Moon[] = [];
+      for (const dashboard of dashboardMoons) {
+        result.push(dashboard);
+        const linked = linkedByDashboardId.get(dashboard.id);
+        if (linked) {
+          result.push(...linked);
+        }
+      }
+      result.push(...leftover);
+
+      reordered.set(divisionId, result);
+    }
+
+    return reordered;
   }, [dashboards, subscriptions, urgencyBucketsById]);
 
   const hovered = positioned.find((p) => p.node.division.id === hoveredId) ?? null;

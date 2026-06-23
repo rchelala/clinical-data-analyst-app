@@ -357,7 +357,7 @@ export function DivisionGraphBrain({
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-1.5 text-xs text-primary">
               <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: "#94a3b8" }} />
-              Open request
+              Request
             </div>
           </div>
           <div className="border-t border-theme my-1.5" />

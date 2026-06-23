@@ -12,6 +12,7 @@ import {
   ReportSubscriptionWithUrgency,
   RequestWithCreator,
   BrainEntityKind,
+  RequestStatus,
 } from "@/lib/brain-types";
 import { BrainFilters, fadeOpacity, isRequestStatusVisible, isStatusVisible, isUrgencyVisible } from "@/lib/filters";
 
@@ -175,6 +176,13 @@ export function DivisionGraphBrain({
   const linkColor = `rgba(${linkRgb}, 0.55)`;
   const linkColorFaded = `rgba(${linkRgb}, 0.2)`;
   const LINK_DASH = [4, 3];
+  const LINK_DASH_CLOSED = [1, 3];
+
+  const LINK_DASH_BY_STATUS: Record<RequestStatus, number[] | null> = {
+    open: null,
+    in_progress: LINK_DASH,
+    done: LINK_DASH_CLOSED,
+  };
 
   // Applies the request-state filter's fade to a "rgba(r, g, b, a)" color
   // string's alpha channel via fadeOpacity(), layering on top of the
@@ -203,7 +211,7 @@ export function DivisionGraphBrain({
 
   const getLinkDash = useCallback((link: any) => {
     const l = link as GraphData["links"][number];
-    return l.requestStatus === "in_progress" ? LINK_DASH : null;
+    return l.requestStatus ? LINK_DASH_BY_STATUS[l.requestStatus] : null;
   }, []);
 
   const paintNode = useCallback(
@@ -400,7 +408,7 @@ export function DivisionGraphBrain({
             </div>
             <div className="flex items-center gap-1.5 text-xs text-primary">
               <svg width="16" height="10" className="flex-shrink-0">
-                <line x1="0" y1="5" x2="16" y2="5" stroke={linkColorFaded} strokeWidth="1.5" />
+                <line x1="0" y1="5" x2="16" y2="5" stroke={linkColorFaded} strokeWidth="1.5" strokeDasharray={LINK_DASH_CLOSED.join(" ")} />
               </svg>
               Closed
             </div>

@@ -40,6 +40,13 @@ export interface GraphLink {
   // rendering itself only branches on the value ("done"/"in_progress"), not
   // on whether this field is present.
   requestStatus?: RequestStatus;
+  // Present only on subscription->dashboard tethers for a linked entity
+  // (subscription.linkedDashboardId). Marks this link as needing the
+  // visually distinct "linked entity" treatment rather than the
+  // request-status-colored treatment. Never set alongside requestStatus —
+  // each link is either a request tether, a linked-entity tether, or a
+  // plain entity->center tether.
+  linkedEntity?: boolean;
 }
 
 export interface GraphData {
@@ -145,6 +152,23 @@ export function buildGraphData(
 
   dashboards.forEach((d) => addEntity('dashboard', d));
   subscriptions.forEach((s) => addEntity('subscription', s));
+
+  // Linked-entity tether: a subscription may optionally link to one
+  // dashboard in the same division (subscription.linkedDashboardId). The
+  // dashboardIds.has(...) check is defensive — the API already enforces
+  // same-division linking server-side, but if a stale/cross-division
+  // reference ever existed, skip it silently rather than creating a
+  // dangling edge to a node that doesn't exist in this graph.
+  const dashboardIds = new Set(dashboards.map((d) => d.id));
+  subscriptions.forEach((s) => {
+    if (s.linkedDashboardId !== null && dashboardIds.has(s.linkedDashboardId)) {
+      links.push({
+        source: entityNodeId('subscription', s.id),
+        target: entityNodeId('dashboard', s.linkedDashboardId),
+        linkedEntity: true,
+      });
+    }
+  });
 
   return { nodes, links };
 }

@@ -180,6 +180,10 @@ export function DivisionGraphBrain({
   const linkRgb = resolvedTheme === "dark" ? "148, 163, 184" : "71, 85, 105";
   const linkColor = `rgba(${linkRgb}, 0.55)`;
   const linkColorFaded = `rgba(${linkRgb}, 0.2)`;
+  // Distinct brand-blue tether for a subscription linked to a dashboard —
+  // never confused with the gray center-tether or status-colored request
+  // tethers. Always rendered at full opacity, unaffected by any filter.
+  const linkedEntityColor = "rgba(37, 64, 245, 0.6)";
   const LINK_DASH = [4, 3];
   const LINK_DASH_CLOSED = [1, 3];
 
@@ -202,6 +206,12 @@ export function DivisionGraphBrain({
   const getLinkColor = useCallback(
     (link: any) => {
       const l = link as GraphData["links"][number];
+      // Linked-entity tethers (subscription<->dashboard) always render at
+      // full opacity in their own distinct color — never subject to the
+      // request-state filter's fading below.
+      if (l.linkedEntity) {
+        return linkedEntityColor;
+      }
       const base = l.requestStatus === "done" ? linkColorFaded : linkColor;
       // Request-state filter layers an additional opacity reduction on top
       // of the existing status-based color (solid/faded-by-status) — only
@@ -211,7 +221,7 @@ export function DivisionGraphBrain({
       }
       return base;
     },
-    [linkColor, linkColorFaded, filters, fadeRgbaAlpha]
+    [linkedEntityColor, linkColor, linkColorFaded, filters, fadeRgbaAlpha]
   );
 
   const getLinkDash = useCallback((link: any) => {
@@ -422,6 +432,12 @@ export function DivisionGraphBrain({
                 <line x1="0" y1="5" x2="16" y2="5" stroke={linkColorFaded} strokeWidth="1.5" strokeDasharray={LINK_DASH_CLOSED.join(" ")} />
               </svg>
               Closed
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-primary">
+              <svg width="16" height="10" className="flex-shrink-0">
+                <line x1="0" y1="5" x2="16" y2="5" stroke={linkedEntityColor} strokeWidth="1.5" />
+              </svg>
+              Linked dashboard ↔ subscription
             </div>
           </div>
         </div>

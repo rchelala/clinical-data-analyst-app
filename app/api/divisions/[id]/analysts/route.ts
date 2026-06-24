@@ -28,9 +28,8 @@ export async function GET(
       FROM analysts a
       LEFT JOIN dashboards d ON d.analyst_id = a.id AND d.division_id = ${divisionId}
       LEFT JOIN report_subscriptions s ON s.analyst_id = a.id AND s.division_id = ${divisionId}
-      WHERE EXISTS (SELECT 1 FROM dashboards WHERE analyst_id = a.id AND division_id = ${divisionId})
-         OR EXISTS (SELECT 1 FROM report_subscriptions WHERE analyst_id = a.id AND division_id = ${divisionId})
       GROUP BY a.id, a.name
+      HAVING COUNT(DISTINCT d.id) > 0 OR COUNT(DISTINCT s.id) > 0
       ORDER BY a.name
     `;
 

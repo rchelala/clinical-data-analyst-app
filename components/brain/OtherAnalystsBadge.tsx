@@ -15,12 +15,22 @@ interface OtherAnalystsBadgeProps {
   divisionId: number;
   excludeAnalystId: number;
   onJumpToAnalyst: (analystId: number, divisionId: number) => void;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
 }
+
+// Module-level cache so repeat hovers of the same division within the page
+// session don't re-fetch — persists across mounts/unmounts of this component
+// for the lifetime of the page. Intentionally simple: no TTL/invalidation:
+// this is a lightweight, low-stakes discovery feature, not a source of truth.
+const coverageCache = new Map<number, DivisionAnalystCoverage[]>();
 
 export function OtherAnalystsBadge({
   divisionId,
   excludeAnalystId,
   onJumpToAnalyst,
+  onMouseEnter,
+  onMouseLeave,
 }: OtherAnalystsBadgeProps) {
   const [others, setOthers] = useState<DivisionAnalystCoverage[]>([]);
   const [expanded, setExpanded] = useState(false);
@@ -29,6 +39,12 @@ export function OtherAnalystsBadge({
     let cancelled = false;
     setExpanded(false);
 
+    const cached = coverageCache.get(divisionId);
+    if (cached) {
+      setOthers(cached.filter((a) => a.id !== excludeAnalystId));
+      return;
+    }
+
     (async () => {
       try {
         const res = await fetch(`/api/divisions/${divisionId}/analysts`);
@@ -36,15 +52,19 @@ export function OtherAnalystsBadge({
         if (cancelled) return;
 
         if (!res.ok) {
+          console.error("Fetch other analysts error:", data);
           setOthers([]);
           return;
         }
 
-        setOthers(
-          (data as DivisionAnalystCoverage[]).filter((a) => a.id !== excludeAnalystId)
-        );
-      } catch {
-        if (!cancelled) setOthers([]);
+        const coverage = data as DivisionAnalystCoverage[];
+        coverageCache.set(divisionId, coverage);
+        setOthers(coverage.filter((a) => a.id !== excludeAnalystId));
+      } catch (err) {
+        if (!cancelled) {
+          console.error("Fetch other analysts error:", err);
+          setOthers([]);
+        }
       }
     })();
 
@@ -56,7 +76,11 @@ export function OtherAnalystsBadge({
   if (others.length === 0) return null;
 
   return (
-    <div className="absolute top-4 right-4 max-w-xs rounded-lg border border-theme bg-panel shadow-lg">
+    <div
+      className="absolute top-4 right-4 max-w-xs rounded-lg border border-theme bg-panel shadow-lg"
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+    >
       <button
         type="button"
         onClick={() => setExpanded((e) => !e)}

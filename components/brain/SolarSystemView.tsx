@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   computeDivisionWedges,
   computeEvenlySpacedPositions,
@@ -57,6 +57,35 @@ export function SolarSystemView({
   onJumpToAnalyst,
 }: SolarSystemViewProps) {
   const [hoveredId, setHoveredId] = useState<number | null>(null);
+
+  // Separate from hoveredId: drives OtherAnalystsBadge specifically, with a
+  // short grace period so the badge survives the cursor's travel from the
+  // SVG planet (wherever it is on screen) to the screen-anchored badge in
+  // the corner. hoveredId/DetailPanel can clear immediately since
+  // DetailPanel is pointer-events-none and doesn't need this.
+  const [badgeDivisionId, setBadgeDivisionId] = useState<number | null>(null);
+  const badgeClearTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearPendingBadgeClear = () => {
+    if (badgeClearTimeoutRef.current !== null) {
+      clearTimeout(badgeClearTimeoutRef.current);
+      badgeClearTimeoutRef.current = null;
+    }
+  };
+
+  const scheduleBadgeClear = (divisionId: number) => {
+    clearPendingBadgeClear();
+    badgeClearTimeoutRef.current = setTimeout(() => {
+      setBadgeDivisionId((id) => (id === divisionId ? null : id));
+      badgeClearTimeoutRef.current = null;
+    }, 200);
+  };
+
+  useEffect(() => {
+    return () => {
+      clearPendingBadgeClear();
+    };
+  }, []);
 
   const divisions = useMemo(() => divisionNodes.map((n) => n.division), [divisionNodes]);
   const wedges = useMemo(() => computeDivisionWedges(divisions), [divisions]);
@@ -286,8 +315,15 @@ export function SolarSystemView({
                 name={node.division.name}
                 isHovered={hoveredId === node.division.id}
                 isFaded={planetFaded}
-                onHover={() => setHoveredId(node.division.id)}
-                onLeave={() => setHoveredId((id) => (id === node.division.id ? null : id))}
+                onHover={() => {
+                  setHoveredId(node.division.id);
+                  clearPendingBadgeClear();
+                  setBadgeDivisionId(node.division.id);
+                }}
+                onLeave={() => {
+                  setHoveredId((id) => (id === node.division.id ? null : id));
+                  scheduleBadgeClear(node.division.id);
+                }}
                 onClick={() => onSelectDivision(node.division.id)}
               />
             </g>
@@ -297,11 +333,13 @@ export function SolarSystemView({
 
       {hovered && <DetailPanel title={hovered.node.division.name} rows={hoveredRows} />}
 
-      {hovered && (
+      {badgeDivisionId !== null && (
         <OtherAnalystsBadge
-          divisionId={hovered.node.division.id}
+          divisionId={badgeDivisionId}
           excludeAnalystId={viewedAnalystId}
           onJumpToAnalyst={onJumpToAnalyst}
+          onMouseEnter={clearPendingBadgeClear}
+          onMouseLeave={() => scheduleBadgeClear(badgeDivisionId)}
         />
       )}
 

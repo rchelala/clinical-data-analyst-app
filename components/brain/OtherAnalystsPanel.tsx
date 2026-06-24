@@ -6,12 +6,19 @@
 // of the same division. Deliberately has no loading/error UI of its own —
 // per design, if there's nothing to show (still loading, fetch failed, or
 // genuinely no other coverage), this renders null rather than drawing
-// attention to itself. Mounts once per division-view visit (not hover-
-// triggered), so unlike the old hover badge it needs no cache and no grace-
-// period timers.
+// attention to itself. Not hover-triggered (unlike the predecessor badge this
+// replaced), so no grace-period timers are needed — but re-fetches on every
+// division switch, so a simple page-session cache avoids redundant requests
+// when navigating back and forth between divisions (e.g. via breadcrumbs).
 
 import { useEffect, useState } from "react";
 import { DivisionAnalystCoverage } from "@/lib/brain-types";
+
+// Page-session cache, keyed by divisionId, populated only on a genuine
+// successful response — never on a failed/errored fetch, so a transient
+// backend issue doesn't get remembered as "no other coverage" for the rest
+// of the session.
+const coverageCache = new Map<number, DivisionAnalystCoverage[]>();
 
 interface OtherAnalystsPanelProps {
   divisionId: number;
@@ -31,6 +38,12 @@ export function OtherAnalystsPanel({
     let cancelled = false;
     setExpanded(false);
 
+    const cached = coverageCache.get(divisionId);
+    if (cached) {
+      setOthers(cached.filter((a) => a.id !== excludeAnalystId));
+      return;
+    }
+
     (async () => {
       try {
         const res = await fetch(`/api/divisions/${divisionId}/analysts`);
@@ -44,6 +57,7 @@ export function OtherAnalystsPanel({
         }
 
         const coverage = data as DivisionAnalystCoverage[];
+        coverageCache.set(divisionId, coverage);
         setOthers(coverage.filter((a) => a.id !== excludeAnalystId));
       } catch (err) {
         if (!cancelled) {

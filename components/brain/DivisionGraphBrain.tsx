@@ -15,6 +15,7 @@ import {
   RequestStatus,
 } from "@/lib/brain-types";
 import { BrainFilters, fadeOpacity, isRequestStatusVisible, isStatusVisible, isUrgencyVisible } from "@/lib/filters";
+import { OtherAnalystsPanel } from "@/components/brain/OtherAnalystsPanel";
 
 const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
   ssr: false,
@@ -29,6 +30,8 @@ interface DivisionGraphBrainProps {
   isViewerCenter: boolean; // true only when the viewed analyst IS the viewer
   onSelectEntity: (kind: BrainEntityKind, id: number, focusRequestId?: number) => void;
   onAddEntity?: () => void;
+  viewedAnalystId: number;
+  onJumpToAnalyst: (analystId: number) => void;
 }
 
 export function DivisionGraphBrain({
@@ -40,6 +43,8 @@ export function DivisionGraphBrain({
   isViewerCenter,
   onSelectEntity,
   onAddEntity,
+  viewedAnalystId,
+  onJumpToAnalyst,
 }: DivisionGraphBrainProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -359,6 +364,12 @@ export function DivisionGraphBrain({
             </p>
           </div>
         )}
+
+        <OtherAnalystsPanel
+          divisionId={division.id}
+          excludeAnalystId={viewedAnalystId}
+          onJumpToAnalyst={onJumpToAnalyst}
+        />
 
         <div className="absolute bottom-4 right-4 rounded-lg border border-theme bg-panel shadow-lg px-3 py-2.5 pointer-events-none">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-secondary mb-1.5">Legend</p>

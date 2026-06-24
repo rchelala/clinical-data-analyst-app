@@ -23,6 +23,8 @@ interface PlanetViewProps {
   isViewerCenter: boolean;
   onSelectEntity: (kind: BrainEntityKind, id: number, focusRequestId?: number) => void;
   onAddEntity?: () => void;
+  viewedAnalystId: number;
+  onJumpToAnalyst: (analystId: number) => void;
 }
 
 export function PlanetView(props: PlanetViewProps) {

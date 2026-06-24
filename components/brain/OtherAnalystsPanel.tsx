@@ -1,49 +1,35 @@
 "use client";
 
-// Quiet, optional enhancement shown alongside DetailPanel when a division is
-// hovered in SolarSystemView: surfaces which OTHER analysts also cover this
-// division (with their own dashboards/subscriptions), and lets the viewer
-// jump straight into that analyst's view of the same division. Deliberately
-// has no loading/error UI of its own — per design, if there's nothing to
-// show (still loading, fetch failed, or genuinely no other coverage), this
-// renders null rather than drawing attention to itself.
+// Quiet, optional enhancement shown in the division (Planet) view: surfaces
+// which OTHER analysts also cover this division (with their own dashboards/
+// subscriptions), and lets the viewer jump straight into that analyst's view
+// of the same division. Deliberately has no loading/error UI of its own —
+// per design, if there's nothing to show (still loading, fetch failed, or
+// genuinely no other coverage), this renders null rather than drawing
+// attention to itself. Mounts once per division-view visit (not hover-
+// triggered), so unlike the old hover badge it needs no cache and no grace-
+// period timers.
 
 import { useEffect, useState } from "react";
 import { DivisionAnalystCoverage } from "@/lib/brain-types";
 
-interface OtherAnalystsBadgeProps {
+interface OtherAnalystsPanelProps {
   divisionId: number;
   excludeAnalystId: number;
-  onJumpToAnalyst: (analystId: number, divisionId: number) => void;
-  onMouseEnter?: () => void;
-  onMouseLeave?: () => void;
+  onJumpToAnalyst: (analystId: number) => void;
 }
 
-// Module-level cache so repeat hovers of the same division within the page
-// session don't re-fetch — persists across mounts/unmounts of this component
-// for the lifetime of the page. Intentionally simple: no TTL/invalidation:
-// this is a lightweight, low-stakes discovery feature, not a source of truth.
-const coverageCache = new Map<number, DivisionAnalystCoverage[]>();
-
-export function OtherAnalystsBadge({
+export function OtherAnalystsPanel({
   divisionId,
   excludeAnalystId,
   onJumpToAnalyst,
-  onMouseEnter,
-  onMouseLeave,
-}: OtherAnalystsBadgeProps) {
+}: OtherAnalystsPanelProps) {
   const [others, setOthers] = useState<DivisionAnalystCoverage[]>([]);
   const [expanded, setExpanded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setExpanded(false);
-
-    const cached = coverageCache.get(divisionId);
-    if (cached) {
-      setOthers(cached.filter((a) => a.id !== excludeAnalystId));
-      return;
-    }
 
     (async () => {
       try {
@@ -58,7 +44,6 @@ export function OtherAnalystsBadge({
         }
 
         const coverage = data as DivisionAnalystCoverage[];
-        coverageCache.set(divisionId, coverage);
         setOthers(coverage.filter((a) => a.id !== excludeAnalystId));
       } catch (err) {
         if (!cancelled) {
@@ -76,11 +61,7 @@ export function OtherAnalystsBadge({
   if (others.length === 0) return null;
 
   return (
-    <div
-      className="absolute top-4 right-4 max-w-xs rounded-lg border border-theme bg-panel shadow-lg"
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
-    >
+    <div className="absolute top-4 right-4 max-w-xs rounded-lg border border-theme bg-panel shadow-lg">
       <button
         type="button"
         onClick={() => setExpanded((e) => !e)}
@@ -95,7 +76,7 @@ export function OtherAnalystsBadge({
             <button
               key={analyst.id}
               type="button"
-              onClick={() => onJumpToAnalyst(analyst.id, divisionId)}
+              onClick={() => onJumpToAnalyst(analyst.id)}
               className="text-left text-xs text-secondary hover:text-primary transition-colors py-0.5"
             >
               <span className="font-medium text-primary">{analyst.name}</span>

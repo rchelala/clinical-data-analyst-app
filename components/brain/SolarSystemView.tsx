@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   computeDivisionWedges,
   computeEvenlySpacedPositions,
@@ -16,7 +16,6 @@ import {
 import { DashboardMoon, MOON_STATUS_COLORS } from "@/components/brain/nodes/DashboardMoon";
 import { ANALYST_COLOR, VIEWER_RING_COLOR } from "@/lib/brain-colors";
 import { DetailPanel, DetailPanelRow } from "@/components/brain/DetailPanel";
-import { OtherAnalystsBadge } from "@/components/brain/OtherAnalystsBadge";
 import { Legend } from "@/components/brain/Legend";
 
 export interface DivisionNode {
@@ -32,7 +31,6 @@ interface SolarSystemViewProps {
   viewerAnalystId: number | null;
   filters: BrainFilters;
   onSelectDivision: (divisionId: number) => void;
-  onJumpToAnalyst: (analystId: number, divisionId: number) => void;
 }
 
 interface PositionedDivision {
@@ -54,38 +52,8 @@ export function SolarSystemView({
   viewerAnalystId,
   filters,
   onSelectDivision,
-  onJumpToAnalyst,
 }: SolarSystemViewProps) {
   const [hoveredId, setHoveredId] = useState<number | null>(null);
-
-  // Separate from hoveredId: drives OtherAnalystsBadge specifically, with a
-  // short grace period so the badge survives the cursor's travel from the
-  // SVG planet (wherever it is on screen) to the screen-anchored badge in
-  // the corner. hoveredId/DetailPanel can clear immediately since
-  // DetailPanel is pointer-events-none and doesn't need this.
-  const [badgeDivisionId, setBadgeDivisionId] = useState<number | null>(null);
-  const badgeClearTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const clearPendingBadgeClear = () => {
-    if (badgeClearTimeoutRef.current !== null) {
-      clearTimeout(badgeClearTimeoutRef.current);
-      badgeClearTimeoutRef.current = null;
-    }
-  };
-
-  const scheduleBadgeClear = (divisionId: number) => {
-    clearPendingBadgeClear();
-    badgeClearTimeoutRef.current = setTimeout(() => {
-      setBadgeDivisionId((id) => (id === divisionId ? null : id));
-      badgeClearTimeoutRef.current = null;
-    }, 200);
-  };
-
-  useEffect(() => {
-    return () => {
-      clearPendingBadgeClear();
-    };
-  }, []);
 
   const divisions = useMemo(() => divisionNodes.map((n) => n.division), [divisionNodes]);
   const wedges = useMemo(() => computeDivisionWedges(divisions), [divisions]);
@@ -317,12 +285,9 @@ export function SolarSystemView({
                 isFaded={planetFaded}
                 onHover={() => {
                   setHoveredId(node.division.id);
-                  clearPendingBadgeClear();
-                  setBadgeDivisionId(node.division.id);
                 }}
                 onLeave={() => {
                   setHoveredId((id) => (id === node.division.id ? null : id));
-                  scheduleBadgeClear(node.division.id);
                 }}
                 onClick={() => onSelectDivision(node.division.id)}
               />
@@ -332,16 +297,6 @@ export function SolarSystemView({
       </svg>
 
       {hovered && <DetailPanel title={hovered.node.division.name} rows={hoveredRows} />}
-
-      {badgeDivisionId !== null && (
-        <OtherAnalystsBadge
-          divisionId={badgeDivisionId}
-          excludeAnalystId={viewedAnalystId}
-          onJumpToAnalyst={onJumpToAnalyst}
-          onMouseEnter={clearPendingBadgeClear}
-          onMouseLeave={() => scheduleBadgeClear(badgeDivisionId)}
-        />
-      )}
 
       <Legend
         items={[

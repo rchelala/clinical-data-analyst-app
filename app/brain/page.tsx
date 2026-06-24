@@ -477,9 +477,6 @@ export default function BrainPage() {
                   onSelectDivision={(divisionId) =>
                     setZoom({ level: "division", analystId: zoom.analystId, divisionId })
                   }
-                  onJumpToAnalyst={(otherAnalystId, divisionId) =>
-                    setZoom({ level: "division", analystId: otherAnalystId, divisionId })
-                  }
                 />
               </GalaxyCanvas>
             )}
@@ -502,6 +499,10 @@ export default function BrainPage() {
                     setSelectedRequestId(focusRequestId);
                   }}
                   onAddEntity={() => setShowAddEntityForm(true)}
+                  viewedAnalystId={zoom.analystId}
+                  onJumpToAnalyst={(otherAnalystId) =>
+                    setZoom({ level: "division", analystId: otherAnalystId, divisionId: selectedDivision.id })
+                  }
                 />
               </GalaxyCanvas>
             )}

@@ -155,18 +155,27 @@ export function buildGraphData(
 
   // Linked-entity tether: a subscription may optionally link to one
   // dashboard in the same division (subscription.linkedDashboardId). The
-  // dashboardIds.has(...) check is defensive — the API already enforces
-  // same-division linking server-side, but if a stale/cross-division
-  // reference ever existed, skip it silently rather than creating a
-  // dangling edge to a node that doesn't exist in this graph.
+  // API enforces same-division linking at the moment a link is created or
+  // edited, but that's a write-time check, not an invariant: a dashboard's
+  // own division can still be changed afterward (PATCH /api/dashboards/[id]
+  // has no guard against this), which would leave any subscription that
+  // links to it pointing cross-division. The dashboardIds.has(...) check
+  // catches that case and skips the edge rather than creating a dangling
+  // link to a node that doesn't exist in this graph — logged so a real
+  // desync doesn't disappear silently.
   const dashboardIds = new Set(dashboards.map((d) => d.id));
   subscriptions.forEach((s) => {
-    if (s.linkedDashboardId !== null && dashboardIds.has(s.linkedDashboardId)) {
+    if (s.linkedDashboardId === null) return;
+    if (dashboardIds.has(s.linkedDashboardId)) {
       links.push({
         source: entityNodeId('subscription', s.id),
         target: entityNodeId('dashboard', s.linkedDashboardId),
         linkedEntity: true,
       });
+    } else {
+      console.warn(
+        `Subscription ${s.id} links to dashboard ${s.linkedDashboardId}, which is not in this division — skipping tether.`
+      );
     }
   });
 

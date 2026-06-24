@@ -477,6 +477,9 @@ export default function BrainPage() {
                   onSelectDivision={(divisionId) =>
                     setZoom({ level: "division", analystId: zoom.analystId, divisionId })
                   }
+                  onJumpToAnalyst={(otherAnalystId, divisionId) =>
+                    setZoom({ level: "division", analystId: otherAnalystId, divisionId })
+                  }
                 />
               </GalaxyCanvas>
             )}

@@ -16,6 +16,7 @@ import {
 import { DashboardMoon, MOON_STATUS_COLORS } from "@/components/brain/nodes/DashboardMoon";
 import { ANALYST_COLOR, VIEWER_RING_COLOR } from "@/lib/brain-colors";
 import { DetailPanel, DetailPanelRow } from "@/components/brain/DetailPanel";
+import { OtherAnalystsBadge } from "@/components/brain/OtherAnalystsBadge";
 import { Legend } from "@/components/brain/Legend";
 
 export interface DivisionNode {
@@ -31,6 +32,7 @@ interface SolarSystemViewProps {
   viewerAnalystId: number | null;
   filters: BrainFilters;
   onSelectDivision: (divisionId: number) => void;
+  onJumpToAnalyst: (analystId: number, divisionId: number) => void;
 }
 
 interface PositionedDivision {
@@ -52,6 +54,7 @@ export function SolarSystemView({
   viewerAnalystId,
   filters,
   onSelectDivision,
+  onJumpToAnalyst,
 }: SolarSystemViewProps) {
   const [hoveredId, setHoveredId] = useState<number | null>(null);
 
@@ -293,6 +296,14 @@ export function SolarSystemView({
       </svg>
 
       {hovered && <DetailPanel title={hovered.node.division.name} rows={hoveredRows} />}
+
+      {hovered && (
+        <OtherAnalystsBadge
+          divisionId={hovered.node.division.id}
+          excludeAnalystId={viewedAnalystId}
+          onJumpToAnalyst={onJumpToAnalyst}
+        />
+      )}
 
       <Legend
         items={[

@@ -2,7 +2,7 @@
 // Dashboard Brain module. Centralized here because multiple routes map
 // dashboards and/or requests.
 
-import { Analyst, Dashboard, Division, DivisionAnalystCoverage, Request, RequestWithCreator, ReportSubscription, Tag } from '@/lib/brain-types';
+import { Analyst, Dashboard, Division, DivisionAnalystCoverage, IntakeRequest, IntakeRequestWithNames, Request, RequestWithCreator, ReportSubscription, Tag } from '@/lib/brain-types';
 
 export function mapAnalystRow(row: any): Analyst {
   return {
@@ -86,5 +86,32 @@ export function mapRequestWithCreatorRow(row: any): RequestWithCreator {
   return {
     ...mapRequestRow(row),
     createdByName: row.created_by_name,
+  };
+}
+
+export function mapIntakeRequestRow(row: any): IntakeRequest {
+  return {
+    id: row.id,
+    priority: row.priority,
+    dateReceived: row.date_received,
+    divisionId: row.division_id,
+    topic: row.topic,
+    stakeholder: row.stakeholder,
+    analystId: row.analyst_id,
+    requestedKind: row.requested_kind,
+    status: row.status,
+    ticketLink: row.ticket_link,
+    internalComments: row.internal_comments,
+    createdDate: row.created_date,
+    fulfilledEntityKind: row.fulfilled_entity_kind,
+    fulfilledEntityId: row.fulfilled_entity_id,
+  };
+}
+
+export function mapIntakeRequestWithNamesRow(row: any): IntakeRequestWithNames {
+  return {
+    ...mapIntakeRequestRow(row),
+    divisionName: row.division_name,
+    analystName: row.analyst_name,
   };
 }

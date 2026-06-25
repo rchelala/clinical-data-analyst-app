@@ -113,3 +113,30 @@ export interface Request {
 export interface RequestWithCreator extends Request {
   createdByName: string;
 }
+
+// Intake requests: an "Unassigned" backlog of dashboard/subscription requests
+// that don't yet have an owning analyst.
+export type IntakePriority = 'low' | 'medium' | 'high';
+export type IntakeStatus = 'not_started' | 'discovery' | 'ready' | 'in_progress' | 'on_hold' | 'fulfilled';
+
+export interface IntakeRequest {
+  id: number;
+  priority: IntakePriority;
+  dateReceived: string;
+  divisionId: number | null;
+  topic: string;
+  stakeholder: string | null;
+  analystId: number | null;
+  requestedKind: BrainEntityKind | null;
+  status: IntakeStatus;
+  ticketLink: string | null;
+  internalComments: string | null;
+  createdDate: string;
+  fulfilledEntityKind: BrainEntityKind | null;
+  fulfilledEntityId: number | null;
+}
+
+export interface IntakeRequestWithNames extends IntakeRequest {
+  divisionName: string | null;
+  analystName: string | null;
+}

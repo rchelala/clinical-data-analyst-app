@@ -165,10 +165,15 @@ export function buildGraphData(
     }
   };
 
+  // A subscription's link only counts if it actually resolves to a
+  // dashboard present in this division — used below both to decide whether
+  // to skip the subscription's center tether and whether to draw the
+  // linked-entity tether, so the two decisions can't drift apart.
+  const hasValidDashboardLink = (s: ReportSubscriptionWithUrgency) =>
+    s.linkedDashboardId !== null && dashboardIds.has(s.linkedDashboardId);
+
   dashboards.forEach((d) => addEntity('dashboard', d, false));
-  subscriptions.forEach((s) =>
-    addEntity('subscription', s, s.linkedDashboardId !== null && dashboardIds.has(s.linkedDashboardId))
-  );
+  subscriptions.forEach((s) => addEntity('subscription', s, hasValidDashboardLink(s)));
 
   // Linked-entity tether: a subscription may optionally link to one
   // dashboard in the same division (subscription.linkedDashboardId). The
@@ -176,15 +181,13 @@ export function buildGraphData(
   // edited, but that's a write-time check, not an invariant: a dashboard's
   // own division can still be changed afterward (PATCH /api/dashboards/[id]
   // has no guard against this), which would leave any subscription that
-  // links to it pointing cross-division. The dashboardIds.has(...) check
-  // catches that case and skips the edge rather than creating a dangling
-  // link to a node that doesn't exist in this graph — logged so a real
-  // desync doesn't disappear silently. (This is the same condition used
-  // above to decide whether the subscription's center tether was skipped,
-  // so a stale/cross-division link still leaves it connected via center.)
+  // links to it pointing cross-division. hasValidDashboardLink catches that
+  // case and skips the edge rather than creating a dangling link to a node
+  // that doesn't exist in this graph — logged so a real desync doesn't
+  // disappear silently.
   subscriptions.forEach((s) => {
     if (s.linkedDashboardId === null) return;
-    if (dashboardIds.has(s.linkedDashboardId)) {
+    if (hasValidDashboardLink(s)) {
       links.push({
         source: entityNodeId('subscription', s.id),
         target: entityNodeId('dashboard', s.linkedDashboardId),

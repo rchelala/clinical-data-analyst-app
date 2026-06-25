@@ -127,8 +127,11 @@ export default function UnassignedIntakePage() {
 
   // Owns the PATCH for inline row edits (status/priority/analyst/division
   // dropdowns rendered by IntakeRequestsTable). The table fires this and
-  // handles its own optimistic-update/revert; this just does the fetch and
-  // re-throws on failure so the table knows to revert.
+  // handles its own optimistic-update/revert; on success this also patches
+  // the local `requests` array so the table's override-clear actually has
+  // real updated data to fall back to, and so filteredRequests (which
+  // derives from `requests`) reflects the edit immediately. On failure this
+  // re-throws so the table knows to revert.
   const handleFieldChange = useCallback(
     async (
       id: number,
@@ -146,6 +149,9 @@ export default function UnassignedIntakePage() {
       if (!res.ok) {
         throw new Error(data.error ?? "Could not update intake request.");
       }
+      setRequests((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, [field]: value } : r))
+      );
     },
     []
   );

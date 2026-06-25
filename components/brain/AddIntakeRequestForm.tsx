@@ -44,7 +44,7 @@ export function AddIntakeRequestForm({
   const [divisionId, setDivisionId] = useState("");
   const [stakeholder, setStakeholder] = useState("");
   const [analystId, setAnalystId] = useState("");
-  const [requestedKind, setRequestedKind] = useState("");
+  const [requestedKind, setRequestedKind] = useState<BrainEntityKind | "">("");
   const [ticketLink, setTicketLink] = useState("");
   const [internalComments, setInternalComments] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -213,7 +213,7 @@ export function AddIntakeRequestForm({
             <select
               id="intakeRequestedKind"
               value={requestedKind}
-              onChange={(e) => setRequestedKind(e.target.value)}
+              onChange={(e) => setRequestedKind(e.target.value as BrainEntityKind | "")}
               className="text-sm rounded-md border border-theme px-3 py-2 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
             >
               <option value="">Unset</option>

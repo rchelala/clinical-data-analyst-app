@@ -66,11 +66,13 @@ export function IntakeRequestsTable({
   onFieldChange,
 }: IntakeRequestsTableProps) {
   // Local optimistic overrides, keyed by `${id}:${field}`, so edits render
-  // immediately without waiting on the page's refetch. Cleared per-key once
-  // the underlying `requests` prop catches up (i.e. on next render where the
-  // prop value already matches), and reverted on PATCH failure.
+  // immediately without waiting on the page's refetch. Cleared per-key on
+  // success, once the page has patched `requests` with the real value, and
+  // reverted to the prior value on PATCH failure.
   const [overrides, setOverrides] = useState<Record<string, string | number | null>>({});
-  const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
+  // Errors are keyed the same way as overrides (`${id}:${field}`) so each
+  // error renders under the specific cell that failed, not always Status.
+  const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
 
   const keyFor = (id: number, field: InlineField) => `${id}:${field}`;
 
@@ -101,24 +103,25 @@ export function IntakeRequestsTable({
 
     setOverrides((prev) => ({ ...prev, [k]: nextValue }));
     setRowErrors((prev) => {
-      const { [r.id]: _omit, ...rest } = prev;
+      const { [k]: _omit, ...rest } = prev;
       return rest;
     });
 
     try {
       await onFieldChange(r.id, field, nextValue);
-      // Success: drop the override so the next refetch's real value takes
-      // over cleanly (avoids the override permanently masking server state).
+      // Success: drop the override so the page's patched `requests` value
+      // (set synchronously by the same onFieldChange call) takes over.
       setOverrides((prev) => {
         const { [k]: _omit, ...rest } = prev;
         return rest;
       });
     } catch (err) {
-      // Revert to the prior value and surface a brief inline error.
+      // Revert to the prior value and surface a brief inline error under
+      // the specific field that failed.
       setOverrides((prev) => ({ ...prev, [k]: previous }));
       setRowErrors((prev) => ({
         ...prev,
-        [r.id]: err instanceof Error ? err.message : "Update failed.",
+        [k]: err instanceof Error ? err.message : "Update failed.",
       }));
     }
   };
@@ -168,7 +171,10 @@ export function IntakeRequestsTable({
           const divisionValue = valueFor(r, "divisionId", r.divisionId) as number | null;
           const analystValue = valueFor(r, "analystId", r.analystId) as number | null;
           const statusValue = valueFor(r, "status", r.status) as IntakeStatus;
-          const rowError = rowErrors[r.id];
+          const priorityError = rowErrors[keyFor(r.id, "priority")];
+          const divisionError = rowErrors[keyFor(r.id, "divisionId")];
+          const analystError = rowErrors[keyFor(r.id, "analystId")];
+          const statusError = rowErrors[keyFor(r.id, "status")];
 
           return (
             <tr
@@ -179,6 +185,7 @@ export function IntakeRequestsTable({
                 <select
                   value={priorityValue}
                   onChange={(e) => handleChange(r, "priority", e.target.value)}
+                  aria-label={`Priority for ${r.topic}`}
                   className="text-xs rounded-md border border-theme px-1.5 py-1 bg-panel text-primary capitalize focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
                 >
                   {PRIORITY_OPTIONS.map((opt) => (
@@ -187,6 +194,9 @@ export function IntakeRequestsTable({
                     </option>
                   ))}
                 </select>
+                {priorityError && (
+                  <p className="text-[11px] text-red-600 dark:text-red-400 mt-1">{priorityError}</p>
+                )}
               </td>
               <td className="px-3 py-2 text-primary whitespace-nowrap">
                 {formatDate(r.dateReceived)}
@@ -195,6 +205,7 @@ export function IntakeRequestsTable({
                 <select
                   value={divisionValue ?? ""}
                   onChange={(e) => handleChange(r, "divisionId", e.target.value)}
+                  aria-label={`Division for ${r.topic}`}
                   className="text-xs rounded-md border border-theme px-1.5 py-1 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
                 >
                   <option value="">—</option>
@@ -204,6 +215,9 @@ export function IntakeRequestsTable({
                     </option>
                   ))}
                 </select>
+                {divisionError && (
+                  <p className="text-[11px] text-red-600 dark:text-red-400 mt-1">{divisionError}</p>
+                )}
               </td>
               <td className="px-3 py-2 text-primary">{r.topic}</td>
               <td className="px-3 py-2 text-primary">{r.stakeholder ?? "—"}</td>
@@ -211,6 +225,7 @@ export function IntakeRequestsTable({
                 <select
                   value={analystValue ?? ""}
                   onChange={(e) => handleChange(r, "analystId", e.target.value)}
+                  aria-label={`Analyst for ${r.topic}`}
                   className="text-xs rounded-md border border-theme px-1.5 py-1 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
                 >
                   <option value="">Unassigned</option>
@@ -220,12 +235,16 @@ export function IntakeRequestsTable({
                     </option>
                   ))}
                 </select>
+                {analystError && (
+                  <p className="text-[11px] text-red-600 dark:text-red-400 mt-1">{analystError}</p>
+                )}
               </td>
               <td className="px-3 py-2 text-primary capitalize">{r.requestedKind ?? "—"}</td>
               <td className="px-3 py-2 text-primary">
                 <select
                   value={statusValue}
                   onChange={(e) => handleChange(r, "status", e.target.value)}
+                  aria-label={`Status for ${r.topic}`}
                   className="text-xs rounded-md border border-theme px-1.5 py-1 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
                 >
                   {STATUS_OPTIONS.map((opt) => (
@@ -234,8 +253,8 @@ export function IntakeRequestsTable({
                     </option>
                   ))}
                 </select>
-                {rowError && (
-                  <p className="text-[11px] text-red-600 dark:text-red-400 mt-1">{rowError}</p>
+                {statusError && (
+                  <p className="text-[11px] text-red-600 dark:text-red-400 mt-1">{statusError}</p>
                 )}
               </td>
               <td className="px-3 py-2 text-primary">

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Loader2, ClipboardPlus, ArrowLeft, Home, FolderPlus, HelpCircle, Trash2 } from "lucide-react";
+import { Loader2, ClipboardPlus, ArrowLeft, Home, FolderPlus, HelpCircle, Trash2, Inbox } from "lucide-react";
 import { AnalystSelector } from "@/components/brain/AnalystSelector";
 import { UrgencyInfoModal } from "@/components/brain/UrgencyInfoModal";
 import { SolarSystemView, DivisionNode } from "@/components/brain/SolarSystemView";
@@ -388,6 +388,13 @@ export default function BrainPage() {
             <FolderPlus className="w-3 h-3" />
             Add Division
           </button>
+          <Link
+            href="/brain/unassigned"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+          >
+            <Inbox className="w-3 h-3" />
+            Unassigned
+          </Link>
           {zoom.level === "division" && selectedDivision && (
             <button
               onClick={() => setShowDeleteDivision(true)}

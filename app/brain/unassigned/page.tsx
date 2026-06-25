@@ -13,6 +13,7 @@ import Link from "next/link";
 import { ArrowLeft, Loader2, ClipboardList } from "lucide-react";
 import {
   Analyst,
+  BrainEntityKind,
   Division,
   IntakePriority,
   IntakeRequestWithNames,
@@ -20,6 +21,7 @@ import {
 } from "@/lib/brain-types";
 import { IntakeRequestsTable } from "@/components/brain/IntakeRequestsTable";
 import { AddIntakeRequestForm } from "@/components/brain/AddIntakeRequestForm";
+import { AddEntityForm } from "@/components/brain/AddEntityForm";
 
 const STATUS_OPTIONS: { value: IntakeStatus; label: string }[] = [
   { value: "not_started", label: "Not started" },
@@ -45,6 +47,12 @@ export default function UnassignedIntakePage() {
   const [analysts, setAnalysts] = useState<Analyst[]>([]);
 
   const [showAddForm, setShowAddForm] = useState(false);
+
+  // The intake row currently being converted via AddEntityForm, plus which
+  // kind the form should open with. Null when no convert flow is active.
+  const [convertingRequest, setConvertingRequest] = useState<IntakeRequestWithNames | null>(null);
+  const [convertingKind, setConvertingKind] = useState<BrainEntityKind>("dashboard");
+  const [convertError, setConvertError] = useState<string | null>(null);
 
   const [statusFilter, setStatusFilter] = useState<IntakeStatus | "all">("all");
   const [divisionFilter, setDivisionFilter] = useState<number | "all">("all");
@@ -154,6 +162,48 @@ export default function UnassignedIntakePage() {
       );
     },
     []
+  );
+
+  // Opens AddEntityForm for the given intake row/kind. The table only
+  // emits intent (mirrors handleFieldChange's split with onFieldChange).
+  const handleConvert = useCallback((request: IntakeRequestWithNames, kind: BrainEntityKind) => {
+    setConvertError(null);
+    setConvertingKind(kind);
+    setConvertingRequest(request);
+  }, []);
+
+  // Fired by AddEntityForm after it has *already* created the real
+  // dashboard/subscription. This only marks the intake row fulfilled —
+  // per app/api/intake-requests/[id]/convert/route.ts's contract, it does
+  // not create anything itself.
+  const handleConvertCreated = useCallback(
+    async (entity: { id: number; kind: BrainEntityKind }) => {
+      if (!convertingRequest) return;
+      try {
+        const res = await fetch(`/api/intake-requests/${convertingRequest.id}/convert`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ kind: entity.kind, entityId: entity.id }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error ?? "Could not mark the intake request fulfilled.");
+        }
+        setConvertingRequest(null);
+        loadRequests();
+      } catch (err) {
+        // The entity itself was already created successfully at this
+        // point; only the fulfillment marker failed. Surface the error in
+        // the form rather than silently closing it, so the user can retry
+        // marking it fulfilled (the entity isn't lost either way).
+        setConvertError(
+          err instanceof Error ? err.message : "Could not mark the intake request fulfilled."
+        );
+      }
+    },
+    [convertingRequest, loadRequests]
   );
 
   const filteredRequests = useMemo(() => {
@@ -340,6 +390,7 @@ export default function UnassignedIntakePage() {
               divisions={divisions}
               analysts={analysts}
               onFieldChange={handleFieldChange}
+              onConvert={handleConvert}
             />
           )}
         </div>
@@ -355,6 +406,35 @@ export default function UnassignedIntakePage() {
           }}
           onCancel={() => setShowAddForm(false)}
         />
+      )}
+
+      {convertingRequest && (
+        <AddEntityForm
+          division={
+            convertingRequest.divisionId !== null
+              ? divisions.find((d) => d.id === convertingRequest.divisionId) ?? null
+              : null
+          }
+          divisions={divisions}
+          currentAnalystId={convertingRequest.analystId}
+          dashboardsInDivision={[]}
+          initialKind={convertingKind}
+          initialName={convertingRequest.topic}
+          initialStakeholder={convertingRequest.stakeholder ?? undefined}
+          initialJiraTicketId={convertingRequest.ticketLink ?? undefined}
+          onCreated={handleConvertCreated}
+          onCancel={() => {
+            setConvertingRequest(null);
+            setConvertError(null);
+          }}
+        />
+      )}
+      {convertingRequest && convertError && (
+        <div className="fixed inset-x-0 bottom-4 flex justify-center z-[60]">
+          <p className="px-4 py-2 text-sm rounded-md bg-red-600 text-white shadow-lg">
+            {convertError}
+          </p>
+        </div>
       )}
     </div>
   );

@@ -13,6 +13,7 @@ import { useState } from "react";
 import { ExternalLink } from "lucide-react";
 import {
   Analyst,
+  BrainEntityKind,
   Division,
   IntakePriority,
   IntakeRequestWithNames,
@@ -57,6 +58,11 @@ interface IntakeRequestsTableProps {
     field: InlineField,
     value: string | number | null
   ) => Promise<void>;
+  // Fired when the user clicks a "Convert to…" action. The page owns
+  // opening AddEntityForm pre-filled from `request` and, on success,
+  // calling POST /api/intake-requests/[id]/convert — this table only emits
+  // the intent, mirroring the onFieldChange split above.
+  onConvert: (request: IntakeRequestWithNames, kind: BrainEntityKind) => void;
 }
 
 export function IntakeRequestsTable({
@@ -64,6 +70,7 @@ export function IntakeRequestsTable({
   divisions,
   analysts,
   onFieldChange,
+  onConvert,
 }: IntakeRequestsTableProps) {
   // Local optimistic overrides, keyed by `${id}:${field}`, so edits render
   // immediately without waiting on the page's refetch. Cleared per-key on
@@ -162,6 +169,9 @@ export function IntakeRequestsTable({
           </th>
           <th className="px-3 py-2 font-semibold text-secondary uppercase tracking-wide text-[10px]">
             Created Date
+          </th>
+          <th className="px-3 py-2 font-semibold text-secondary uppercase tracking-wide text-[10px]">
+            Convert
           </th>
         </tr>
       </thead>
@@ -280,6 +290,36 @@ export function IntakeRequestsTable({
               </td>
               <td className="px-3 py-2 text-primary whitespace-nowrap">
                 {formatDate(r.createdDate)}
+              </td>
+              <td className="px-3 py-2 text-primary whitespace-nowrap">
+                {r.status === "fulfilled" ? (
+                  "—"
+                ) : r.requestedKind ? (
+                  <button
+                    type="button"
+                    onClick={() => onConvert(r, r.requestedKind!)}
+                    className="px-2 py-1 text-[11px] font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors capitalize"
+                  >
+                    Convert to {r.requestedKind}
+                  </button>
+                ) : (
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      onClick={() => onConvert(r, "dashboard")}
+                      className="px-2 py-1 text-[11px] font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                    >
+                      Dashboard
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onConvert(r, "subscription")}
+                      className="px-2 py-1 text-[11px] font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                    >
+                      Subscription
+                    </button>
+                  </div>
+                )}
               </td>
             </tr>
           );

@@ -1,10 +1,23 @@
-// Plain HTML table rendering the Unassigned intake backlog
-// (app/brain/unassigned/page.tsx). Extracted out of the page so Task 4's
-// inline row-edit controls have an isolated place to land instead of
-// growing inside the page component.
+// Table rendering the Unassigned intake backlog
+// (app/brain/unassigned/page.tsx). Status/priority/analyst/division are
+// rendered as live <select> dropdowns — the dropdown IS the editor, no
+// separate edit-mode toggle. Each onChange optimistically updates local
+// row state, fires the page-owned PATCH via onFieldChange, and reverts the
+// row (plus shows a small inline error) if the PATCH fails. The table owns
+// only this per-row optimistic-update bookkeeping; the actual fetch/PATCH
+// logic lives in the page component (mirrors the AddEntityForm split: the
+// form fires the request and reports success/failure, the page decides
+// what to do about it).
 
+import { useState } from "react";
 import { ExternalLink } from "lucide-react";
-import { IntakeRequestWithNames, IntakeStatus } from "@/lib/brain-types";
+import {
+  Analyst,
+  Division,
+  IntakePriority,
+  IntakeRequestWithNames,
+  IntakeStatus,
+} from "@/lib/brain-types";
 
 const STATUS_LABELS: Record<IntakeStatus, string> = {
   not_started: "Not started",
@@ -15,6 +28,17 @@ const STATUS_LABELS: Record<IntakeStatus, string> = {
   fulfilled: "Fulfilled",
 };
 
+const STATUS_OPTIONS: IntakeStatus[] = [
+  "not_started",
+  "discovery",
+  "ready",
+  "in_progress",
+  "on_hold",
+  "fulfilled",
+];
+
+const PRIORITY_OPTIONS: IntakePriority[] = ["low", "medium", "high"];
+
 function formatDate(value: string | null): string {
   if (!value) return "—";
   const d = new Date(value);
@@ -22,11 +46,83 @@ function formatDate(value: string | null): string {
   return d.toLocaleDateString();
 }
 
+type InlineField = "priority" | "divisionId" | "analystId" | "status";
+
 interface IntakeRequestsTableProps {
   requests: IntakeRequestWithNames[];
+  divisions: Division[];
+  analysts: Analyst[];
+  onFieldChange: (
+    id: number,
+    field: InlineField,
+    value: string | number | null
+  ) => Promise<void>;
 }
 
-export function IntakeRequestsTable({ requests }: IntakeRequestsTableProps) {
+export function IntakeRequestsTable({
+  requests,
+  divisions,
+  analysts,
+  onFieldChange,
+}: IntakeRequestsTableProps) {
+  // Local optimistic overrides, keyed by `${id}:${field}`, so edits render
+  // immediately without waiting on the page's refetch. Cleared per-key once
+  // the underlying `requests` prop catches up (i.e. on next render where the
+  // prop value already matches), and reverted on PATCH failure.
+  const [overrides, setOverrides] = useState<Record<string, string | number | null>>({});
+  const [rowErrors, setRowErrors] = useState<Record<number, string>>({});
+
+  const keyFor = (id: number, field: InlineField) => `${id}:${field}`;
+
+  const valueFor = (
+    r: IntakeRequestWithNames,
+    field: InlineField,
+    actual: string | number | null
+  ) => {
+    const k = keyFor(r.id, field);
+    return k in overrides ? overrides[k] : actual;
+  };
+
+  const handleChange = async (
+    r: IntakeRequestWithNames,
+    field: InlineField,
+    rawValue: string
+  ) => {
+    const k = keyFor(r.id, field);
+    const previous: string | number | null =
+      field === "divisionId" || field === "analystId"
+        ? (r[field] as number | null)
+        : (r[field] as string);
+
+    const nextValue: string | number | null =
+      field === "divisionId" || field === "analystId"
+        ? (rawValue === "" ? null : Number(rawValue))
+        : rawValue;
+
+    setOverrides((prev) => ({ ...prev, [k]: nextValue }));
+    setRowErrors((prev) => {
+      const { [r.id]: _omit, ...rest } = prev;
+      return rest;
+    });
+
+    try {
+      await onFieldChange(r.id, field, nextValue);
+      // Success: drop the override so the next refetch's real value takes
+      // over cleanly (avoids the override permanently masking server state).
+      setOverrides((prev) => {
+        const { [k]: _omit, ...rest } = prev;
+        return rest;
+      });
+    } catch (err) {
+      // Revert to the prior value and surface a brief inline error.
+      setOverrides((prev) => ({ ...prev, [k]: previous }));
+      setRowErrors((prev) => ({
+        ...prev,
+        [r.id]: err instanceof Error ? err.message : "Update failed.",
+      }));
+    }
+  };
+
   return (
     <table className="w-full text-xs border-collapse">
       <thead>
@@ -67,47 +163,108 @@ export function IntakeRequestsTable({ requests }: IntakeRequestsTableProps) {
         </tr>
       </thead>
       <tbody>
-        {requests.map((r) => (
-          <tr
-            key={r.id}
-            className="border-b border-theme hover:bg-slate-200/40 dark:hover:bg-slate-700/30 transition-colors"
-          >
-            <td className="px-3 py-2 text-primary capitalize">{r.priority}</td>
-            <td className="px-3 py-2 text-primary whitespace-nowrap">
-              {formatDate(r.dateReceived)}
-            </td>
-            <td className="px-3 py-2 text-primary">{r.divisionName ?? "—"}</td>
-            <td className="px-3 py-2 text-primary">{r.topic}</td>
-            <td className="px-3 py-2 text-primary">{r.stakeholder ?? "—"}</td>
-            <td className="px-3 py-2 text-primary">{r.analystName ?? "—"}</td>
-            <td className="px-3 py-2 text-primary capitalize">{r.requestedKind ?? "—"}</td>
-            <td className="px-3 py-2 text-primary">{STATUS_LABELS[r.status]}</td>
-            <td className="px-3 py-2 text-primary">
-              {r.ticketLink ? (
-                <a
-                  href={r.ticketLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-brand-600 dark:text-brand-400 hover:underline"
-                >
-                  Ticket
-                  <ExternalLink className="w-3 h-3" />
-                </a>
-              ) : (
-                "—"
-              )}
-            </td>
-            <td
-              className="px-3 py-2 text-primary max-w-xs truncate"
-              title={r.internalComments ?? undefined}
+        {requests.map((r) => {
+          const priorityValue = valueFor(r, "priority", r.priority) as IntakePriority;
+          const divisionValue = valueFor(r, "divisionId", r.divisionId) as number | null;
+          const analystValue = valueFor(r, "analystId", r.analystId) as number | null;
+          const statusValue = valueFor(r, "status", r.status) as IntakeStatus;
+          const rowError = rowErrors[r.id];
+
+          return (
+            <tr
+              key={r.id}
+              className="border-b border-theme hover:bg-slate-200/40 dark:hover:bg-slate-700/30 transition-colors align-top"
             >
-              {r.internalComments ?? "—"}
-            </td>
-            <td className="px-3 py-2 text-primary whitespace-nowrap">
-              {formatDate(r.createdDate)}
-            </td>
-          </tr>
-        ))}
+              <td className="px-3 py-2 text-primary">
+                <select
+                  value={priorityValue}
+                  onChange={(e) => handleChange(r, "priority", e.target.value)}
+                  className="text-xs rounded-md border border-theme px-1.5 py-1 bg-panel text-primary capitalize focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
+                >
+                  {PRIORITY_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt} className="capitalize">
+                      {opt}
+                    </option>
+                  ))}
+                </select>
+              </td>
+              <td className="px-3 py-2 text-primary whitespace-nowrap">
+                {formatDate(r.dateReceived)}
+              </td>
+              <td className="px-3 py-2 text-primary">
+                <select
+                  value={divisionValue ?? ""}
+                  onChange={(e) => handleChange(r, "divisionId", e.target.value)}
+                  className="text-xs rounded-md border border-theme px-1.5 py-1 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
+                >
+                  <option value="">—</option>
+                  {divisions.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </td>
+              <td className="px-3 py-2 text-primary">{r.topic}</td>
+              <td className="px-3 py-2 text-primary">{r.stakeholder ?? "—"}</td>
+              <td className="px-3 py-2 text-primary">
+                <select
+                  value={analystValue ?? ""}
+                  onChange={(e) => handleChange(r, "analystId", e.target.value)}
+                  className="text-xs rounded-md border border-theme px-1.5 py-1 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
+                >
+                  <option value="">Unassigned</option>
+                  {analysts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                    </option>
+                  ))}
+                </select>
+              </td>
+              <td className="px-3 py-2 text-primary capitalize">{r.requestedKind ?? "—"}</td>
+              <td className="px-3 py-2 text-primary">
+                <select
+                  value={statusValue}
+                  onChange={(e) => handleChange(r, "status", e.target.value)}
+                  className="text-xs rounded-md border border-theme px-1.5 py-1 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
+                >
+                  {STATUS_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {STATUS_LABELS[opt]}
+                    </option>
+                  ))}
+                </select>
+                {rowError && (
+                  <p className="text-[11px] text-red-600 dark:text-red-400 mt-1">{rowError}</p>
+                )}
+              </td>
+              <td className="px-3 py-2 text-primary">
+                {r.ticketLink ? (
+                  <a
+                    href={r.ticketLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-brand-600 dark:text-brand-400 hover:underline"
+                  >
+                    Ticket
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                ) : (
+                  "—"
+                )}
+              </td>
+              <td
+                className="px-3 py-2 text-primary max-w-xs truncate"
+                title={r.internalComments ?? undefined}
+              >
+                {r.internalComments ?? "—"}
+              </td>
+              <td className="px-3 py-2 text-primary whitespace-nowrap">
+                {formatDate(r.createdDate)}
+              </td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );

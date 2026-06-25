@@ -19,6 +19,7 @@ import {
   IntakeStatus,
 } from "@/lib/brain-types";
 import { IntakeRequestsTable } from "@/components/brain/IntakeRequestsTable";
+import { AddIntakeRequestForm } from "@/components/brain/AddIntakeRequestForm";
 
 const STATUS_OPTIONS: { value: IntakeStatus; label: string }[] = [
   { value: "not_started", label: "Not started" },
@@ -42,6 +43,8 @@ export default function UnassignedIntakePage() {
 
   const [divisions, setDivisions] = useState<Division[]>([]);
   const [analysts, setAnalysts] = useState<Analyst[]>([]);
+
+  const [showAddForm, setShowAddForm] = useState(false);
 
   const [statusFilter, setStatusFilter] = useState<IntakeStatus | "all">("all");
   const [divisionFilter, setDivisionFilter] = useState<number | "all">("all");
@@ -122,6 +125,31 @@ export default function UnassignedIntakePage() {
     loadRequests();
   }, [loadRequests]);
 
+  // Owns the PATCH for inline row edits (status/priority/analyst/division
+  // dropdowns rendered by IntakeRequestsTable). The table fires this and
+  // handles its own optimistic-update/revert; this just does the fetch and
+  // re-throws on failure so the table knows to revert.
+  const handleFieldChange = useCallback(
+    async (
+      id: number,
+      field: "priority" | "divisionId" | "analystId" | "status",
+      value: string | number | null
+    ) => {
+      const res = await fetch(`/api/intake-requests/${id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ [field]: value }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error ?? "Could not update intake request.");
+      }
+    },
+    []
+  );
+
   const filteredRequests = useMemo(() => {
     return requests
       .filter((r) => (divisionFilter === "all" ? true : r.divisionId === divisionFilter))
@@ -157,12 +185,9 @@ export default function UnassignedIntakePage() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* "Add request" is intentionally a no-op placeholder here — wiring
-              up the create form is a separate follow-on task. */}
           <button
-            disabled
-            title="Coming soon"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary opacity-60 cursor-not-allowed"
+            onClick={() => setShowAddForm(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
           >
             <ClipboardList className="w-3 h-3" />
             Add Request
@@ -304,10 +329,27 @@ export default function UnassignedIntakePage() {
           )}
 
           {!loading && !error && filteredRequests.length > 0 && (
-            <IntakeRequestsTable requests={filteredRequests} />
+            <IntakeRequestsTable
+              requests={filteredRequests}
+              divisions={divisions}
+              analysts={analysts}
+              onFieldChange={handleFieldChange}
+            />
           )}
         </div>
       </main>
+
+      {showAddForm && (
+        <AddIntakeRequestForm
+          divisions={divisions}
+          analysts={analysts}
+          onCreated={() => {
+            setShowAddForm(false);
+            loadRequests();
+          }}
+          onCancel={() => setShowAddForm(false)}
+        />
+      )}
     </div>
   );
 }

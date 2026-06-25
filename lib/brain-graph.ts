@@ -90,6 +90,13 @@ function requestNodeId(requestId: number): string {
  * `requestsByEntity` is keyed by `${kind}-${id}` (see `entityNodeId`),
  * matching how DivisionGraphBrain fetches per-entity.
  *
+ * A subscription whose `linkedDashboardId` resolves to a real dashboard in
+ * this division skips its own center tether entirely — it connects to the
+ * graph solely through its dashboard (the `linkedEntity` tether below),
+ * mirroring how a request has no direct center tether either. A subscription
+ * with no link, or a stale/cross-division link, keeps the normal center
+ * tether so it's never left disconnected from the graph.
+ *
  * `centerLabel` is the viewed analyst's name; `isViewerCenter` is true only
  * when the viewed analyst IS the viewer, mirroring SolarSystemView's
  * isViewerCenter treatment (distinct ring color + slightly larger radius).
@@ -113,7 +120,13 @@ export function buildGraphData(
   ];
   const links: GraphLink[] = [];
 
-  const addEntity = (kind: BrainEntityKind, entity: EntityWithUrgency) => {
+  // Computed up front (not just in the linked-entity pass below) because
+  // addEntity also needs it to decide whether a linked subscription should
+  // skip its center tether — both decisions must agree, or a subscription
+  // with a stale/cross-division link would end up with neither tether.
+  const dashboardIds = new Set(dashboards.map((d) => d.id));
+
+  const addEntity = (kind: BrainEntityKind, entity: EntityWithUrgency, skipCenterTether: boolean) => {
     const nodeId = entityNodeId(kind, entity.id);
     const isMaintenance = entity.status === 'maintenance';
 
@@ -131,7 +144,9 @@ export function buildGraphData(
       openRequestCount: entity.openRequestCount,
       inProgressRequestCount: entity.inProgressRequestCount,
     });
-    links.push({ source: CENTER_NODE_ID, target: nodeId });
+    if (!skipCenterTether) {
+      links.push({ source: CENTER_NODE_ID, target: nodeId });
+    }
 
     const requests = requestsByEntity.get(nodeId) ?? [];
     for (const request of requests) {
@@ -150,8 +165,10 @@ export function buildGraphData(
     }
   };
 
-  dashboards.forEach((d) => addEntity('dashboard', d));
-  subscriptions.forEach((s) => addEntity('subscription', s));
+  dashboards.forEach((d) => addEntity('dashboard', d, false));
+  subscriptions.forEach((s) =>
+    addEntity('subscription', s, s.linkedDashboardId !== null && dashboardIds.has(s.linkedDashboardId))
+  );
 
   // Linked-entity tether: a subscription may optionally link to one
   // dashboard in the same division (subscription.linkedDashboardId). The
@@ -162,8 +179,9 @@ export function buildGraphData(
   // links to it pointing cross-division. The dashboardIds.has(...) check
   // catches that case and skips the edge rather than creating a dangling
   // link to a node that doesn't exist in this graph — logged so a real
-  // desync doesn't disappear silently.
-  const dashboardIds = new Set(dashboards.map((d) => d.id));
+  // desync doesn't disappear silently. (This is the same condition used
+  // above to decide whether the subscription's center tether was skipped,
+  // so a stale/cross-division link still leaves it connected via center.)
   subscriptions.forEach((s) => {
     if (s.linkedDashboardId === null) return;
     if (dashboardIds.has(s.linkedDashboardId)) {

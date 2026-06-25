@@ -55,6 +55,14 @@ export interface DashboardWithUrgency extends Dashboard {
 
 export type BrainEntityKind = 'dashboard' | 'subscription';
 
+// Shape returned by AddEntityForm's onCreated callback after a successful
+// create, so callers (e.g. the intake "convert" flow) know what was just
+// created without re-deriving it from form state.
+export interface CreatedBrainEntity {
+  id: number;
+  kind: BrainEntityKind;
+}
+
 export interface ReportSubscription {
   id: number;
   name: string;

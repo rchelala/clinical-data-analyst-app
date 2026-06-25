@@ -2,12 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { ClipboardPlus } from "lucide-react";
-import { BrainEntityKind, Division } from "@/lib/brain-types";
-
-interface CreatedEntity {
-  id: number;
-  kind: BrainEntityKind;
-}
+import { BrainEntityKind, CreatedBrainEntity, Division } from "@/lib/brain-types";
 
 interface AddEntityFormProps {
   // The division currently being viewed — pre-filled, not user-selectable.
@@ -32,7 +27,7 @@ interface AddEntityFormProps {
   // intake convert flow, which must then call POST .../convert) can do so.
   // Existing callers that declare a zero-arg callback continue to work
   // unchanged — the extra argument is simply ignored by them.
-  onCreated: (entity: CreatedEntity) => void;
+  onCreated: (entity: CreatedBrainEntity) => void;
   onCancel: () => void;
 }
 
@@ -155,6 +150,11 @@ export function AddEntityForm({
                   </option>
                 ))}
               </select>
+              {divisions.length === 0 && (
+                <p className="text-[11px] text-secondary mt-1">
+                  No divisions found — create one first.
+                </p>
+              )}
             </div>
           )}
 
@@ -218,7 +218,13 @@ export function AddEntityForm({
             />
           </div>
 
-          {kind === "subscription" && (
+          {kind === "subscription" && dashboardsInDivision.length > 0 && (
+            // Hidden entirely (rather than shown with only a "None" option)
+            // when the caller has no dashboard list for this division —
+            // e.g. the intake convert flow currently passes [] here since
+            // it has no per-division dashboard fetch. An empty-but-visible
+            // dropdown would look broken rather than like a deliberate
+            // "nothing to link yet" state.
             <div className="flex flex-col gap-1">
               <label htmlFor="entityLinkedDashboard" className="text-xs font-medium text-secondary">
                 Link to dashboard (optional)

@@ -416,7 +416,15 @@ export default function UnassignedIntakePage() {
               : null
           }
           divisions={divisions}
+          // Note: here this carries the intake row's *already-assigned*
+          // analyst (may be null), not the current viewer — a converted
+          // entity should inherit the intake request's existing analyst
+          // assignment rather than default to whoever clicks "convert".
           currentAnalystId={convertingRequest.analystId}
+          // No per-division dashboard list is fetched on this page, so the
+          // "Link to dashboard" picker is intentionally unavailable here;
+          // AddEntityForm hides that section entirely when the list is
+          // empty rather than rendering an empty-looking dropdown.
           dashboardsInDivision={[]}
           initialKind={convertingKind}
           initialName={convertingRequest.topic}

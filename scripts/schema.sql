@@ -57,3 +57,25 @@ CREATE TABLE requests (
    attachment_filename text,
    CHECK (num_nonnulls(dashboard_id, subscription_id) = 1)
 );
+
+-- intake_requests: "Unassigned" backlog of dashboard/subscription requests with no
+-- owning analyst yet. Unlike the status/type columns above, priority/requested_kind/
+-- status/fulfilled_entity_kind ARE enforced via DB CHECK constraints here -- see
+-- migrations/007_intake_requests.sql for rationale.
+CREATE TABLE intake_requests (
+   id                serial PRIMARY KEY,
+   priority          text NOT NULL DEFAULT 'low' CHECK (priority IN ('low', 'medium', 'high')),
+   date_received     date NOT NULL DEFAULT CURRENT_DATE,
+   division_id       int REFERENCES divisions(id) ON DELETE SET NULL,
+   topic             text NOT NULL,
+   stakeholder       text,
+   analyst_id        int REFERENCES analysts(id) ON DELETE SET NULL,
+   requested_kind    text CHECK (requested_kind IN ('dashboard', 'subscription')),
+   status            text NOT NULL DEFAULT 'not_started'
+                     CHECK (status IN ('not_started', 'discovery', 'ready', 'in_progress', 'on_hold', 'fulfilled')),
+   ticket_link       text,
+   internal_comments text,
+   created_date      date NOT NULL DEFAULT CURRENT_DATE,
+   fulfilled_entity_kind text CHECK (fulfilled_entity_kind IN ('dashboard', 'subscription')),
+   fulfilled_entity_id   int
+);

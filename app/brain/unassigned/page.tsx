@@ -2,14 +2,15 @@
 
 // Standalone list page for the Intake "Unassigned" backlog
 // (GALAXY_VIEW_SPEC-adjacent feature, not part of the canvas/zoom-state
-// machinery). Plain HTML table — there's no existing list/table component
-// in this app to reuse (it's mostly canvas-based), so this is styled by
-// hand from app/brain/page.tsx + FilterRail.tsx's existing Tailwind
-// conventions (bg-panel/border-theme/text-secondary/brand-600, etc.).
+// machinery). Filter rail + fetch/state logic live here; the actual table
+// markup is extracted to components/brain/IntakeRequestsTable.tsx so later
+// inline-row-edit work (a separate task) has an isolated place to land.
+// Styled by hand from app/brain/page.tsx + FilterRail.tsx's existing
+// Tailwind conventions (bg-panel/border-theme/text-secondary/brand-600).
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Loader2, ExternalLink, ClipboardList } from "lucide-react";
+import { ArrowLeft, Loader2, ClipboardList } from "lucide-react";
 import {
   Analyst,
   Division,
@@ -17,6 +18,7 @@ import {
   IntakeRequestWithNames,
   IntakeStatus,
 } from "@/lib/brain-types";
+import { IntakeRequestsTable } from "@/components/brain/IntakeRequestsTable";
 
 const STATUS_OPTIONS: { value: IntakeStatus; label: string }[] = [
   { value: "not_started", label: "Not started" },
@@ -32,17 +34,6 @@ const PRIORITY_OPTIONS: { value: IntakePriority; label: string }[] = [
   { value: "medium", label: "Medium" },
   { value: "high", label: "High" },
 ];
-
-function formatDate(value: string | null): string {
-  if (!value) return "—";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleDateString();
-}
-
-function statusLabel(status: IntakeStatus): string {
-  return STATUS_OPTIONS.find((s) => s.value === status)?.label ?? status;
-}
 
 export default function UnassignedIntakePage() {
   const [requests, setRequests] = useState<IntakeRequestWithNames[]>([]);
@@ -182,10 +173,14 @@ export default function UnassignedIntakePage() {
       <main className="flex-1 overflow-hidden flex flex-row">
         <aside className="w-56 flex-shrink-0 h-full overflow-y-auto border-r border-theme bg-secondary-glass px-3 py-4 flex flex-col gap-5">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-secondary mb-1.5">
+            <label
+              htmlFor="unassigned-status-filter"
+              className="text-[10px] font-semibold uppercase tracking-wide text-secondary mb-1.5 block"
+            >
               Status
-            </p>
+            </label>
             <select
+              id="unassigned-status-filter"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as IntakeStatus | "all")}
               className="w-full text-xs rounded-md border border-theme px-2 py-1.5 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500"
@@ -200,10 +195,14 @@ export default function UnassignedIntakePage() {
           </div>
 
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-secondary mb-1.5">
+            <label
+              htmlFor="unassigned-division-filter"
+              className="text-[10px] font-semibold uppercase tracking-wide text-secondary mb-1.5 block"
+            >
               Division
-            </p>
+            </label>
             <select
+              id="unassigned-division-filter"
               value={divisionFilter}
               onChange={(e) =>
                 setDivisionFilter(e.target.value === "all" ? "all" : Number(e.target.value))
@@ -220,10 +219,14 @@ export default function UnassignedIntakePage() {
           </div>
 
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-secondary mb-1.5">
+            <label
+              htmlFor="unassigned-analyst-filter"
+              className="text-[10px] font-semibold uppercase tracking-wide text-secondary mb-1.5 block"
+            >
               Analyst
-            </p>
+            </label>
             <select
+              id="unassigned-analyst-filter"
               value={analystFilter}
               onChange={(e) =>
                 setAnalystFilter(e.target.value === "all" ? "all" : Number(e.target.value))
@@ -240,10 +243,14 @@ export default function UnassignedIntakePage() {
           </div>
 
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-secondary mb-1.5">
+            <label
+              htmlFor="unassigned-priority-filter"
+              className="text-[10px] font-semibold uppercase tracking-wide text-secondary mb-1.5 block"
+            >
               Priority
-            </p>
+            </label>
             <select
+              id="unassigned-priority-filter"
               value={priorityFilter}
               onChange={(e) => setPriorityFilter(e.target.value as IntakePriority | "all")}
               className="w-full text-xs rounded-md border border-theme px-2 py-1.5 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500"
@@ -297,87 +304,7 @@ export default function UnassignedIntakePage() {
           )}
 
           {!loading && !error && filteredRequests.length > 0 && (
-            <table className="w-full text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-theme text-left">
-                  <th className="px-3 py-2 font-semibold text-secondary uppercase tracking-wide text-[10px]">
-                    Priority
-                  </th>
-                  <th className="px-3 py-2 font-semibold text-secondary uppercase tracking-wide text-[10px]">
-                    Date Received
-                  </th>
-                  <th className="px-3 py-2 font-semibold text-secondary uppercase tracking-wide text-[10px]">
-                    Division
-                  </th>
-                  <th className="px-3 py-2 font-semibold text-secondary uppercase tracking-wide text-[10px]">
-                    Topic
-                  </th>
-                  <th className="px-3 py-2 font-semibold text-secondary uppercase tracking-wide text-[10px]">
-                    Stakeholder
-                  </th>
-                  <th className="px-3 py-2 font-semibold text-secondary uppercase tracking-wide text-[10px]">
-                    Analyst
-                  </th>
-                  <th className="px-3 py-2 font-semibold text-secondary uppercase tracking-wide text-[10px]">
-                    Requested Kind
-                  </th>
-                  <th className="px-3 py-2 font-semibold text-secondary uppercase tracking-wide text-[10px]">
-                    Status
-                  </th>
-                  <th className="px-3 py-2 font-semibold text-secondary uppercase tracking-wide text-[10px]">
-                    Ticket Link
-                  </th>
-                  <th className="px-3 py-2 font-semibold text-secondary uppercase tracking-wide text-[10px]">
-                    Internal Comments
-                  </th>
-                  <th className="px-3 py-2 font-semibold text-secondary uppercase tracking-wide text-[10px]">
-                    Created Date
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredRequests.map((r) => (
-                  <tr
-                    key={r.id}
-                    className="border-b border-theme hover:bg-slate-200/40 dark:hover:bg-slate-700/30 transition-colors"
-                  >
-                    <td className="px-3 py-2 text-primary capitalize">{r.priority}</td>
-                    <td className="px-3 py-2 text-primary whitespace-nowrap">
-                      {formatDate(r.dateReceived)}
-                    </td>
-                    <td className="px-3 py-2 text-primary">{r.divisionName ?? "—"}</td>
-                    <td className="px-3 py-2 text-primary">{r.topic}</td>
-                    <td className="px-3 py-2 text-primary">{r.stakeholder ?? "—"}</td>
-                    <td className="px-3 py-2 text-primary">{r.analystName ?? "—"}</td>
-                    <td className="px-3 py-2 text-primary capitalize">
-                      {r.requestedKind ?? "—"}
-                    </td>
-                    <td className="px-3 py-2 text-primary">{statusLabel(r.status)}</td>
-                    <td className="px-3 py-2 text-primary">
-                      {r.ticketLink ? (
-                        <a
-                          href={r.ticketLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-brand-600 dark:text-brand-400 hover:underline"
-                        >
-                          Ticket
-                          <ExternalLink className="w-3 h-3" />
-                        </a>
-                      ) : (
-                        "—"
-                      )}
-                    </td>
-                    <td className="px-3 py-2 text-primary max-w-xs truncate" title={r.internalComments ?? undefined}>
-                      {r.internalComments ?? "—"}
-                    </td>
-                    <td className="px-3 py-2 text-primary whitespace-nowrap">
-                      {formatDate(r.createdDate)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <IntakeRequestsTable requests={filteredRequests} />
           )}
         </div>
       </main>

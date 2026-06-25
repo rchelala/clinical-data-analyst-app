@@ -75,6 +75,17 @@ export async function PATCH(
       );
     }
 
+    // 'fulfilled' must only be set via POST .../convert, which also sets
+    // fulfilled_entity_kind/fulfilled_entity_id together. Allowing it here
+    // would let a row display as fulfilled without ever having gone
+    // through a real conversion.
+    if (status === 'fulfilled') {
+      return NextResponse.json(
+        { error: "status cannot be set to 'fulfilled' via PATCH; use the convert endpoint instead." },
+        { status: 400 }
+      );
+    }
+
     if (
       requestedKind !== undefined &&
       requestedKind !== null &&

@@ -29,13 +29,15 @@ const STATUS_LABELS: Record<IntakeStatus, string> = {
   fulfilled: "Fulfilled",
 };
 
+// 'fulfilled' is deliberately excluded — it must only be set via the
+// Convert flow (which also sets fulfilled_entity_kind/fulfilled_entity_id
+// together), never via a direct inline PATCH from this dropdown.
 const STATUS_OPTIONS: IntakeStatus[] = [
   "not_started",
   "discovery",
   "ready",
   "in_progress",
   "on_hold",
-  "fulfilled",
 ];
 
 const PRIORITY_OPTIONS: IntakePriority[] = ["low", "medium", "high"];
@@ -251,18 +253,26 @@ export function IntakeRequestsTable({
               </td>
               <td className="px-3 py-2 text-primary capitalize">{r.requestedKind ?? "—"}</td>
               <td className="px-3 py-2 text-primary">
-                <select
-                  value={statusValue}
-                  onChange={(e) => handleChange(r, "status", e.target.value)}
-                  aria-label={`Status for ${r.topic}`}
-                  className="text-xs rounded-md border border-theme px-1.5 py-1 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
-                >
-                  {STATUS_OPTIONS.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {STATUS_LABELS[opt]}
-                    </option>
-                  ))}
-                </select>
+                {/* Fulfilled rows are read-only here — 'fulfilled' is reachable
+                    only via the Convert flow, never via this dropdown, so a
+                    row already in that state can't be edited back through it
+                    either (the dropdown has no option to represent it). */}
+                {statusValue === "fulfilled" ? (
+                  STATUS_LABELS.fulfilled
+                ) : (
+                  <select
+                    value={statusValue}
+                    onChange={(e) => handleChange(r, "status", e.target.value)}
+                    aria-label={`Status for ${r.topic}`}
+                    className="text-xs rounded-md border border-theme px-1.5 py-1 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
+                  >
+                    {STATUS_OPTIONS.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {STATUS_LABELS[opt]}
+                      </option>
+                    ))}
+                  </select>
+                )}
                 {statusError && (
                   <p className="text-[11px] text-red-600 dark:text-red-400 mt-1">{statusError}</p>
                 )}

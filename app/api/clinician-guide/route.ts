@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/get-client-ip";
 import {
   Document,
   Packer,
@@ -222,6 +224,14 @@ function buildDocument(d: ClinicianGuideData): Document {
 
 export async function POST(req: NextRequest) {
   try {
+    const { allowed, retryAfterSeconds } = await checkRateLimit(getClientIp(req));
+    if (!allowed) {
+      return NextResponse.json(
+        { error: `Too many requests. Try again in ${retryAfterSeconds} seconds.` },
+        { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } }
+      );
+    }
+
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
 

@@ -64,7 +64,9 @@ export async function POST(
     return NextResponse.json(mapIntakeRequestRow(rows[0]));
   } catch (err: unknown) {
     console.error('Convert intake request error:', err);
-    const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Something went wrong processing your request. Please try again.' },
+      { status: 500 }
+    );
   }
 }

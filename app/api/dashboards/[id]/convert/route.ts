@@ -60,7 +60,9 @@ export async function POST(
     return NextResponse.json({ ...result, kind: 'subscription' });
   } catch (err: unknown) {
     console.error('Convert dashboard to subscription error:', err);
-    const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Something went wrong processing your request. Please try again.' },
+      { status: 500 }
+    );
   }
 }

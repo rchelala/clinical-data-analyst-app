@@ -3,11 +3,7 @@
     "allow": [
       "Bash(npx tsc:*)",
       "Bash(npm list:*)",
-      "Bash(npm audit:*)",
-      "Bash(rtk git *)",
-      "Bash(python -c \"import sys,json; p=json.load\\(sys.stdin\\); print\\(json.dumps\\(p.get\\('scripts',{}\\), indent=2\\)\\)\")",
-      "Read(//c/Users/rober/.claude/plugins/cache/superpowers-dev/superpowers/5.0.7/skills/subagent-driven-development/**)",
-      "Bash(git check-ignore *)"
+      "Bash(npm audit:*)"
     ]
   }
 }

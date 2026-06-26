@@ -59,8 +59,10 @@ export async function POST(
         );
       }
     }
-    const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Something went wrong processing your request. Please try again.' },
+      { status: 500 }
+    );
   }
 }
 
@@ -97,7 +99,9 @@ export async function DELETE(
     return NextResponse.json(rows.map(mapTagRow));
   } catch (err: unknown) {
     console.error('Remove tag from request error:', err);
-    const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Something went wrong processing your request. Please try again.' },
+      { status: 500 }
+    );
   }
 }

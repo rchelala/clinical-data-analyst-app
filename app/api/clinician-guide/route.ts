@@ -305,7 +305,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("Clinician Guide error:", err);
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Failed to generate the Clinician Guide." },
+      { error: "Something went wrong processing your request. Please try again." },
       { status: 500 }
     );
   }

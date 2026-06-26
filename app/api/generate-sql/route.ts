@@ -133,7 +133,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ sql: result.text });
   } catch (err: unknown) {
     console.error("Generate SQL error:", err);
-    const message = err instanceof Error ? err.message : "An unexpected error occurred.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: "Something went wrong processing your request. Please try again." },
+      { status: 500 }
+    );
   }
 }

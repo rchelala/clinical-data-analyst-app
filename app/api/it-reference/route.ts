@@ -372,7 +372,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("IT Reference error:", err);
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Failed to generate IT Reference document." },
+      { error: "Something went wrong processing your request. Please try again." },
       { status: 500 }
     );
   }

@@ -76,8 +76,10 @@ export async function PATCH(
     return NextResponse.json(mapRequestRow({ ...rows[0], ...tagsAndLinks[0] }));
   } catch (err: unknown) {
     console.error('Update request error:', err);
-    const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Something went wrong processing your request. Please try again.' },
+      { status: 500 }
+    );
   }
 }
 
@@ -122,7 +124,9 @@ export async function DELETE(
     return NextResponse.json({ id: requestId }, { status: 200 });
   } catch (err: unknown) {
     console.error('Delete request error:', err);
-    const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Something went wrong processing your request. Please try again.' },
+      { status: 500 }
+    );
   }
 }

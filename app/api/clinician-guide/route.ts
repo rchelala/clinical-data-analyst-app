@@ -250,8 +250,9 @@ export async function POST(req: NextRequest) {
     try {
       dashboard = await parsePbixFile(buffer, file.name);
     } catch (parseErr) {
+      console.error("Parse .pbix file error:", parseErr);
       return NextResponse.json(
-        { error: parseErr instanceof Error ? parseErr.message : "Could not read the .pbix file." },
+        { error: "Could not read the .pbix file. Please check the file and try again." },
         { status: 422 }
       );
     }

@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const blob = await put(`request-attachments/${Date.now()}-${file.name}`, file, {
+    const blob = await put(`request-attachments/${crypto.randomUUID()}-${file.name}`, file, {
       access: 'private',
     });
 

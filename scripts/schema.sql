@@ -27,7 +27,9 @@ CREATE TABLE dashboards (
    priority           text,
    enterprise_analyst text,
    comments           text,
-   notes              text
+   notes              text,
+   -- free-form worklist work-status, separate from the status lifecycle enum above
+   worklist_status    text
 );
 
 -- status: 'active' | 'maintenance' | 'retired' (not enforced by a DB enum/check constraint, documented only)
@@ -44,7 +46,9 @@ CREATE TABLE report_subscriptions (
    priority           text,
    enterprise_analyst text,
    comments           text,
-   notes              text
+   notes              text,
+   -- free-form worklist work-status, separate from the status lifecycle enum above
+   worklist_status    text
 );
 
 -- request_type: 'feature' | 'bug' | 'field_request'; status: 'open' | 'in_progress' | 'done' (not enforced by a DB enum/check constraint, documented only)

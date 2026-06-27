@@ -41,6 +41,7 @@ export interface Dashboard {
   enterpriseAnalyst: string | null;
   comments: string | null;
   notes: string | null;
+  worklistStatus: string | null;
 }
 
 export interface DashboardWithUrgency extends Dashboard {
@@ -65,6 +66,7 @@ export interface ReportSubscription {
   enterpriseAnalyst: string | null;
   comments: string | null;
   notes: string | null;
+  worklistStatus: string | null;
 }
 
 export interface ReportSubscriptionWithUrgency extends ReportSubscription {

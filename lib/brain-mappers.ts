@@ -35,6 +35,7 @@ export function mapDashboardRow(row: any): Dashboard {
     enterpriseAnalyst: row.enterprise_analyst,
     comments: row.comments,
     notes: row.notes,
+    worklistStatus: row.worklist_status,
   };
 }
 
@@ -53,6 +54,7 @@ export function mapReportSubscriptionRow(row: any): ReportSubscription {
     enterpriseAnalyst: row.enterprise_analyst,
     comments: row.comments,
     notes: row.notes,
+    worklistStatus: row.worklist_status,
   };
 }
 

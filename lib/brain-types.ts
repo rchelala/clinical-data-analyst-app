@@ -37,6 +37,10 @@ export interface Dashboard {
   jiraTicketId: string | null;
   lastTouchedDate: string;
   createdDate: string;
+  priority: string | null;
+  enterpriseAnalyst: string | null;
+  comments: string | null;
+  notes: string | null;
 }
 
 export interface DashboardWithUrgency extends Dashboard {
@@ -57,6 +61,10 @@ export interface ReportSubscription {
   jiraTicketId: string | null;
   lastTouchedDate: string;
   createdDate: string;
+  priority: string | null;
+  enterpriseAnalyst: string | null;
+  comments: string | null;
+  notes: string | null;
 }
 
 export interface ReportSubscriptionWithUrgency extends ReportSubscription {
@@ -102,4 +110,54 @@ export interface Request {
 
 export interface RequestWithCreator extends Request {
   createdByName: string;
+}
+
+// Status/priority are free-form (not enforced by a DB enum/check constraint),
+// matching the documented-but-unenforced convention used by dashboards.status.
+export interface Task {
+  id: number;
+  dashboardId: number;
+  ownerAnalystId: number | null;
+  createdById: number;
+  title: string;
+  description: string | null;
+  status: string;
+  priority: string | null;
+  createdDate: string;
+  completedDate: string | null;
+}
+
+export interface TaskWithContext extends Task {
+  dashboardName: string;
+  dashboardOwnerName: string | null;
+  ownerName: string | null;
+}
+
+export interface Psq {
+  id: number;
+  analystId: number;
+  divisionId: number | null;
+  year: number | null;
+  name: string;
+  status: string | null;
+  tasks: string | null;
+  comments: string | null;
+  notes: string | null;
+  enterpriseAnalyst: string | null;
+  createdDate: string;
+  lastTouchedDate: string;
+}
+
+export interface WorklistDashboard {
+  id: number;
+  analystId: number;
+  dashboardId: number;
+  addedDate: string;
+}
+
+export interface WeeklyNote {
+  id: number;
+  analystId: number;
+  weekStart: string;
+  meetings: string | null;
 }

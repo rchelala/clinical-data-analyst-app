@@ -33,16 +33,31 @@ export async function PATCH(
       stakeholder?: string | null;
       status?: string;
       jiraTicketId?: string | null;
+      priority?: string | null;
+      enterpriseAnalyst?: string | null;
+      comments?: string | null;
+      notes?: string | null;
+      worklistStatus?: string | null;
     };
     const { name, status } = body;
     const stakeholder = normalizeNullableString(body.stakeholder);
     const jiraTicketId = normalizeNullableString(body.jiraTicketId);
+    const priority = normalizeNullableString(body.priority);
+    const enterpriseAnalyst = normalizeNullableString(body.enterpriseAnalyst);
+    const comments = normalizeNullableString(body.comments);
+    const notes = normalizeNullableString(body.notes);
+    const worklistStatus = normalizeNullableString(body.worklistStatus);
 
     if (
       name === undefined &&
       stakeholder === undefined &&
       status === undefined &&
-      jiraTicketId === undefined
+      jiraTicketId === undefined &&
+      priority === undefined &&
+      enterpriseAnalyst === undefined &&
+      comments === undefined &&
+      notes === undefined &&
+      worklistStatus === undefined
     ) {
       return NextResponse.json(
         { error: 'At least one field must be provided.' },
@@ -62,7 +77,7 @@ export async function PATCH(
     }
 
     const current = await sql`
-      SELECT id, name, stakeholder, status, jira_ticket_id
+      SELECT id, name, stakeholder, status, jira_ticket_id, priority, enterprise_analyst, comments, notes, worklist_status
       FROM report_subscriptions
       WHERE id = ${subscriptionId}
     `;
@@ -78,6 +93,11 @@ export async function PATCH(
       stakeholder: stakeholder !== undefined ? stakeholder : current[0].stakeholder,
       status: status !== undefined ? status : current[0].status,
       jiraTicketId: jiraTicketId !== undefined ? jiraTicketId : current[0].jira_ticket_id,
+      priority: priority !== undefined ? priority : current[0].priority,
+      enterpriseAnalyst: enterpriseAnalyst !== undefined ? enterpriseAnalyst : current[0].enterprise_analyst,
+      comments: comments !== undefined ? comments : current[0].comments,
+      notes: notes !== undefined ? notes : current[0].notes,
+      worklistStatus: worklistStatus !== undefined ? worklistStatus : current[0].worklist_status,
     };
 
     // last_touched_date intentionally untouched here: it drives the
@@ -86,9 +106,12 @@ export async function PATCH(
     // bumping it would artificially suppress the urgency signal.
     const rows = await sql`
       UPDATE report_subscriptions
-      SET name = ${merged.name}, stakeholder = ${merged.stakeholder}, status = ${merged.status}, jira_ticket_id = ${merged.jiraTicketId}
+      SET name = ${merged.name}, stakeholder = ${merged.stakeholder}, status = ${merged.status}, jira_ticket_id = ${merged.jiraTicketId},
+          priority = ${merged.priority}, enterprise_analyst = ${merged.enterpriseAnalyst}, comments = ${merged.comments},
+          notes = ${merged.notes}, worklist_status = ${merged.worklistStatus}
       WHERE id = ${subscriptionId}
-      RETURNING id, name, division_id, analyst_id, stakeholder, status, jira_ticket_id, last_touched_date, created_date
+      RETURNING id, name, division_id, analyst_id, stakeholder, status, jira_ticket_id, last_touched_date, created_date,
+                priority, enterprise_analyst, comments, notes, worklist_status
     `;
 
     return NextResponse.json(mapReportSubscriptionRow(rows[0]));

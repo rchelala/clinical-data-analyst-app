@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Loader2, ClipboardPlus, ArrowLeft, Home, FolderPlus, ClipboardList } from "lucide-react";
+import { Loader2, ClipboardPlus, ArrowLeft, Home, FolderPlus, ClipboardList, ListTodo } from "lucide-react";
 import { AnalystSelector } from "@/components/brain/AnalystSelector";
 import { SolarSystemView, DivisionNode } from "@/components/brain/SolarSystemView";
 import { PlanetView } from "@/components/brain/PlanetView";
@@ -10,6 +10,7 @@ import { GalaxyCanvas } from "@/components/brain/GalaxyCanvas";
 import { GalaxyView } from "@/components/brain/GalaxyView";
 import { Breadcrumb } from "@/components/brain/Breadcrumb";
 import { RequestSidePanel, RequestSidePanelEntity } from "@/components/brain/RequestSidePanel";
+import { DivisionTasksPanel } from "@/components/brain/DivisionTasksPanel";
 import { AddRequestForm } from "@/components/brain/AddRequestForm";
 import { AddEntityForm } from "@/components/brain/AddEntityForm";
 import { AddDivisionForm } from "@/components/brain/AddDivisionForm";
@@ -48,6 +49,7 @@ export default function BrainPage() {
   const [showAddRequestForm, setShowAddRequestForm] = useState(false);
   const [showAddEntityForm, setShowAddEntityForm] = useState(false);
   const [showAddDivisionForm, setShowAddDivisionForm] = useState(false);
+  const [showDivisionTasks, setShowDivisionTasks] = useState(false);
   // Bumping this re-runs the unscoped "all" fetch below, letting us refresh
   // urgency/counts after a new request is created.
   const [refreshKey, setRefreshKey] = useState(0);
@@ -262,6 +264,7 @@ export default function BrainPage() {
   // GalaxyCanvas's onBackgroundClick (clicking empty canvas), so there's a
   // single source of truth for "what's one level up from here."
   const handleZoomOut = useCallback(() => {
+    setShowDivisionTasks(false);
     setZoom((current) => {
       if (current.level === "division") {
         return { level: "analyst", analystId: current.analystId };
@@ -328,6 +331,15 @@ export default function BrainPage() {
             <ArrowLeft className="w-3 h-3" />
             Back
           </button>
+          {zoom.level === "division" && selectedDivision && (
+            <button
+              onClick={() => setShowDivisionTasks(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            >
+              <ListTodo className="w-3 h-3" />
+              Division Tasks
+            </button>
+          )}
         </div>
 
         <div className="flex items-center gap-3">
@@ -499,6 +511,14 @@ export default function BrainPage() {
             setRefreshKey((k) => k + 1);
           }}
           onCancel={() => setShowAddEntityForm(false)}
+        />
+      )}
+
+      {showDivisionTasks && selectedDivision && (
+        <DivisionTasksPanel
+          divisionId={selectedDivision.id}
+          divisionName={selectedDivision.name}
+          onClose={() => setShowDivisionTasks(false)}
         />
       )}
     </div>

@@ -211,16 +211,16 @@ export function RequestSidePanel({
     };
   }, [entity?.kind, entity?.id]);
 
-  // Fetches this dashboard's tasks (across all assignees) so the dashboard
-  // owner can see what others are doing on it. Mirrors the requests-fetch
-  // effect's cancellation pattern. Only applicable to dashboards — report
-  // subscriptions don't have tasks.
+  // Fetches this entity's tasks (across all assignees) so the dashboard/
+  // subscription owner can see what others are doing on it. Mirrors the
+  // requests-fetch effect's cancellation pattern. Applicable to both
+  // dashboards and subscriptions (divisions have their own panel).
   useEffect(() => {
-    if (!entity || entity.kind !== "dashboard") {
+    if (!entity || (entity.kind !== "dashboard" && entity.kind !== "subscription")) {
       setTasks([]);
       return;
     }
-    const { id } = entity;
+    const { kind, id } = entity;
 
     let cancelled = false;
     setTasksLoading(true);
@@ -228,7 +228,8 @@ export function RequestSidePanel({
 
     (async () => {
       try {
-        const res = await fetch(`/api/tasks?dashboardId=${id}`);
+        const queryParam = kind === "dashboard" ? `dashboardId=${id}` : `subscriptionId=${id}`;
+        const res = await fetch(`/api/tasks?${queryParam}`);
         const data = await res.json();
         if (cancelled) return;
 
@@ -547,7 +548,7 @@ export function RequestSidePanel({
         )}
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
-          {entity.kind === "dashboard" && (
+          {(entity.kind === "dashboard" || entity.kind === "subscription") && (
             <div className="mb-4 pb-4 border-b border-theme">
               <div className="flex items-center gap-1.5 mb-2">
                 <ListTodo className="w-3.5 h-3.5 text-secondary" />

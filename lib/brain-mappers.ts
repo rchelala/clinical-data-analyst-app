@@ -36,6 +36,7 @@ export function mapDashboardRow(row: any): Dashboard {
     comments: row.comments,
     notes: row.notes,
     worklistStatus: row.worklist_status,
+    summary: row.summary,
   };
 }
 
@@ -55,6 +56,7 @@ export function mapReportSubscriptionRow(row: any): ReportSubscription {
     comments: row.comments,
     notes: row.notes,
     worklistStatus: row.worklist_status,
+    summary: row.summary,
   };
 }
 
@@ -125,6 +127,7 @@ export function mapPsqRow(row: any): Psq {
     comments: row.comments,
     notes: row.notes,
     enterpriseAnalyst: row.enterprise_analyst,
+    summary: row.summary,
     createdDate: row.created_date,
     lastTouchedDate: row.last_touched_date,
   };

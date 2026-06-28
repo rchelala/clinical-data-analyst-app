@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   Home,
   FileText,
+  ChevronDown,
   ChevronRight,
   Plus,
   X,
@@ -71,7 +72,8 @@ export default function WorklistPage() {
   const [dashboards, setDashboards] = useState<WorklistDashboardItem[]>([]);
   const [dashboardsLoading, setDashboardsLoading] = useState(true);
   const [dashboardsError, setDashboardsError] = useState<string | null>(null);
-  const [sortByPriority, setSortByPriority] = useState(false);
+  const [sortByPriority, setSortByPriority] = useState(true);
+  const [dashboardsExpanded, setDashboardsExpanded] = useState(true);
   const [expandedDashboardId, setExpandedDashboardId] = useState<number | null>(null);
   const [tasksByDashboard, setTasksByDashboard] = useState<Record<number, Task[]>>({});
   const [tasksLoading, setTasksLoading] = useState<Record<number, boolean>>({});
@@ -364,7 +366,7 @@ export default function WorklistPage() {
       const res = await fetch("/api/psqs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ analystId, name: "", year: new Date().getFullYear() }),
+        body: JSON.stringify({ analystId, name: "", year: new Date().getFullYear(), summary: null }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -551,6 +553,18 @@ export default function WorklistPage() {
             {/* My Dashboards */}
             <section className="mt-6">
               <div className="flex items-center gap-3 mb-2.5">
+                <button
+                  type="button"
+                  onClick={() => setDashboardsExpanded((e) => !e)}
+                  className="text-secondary hover:text-primary transition-colors"
+                  aria-label={dashboardsExpanded ? "Collapse My Dashboards" : "Expand My Dashboards"}
+                >
+                  {dashboardsExpanded ? (
+                    <ChevronDown className="w-4 h-4" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4" />
+                  )}
+                </button>
                 <h2 className="text-sm font-semibold text-primary">My Dashboards</h2>
                 <span className="text-xs text-secondary bg-panel border border-theme rounded-full px-2 py-0.5">
                   {dashboards.length} dashboard{dashboards.length === 1 ? "" : "s"}
@@ -576,7 +590,7 @@ export default function WorklistPage() {
                 </button>
               </div>
 
-              <div className="rounded-lg border border-theme bg-panel overflow-hidden">
+              <div className={`rounded-lg border border-theme bg-panel overflow-hidden ${dashboardsExpanded ? "" : "hidden"}`}>
                 {dashboardsLoading && (
                   <div className="flex items-center justify-center py-10">
                     <Loader2 className="w-5 h-5 text-brand-500 animate-spin" />
@@ -597,7 +611,7 @@ export default function WorklistPage() {
                   <table className="w-full border-collapse">
                     <thead>
                       <tr className="bg-secondary-glass border-b border-theme">
-                        {["Priority", "Dashboard", "Tasks", "Status", "Enterprise Analyst", "Comments", "Notes", ""].map(
+                        {["Priority", "Dashboard", "Tasks", "Status", "Enterprise Analyst", "Comments", "Notes", "Summary", ""].map(
                           (h) => (
                             <th
                               key={h}
@@ -671,6 +685,12 @@ export default function WorklistPage() {
                                 />
                               </td>
                               <td className="px-3 py-2.5">
+                                <EditableCell
+                                  value={d.summary}
+                                  onSave={(value) => patchDashboard(d.id, { summary: value })}
+                                />
+                              </td>
+                              <td className="px-3 py-2.5">
                                 <button
                                   type="button"
                                   onClick={() => handleRemoveFromWorklist(d.id)}
@@ -683,7 +703,7 @@ export default function WorklistPage() {
                             </tr>
                             {isOpen && (
                               <tr className="bg-black/20 border-b border-theme/60">
-                                <td colSpan={8} className="px-3 py-3 pl-10">
+                                <td colSpan={9} className="px-3 py-3 pl-10">
                                   <div className="flex items-center justify-between mb-2">
                                     <span className="text-[11px] uppercase tracking-wide text-secondary font-medium">
                                       Tasks — {d.name}
@@ -840,7 +860,7 @@ export default function WorklistPage() {
                   <table className="w-full border-collapse">
                     <thead>
                       <tr className="bg-secondary-glass border-b border-theme">
-                        {["Status", "Year", "Division", "PSQ", "Tasks", "Comments", "Enterprise Analyst", "Notes"].map(
+                        {["Status", "Year", "Division", "PSQ", "Tasks", "Comments", "Enterprise Analyst", "Notes", "Summary"].map(
                           (h) => (
                             <th
                               key={h}
@@ -911,6 +931,9 @@ export default function WorklistPage() {
                           </td>
                           <td className="px-3 py-2.5">
                             <EditableCell value={p.notes} onSave={(value) => patchPsq(p.id, { notes: value })} />
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <EditableCell value={p.summary} onSave={(value) => patchPsq(p.id, { summary: value })} />
                           </td>
                         </tr>
                       ))}

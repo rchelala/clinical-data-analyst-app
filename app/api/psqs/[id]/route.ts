@@ -22,8 +22,9 @@ export async function PATCH(
       comments?: string | null;
       notes?: string | null;
       enterpriseAnalyst?: string | null;
+      summary?: string | null;
     };
-    const { name, divisionId, year, status, tasks, comments, notes, enterpriseAnalyst } = body;
+    const { name, divisionId, year, status, tasks, comments, notes, enterpriseAnalyst, summary } = body;
 
     if (
       name === undefined &&
@@ -33,7 +34,8 @@ export async function PATCH(
       tasks === undefined &&
       comments === undefined &&
       notes === undefined &&
-      enterpriseAnalyst === undefined
+      enterpriseAnalyst === undefined &&
+      summary === undefined
     ) {
       return NextResponse.json(
         { error: 'At least one field must be provided.' },
@@ -46,7 +48,7 @@ export async function PATCH(
     }
 
     const current = await sql`
-      SELECT id, analyst_id, division_id, year, name, status, tasks, comments, notes, enterprise_analyst, created_date, last_touched_date
+      SELECT id, analyst_id, division_id, year, name, status, tasks, comments, notes, enterprise_analyst, summary, created_date, last_touched_date
       FROM psqs
       WHERE id = ${psqId}
     `;
@@ -64,16 +66,17 @@ export async function PATCH(
       comments: comments !== undefined ? comments : current[0].comments,
       notes: notes !== undefined ? notes : current[0].notes,
       enterpriseAnalyst: enterpriseAnalyst !== undefined ? enterpriseAnalyst : current[0].enterprise_analyst,
+      summary: summary !== undefined ? summary : current[0].summary,
     };
 
     const rows = await sql`
       UPDATE psqs
       SET name = ${merged.name}, division_id = ${merged.divisionId}, year = ${merged.year},
           status = ${merged.status}, tasks = ${merged.tasks}, comments = ${merged.comments},
-          notes = ${merged.notes}, enterprise_analyst = ${merged.enterpriseAnalyst},
+          notes = ${merged.notes}, enterprise_analyst = ${merged.enterpriseAnalyst}, summary = ${merged.summary},
           last_touched_date = CURRENT_DATE
       WHERE id = ${psqId}
-      RETURNING id, analyst_id, division_id, year, name, status, tasks, comments, notes, enterprise_analyst, created_date, last_touched_date
+      RETURNING id, analyst_id, division_id, year, name, status, tasks, comments, notes, enterprise_analyst, summary, created_date, last_touched_date
     `;
 
     return NextResponse.json(mapPsqRow(rows[0]));

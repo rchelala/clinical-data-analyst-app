@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     }
 
     const rows = await sql`
-      SELECT id, analyst_id, division_id, year, name, status, tasks, comments, notes, enterprise_analyst, created_date, last_touched_date
+      SELECT id, analyst_id, division_id, year, name, status, tasks, comments, notes, enterprise_analyst, summary, created_date, last_touched_date
       FROM psqs
       WHERE analyst_id = ${analystId}
       ORDER BY year DESC NULLS LAST, name
@@ -41,9 +41,10 @@ export async function POST(req: NextRequest) {
       comments?: string;
       notes?: string;
       enterpriseAnalyst?: string;
+      summary?: string;
     };
 
-    const { analystId, name, divisionId, year, status, tasks, comments, notes, enterpriseAnalyst } = body;
+    const { analystId, name, divisionId, year, status, tasks, comments, notes, enterpriseAnalyst, summary } = body;
 
     if (analystId === undefined || analystId === null) {
       return NextResponse.json(
@@ -60,9 +61,9 @@ export async function POST(req: NextRequest) {
     }
 
     const rows = await sql`
-      INSERT INTO psqs (analyst_id, division_id, year, name, status, tasks, comments, notes, enterprise_analyst)
-      VALUES (${analystId}, ${divisionId ?? null}, ${year ?? null}, ${name}, ${status ?? null}, ${tasks ?? null}, ${comments ?? null}, ${notes ?? null}, ${enterpriseAnalyst ?? null})
-      RETURNING id, analyst_id, division_id, year, name, status, tasks, comments, notes, enterprise_analyst, created_date, last_touched_date
+      INSERT INTO psqs (analyst_id, division_id, year, name, status, tasks, comments, notes, enterprise_analyst, summary)
+      VALUES (${analystId}, ${divisionId ?? null}, ${year ?? null}, ${name}, ${status ?? null}, ${tasks ?? null}, ${comments ?? null}, ${notes ?? null}, ${enterpriseAnalyst ?? null}, ${summary ?? null})
+      RETURNING id, analyst_id, division_id, year, name, status, tasks, comments, notes, enterprise_analyst, summary, created_date, last_touched_date
     `;
 
     return NextResponse.json(mapPsqRow(rows[0]), { status: 201 });

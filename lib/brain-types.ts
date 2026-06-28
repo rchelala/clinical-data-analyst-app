@@ -42,6 +42,7 @@ export interface Dashboard {
   comments: string | null;
   notes: string | null;
   worklistStatus: string | null;
+  summary: string | null;
 }
 
 export interface DashboardWithUrgency extends Dashboard {
@@ -67,6 +68,7 @@ export interface ReportSubscription {
   comments: string | null;
   notes: string | null;
   worklistStatus: string | null;
+  summary: string | null;
 }
 
 export interface ReportSubscriptionWithUrgency extends ReportSubscription {
@@ -146,6 +148,7 @@ export interface Psq {
   comments: string | null;
   notes: string | null;
   enterpriseAnalyst: string | null;
+  summary: string | null;
   createdDate: string;
   lastTouchedDate: string;
 }

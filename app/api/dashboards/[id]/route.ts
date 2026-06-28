@@ -38,6 +38,7 @@ export async function PATCH(
       comments?: string | null;
       notes?: string | null;
       worklistStatus?: string | null;
+      summary?: string | null;
     };
     const { name, status } = body;
     const stakeholder = normalizeNullableString(body.stakeholder);
@@ -47,6 +48,7 @@ export async function PATCH(
     const comments = normalizeNullableString(body.comments);
     const notes = normalizeNullableString(body.notes);
     const worklistStatus = normalizeNullableString(body.worklistStatus);
+    const summary = normalizeNullableString(body.summary);
 
     if (
       name === undefined &&
@@ -57,7 +59,8 @@ export async function PATCH(
       enterpriseAnalyst === undefined &&
       comments === undefined &&
       notes === undefined &&
-      worklistStatus === undefined
+      worklistStatus === undefined &&
+      summary === undefined
     ) {
       return NextResponse.json(
         { error: 'At least one field must be provided.' },
@@ -77,7 +80,7 @@ export async function PATCH(
     }
 
     const current = await sql`
-      SELECT id, name, stakeholder, status, jira_ticket_id, priority, enterprise_analyst, comments, notes, worklist_status
+      SELECT id, name, stakeholder, status, jira_ticket_id, priority, enterprise_analyst, comments, notes, worklist_status, summary
       FROM dashboards
       WHERE id = ${dashboardId}
     `;
@@ -98,6 +101,7 @@ export async function PATCH(
       comments: comments !== undefined ? comments : current[0].comments,
       notes: notes !== undefined ? notes : current[0].notes,
       worklistStatus: worklistStatus !== undefined ? worklistStatus : current[0].worklist_status,
+      summary: summary !== undefined ? summary : current[0].summary,
     };
 
     // last_touched_date intentionally untouched here: it drives the
@@ -108,10 +112,10 @@ export async function PATCH(
       UPDATE dashboards
       SET name = ${merged.name}, stakeholder = ${merged.stakeholder}, status = ${merged.status}, jira_ticket_id = ${merged.jiraTicketId},
           priority = ${merged.priority}, enterprise_analyst = ${merged.enterpriseAnalyst}, comments = ${merged.comments},
-          notes = ${merged.notes}, worklist_status = ${merged.worklistStatus}
+          notes = ${merged.notes}, worklist_status = ${merged.worklistStatus}, summary = ${merged.summary}
       WHERE id = ${dashboardId}
       RETURNING id, name, division_id, analyst_id, stakeholder, status, jira_ticket_id, last_touched_date, created_date,
-                priority, enterprise_analyst, comments, notes, worklist_status
+                priority, enterprise_analyst, comments, notes, worklist_status, summary
     `;
 
     return NextResponse.json(mapDashboardRow(rows[0]));

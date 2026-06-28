@@ -29,7 +29,8 @@ CREATE TABLE dashboards (
    comments           text,
    notes              text,
    -- free-form worklist work-status, separate from the status lifecycle enum above
-   worklist_status    text
+   worklist_status    text,
+   summary            text
 );
 
 -- status: 'active' | 'maintenance' | 'retired' (not enforced by a DB enum/check constraint, documented only)
@@ -48,7 +49,8 @@ CREATE TABLE report_subscriptions (
    comments           text,
    notes              text,
    -- free-form worklist work-status, separate from the status lifecycle enum above
-   worklist_status    text
+   worklist_status    text,
+   summary            text
 );
 
 -- request_type: 'feature' | 'bug' | 'field_request'; status: 'open' | 'in_progress' | 'done' (not enforced by a DB enum/check constraint, documented only)
@@ -112,6 +114,7 @@ CREATE TABLE psqs (
    comments           text,
    notes              text,
    enterprise_analyst text,
+   summary            text,
    created_date       date NOT NULL DEFAULT CURRENT_DATE,
    last_touched_date  date NOT NULL DEFAULT CURRENT_DATE
 );

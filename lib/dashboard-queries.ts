@@ -28,6 +28,7 @@ export async function fetchDashboardRowsWithStaleness(analystId?: number) {
           d.comments,
           d.notes,
           d.worklist_status,
+          d.summary,
           COALESCE(agg.open_request_count, 0) AS open_request_count,
           (CURRENT_DATE - d.last_touched_date) AS days_stale,
           COALESCE(agg.oldest_open_request_age_days, 0) AS oldest_open_request_age_days
@@ -59,6 +60,7 @@ export async function fetchDashboardRowsWithStaleness(analystId?: number) {
           d.comments,
           d.notes,
           d.worklist_status,
+          d.summary,
           COALESCE(agg.open_request_count, 0) AS open_request_count,
           (CURRENT_DATE - d.last_touched_date) AS days_stale,
           COALESCE(agg.oldest_open_request_age_days, 0) AS oldest_open_request_age_days
@@ -96,6 +98,7 @@ export async function fetchSubscriptionRowsWithStaleness(analystId?: number) {
           s.comments,
           s.notes,
           s.worklist_status,
+          s.summary,
           COALESCE(agg.open_request_count, 0) AS open_request_count,
           (CURRENT_DATE - s.last_touched_date) AS days_stale,
           COALESCE(agg.oldest_open_request_age_days, 0) AS oldest_open_request_age_days
@@ -127,6 +130,7 @@ export async function fetchSubscriptionRowsWithStaleness(analystId?: number) {
           s.comments,
           s.notes,
           s.worklist_status,
+          s.summary,
           COALESCE(agg.open_request_count, 0) AS open_request_count,
           (CURRENT_DATE - s.last_touched_date) AS days_stale,
           COALESCE(agg.oldest_open_request_age_days, 0) AS oldest_open_request_age_days

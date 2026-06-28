@@ -433,6 +433,24 @@ export default function WorklistPage() {
     [analystId, expandedDashboardId]
   );
 
+  // PSQs are worklist-only (no Brain representation), so deleting a row removes
+  // the PSQ itself; its tasks cascade. Confirm first since it's destructive.
+  const handleDeletePsq = useCallback(
+    async (psqId: number) => {
+      if (!window.confirm("Delete this PSQ and its tasks? This cannot be undone.")) return;
+      try {
+        const res = await fetch(`/api/psqs/${psqId}`, { method: "DELETE" });
+        if (res.ok) {
+          setPsqs((prev) => prev.filter((p) => p.id !== psqId));
+          if (expandedPsqId === psqId) setExpandedPsqId(null);
+        }
+      } catch {
+        // Non-critical
+      }
+    },
+    [expandedPsqId]
+  );
+
   const handleAddPsq = useCallback(async () => {
     if (analystId === null) return;
     try {
@@ -995,6 +1013,7 @@ export default function WorklistPage() {
                             {h}
                           </th>
                         ))}
+                        <th key="actions" className="px-3 py-2 w-8" />
                       </tr>
                     </thead>
                     <tbody>
@@ -1094,10 +1113,20 @@ export default function WorklistPage() {
                                   onSave={(value) => patchPsq(p.id, { summary: value })}
                                 />
                               </td>
+                              <td className="px-3 py-2.5 text-right">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeletePsq(p.id)}
+                                  title="Delete PSQ"
+                                  className="text-secondary hover:text-red-500 transition-colors"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </td>
                             </tr>
                             {isPsqOpen && (
                               <tr className="bg-black/20 border-b border-theme/60">
-                                <td colSpan={10} className="px-3 py-3 pl-10">
+                                <td colSpan={11} className="px-3 py-3 pl-10">
                                   <div className="flex items-center justify-between mb-2">
                                     <span className="text-[11px] uppercase tracking-wide text-secondary font-medium">
                                       Tasks — {p.name}

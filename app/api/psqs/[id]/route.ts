@@ -23,8 +23,9 @@ export async function PATCH(
       notes?: string | null;
       enterpriseAnalyst?: string | null;
       summary?: string | null;
+      dashboardId?: number | null;
     };
-    const { name, divisionId, year, status, tasks, comments, notes, enterpriseAnalyst, summary } = body;
+    const { name, divisionId, year, status, tasks, comments, notes, enterpriseAnalyst, summary, dashboardId } = body;
 
     if (
       name === undefined &&
@@ -35,7 +36,8 @@ export async function PATCH(
       comments === undefined &&
       notes === undefined &&
       enterpriseAnalyst === undefined &&
-      summary === undefined
+      summary === undefined &&
+      dashboardId === undefined
     ) {
       return NextResponse.json(
         { error: 'At least one field must be provided.' },
@@ -48,7 +50,7 @@ export async function PATCH(
     }
 
     const current = await sql`
-      SELECT id, analyst_id, division_id, year, name, status, tasks, comments, notes, enterprise_analyst, summary, created_date, last_touched_date
+      SELECT id, analyst_id, division_id, year, name, status, tasks, comments, notes, enterprise_analyst, summary, created_date, last_touched_date, dashboard_id
       FROM psqs
       WHERE id = ${psqId}
     `;
@@ -67,6 +69,7 @@ export async function PATCH(
       notes: notes !== undefined ? notes : current[0].notes,
       enterpriseAnalyst: enterpriseAnalyst !== undefined ? enterpriseAnalyst : current[0].enterprise_analyst,
       summary: summary !== undefined ? summary : current[0].summary,
+      dashboardId: dashboardId !== undefined ? dashboardId : current[0].dashboard_id,
     };
 
     const rows = await sql`
@@ -74,9 +77,10 @@ export async function PATCH(
       SET name = ${merged.name}, division_id = ${merged.divisionId}, year = ${merged.year},
           status = ${merged.status}, tasks = ${merged.tasks}, comments = ${merged.comments},
           notes = ${merged.notes}, enterprise_analyst = ${merged.enterpriseAnalyst}, summary = ${merged.summary},
+          dashboard_id = ${merged.dashboardId},
           last_touched_date = CURRENT_DATE
       WHERE id = ${psqId}
-      RETURNING id, analyst_id, division_id, year, name, status, tasks, comments, notes, enterprise_analyst, summary, created_date, last_touched_date
+      RETURNING id, analyst_id, division_id, year, name, status, tasks, comments, notes, enterprise_analyst, summary, created_date, last_touched_date, dashboard_id
     `;
 
     return NextResponse.json(mapPsqRow(rows[0]));
@@ -84,7 +88,7 @@ export async function PATCH(
     console.error('Update psq error:', err);
     if (err && typeof err === 'object' && 'code' in err && (err as { code?: string }).code === '23503') {
       return NextResponse.json(
-        { error: 'Referenced divisionId does not exist' },
+        { error: 'Referenced divisionId/dashboardId does not exist' },
         { status: 400 }
       );
     }

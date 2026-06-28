@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
-import { mapPsqRow } from '@/lib/brain-mappers';
+import { mapPsqRow, mapPsqWithTaskCountRow } from '@/lib/brain-mappers';
 
 export async function GET(req: NextRequest) {
   try {
@@ -15,13 +15,20 @@ export async function GET(req: NextRequest) {
     }
 
     const rows = await sql`
-      SELECT id, analyst_id, division_id, year, name, status, tasks, comments, notes, enterprise_analyst, summary, created_date, last_touched_date
-      FROM psqs
-      WHERE analyst_id = ${analystId}
-      ORDER BY year DESC NULLS LAST, name
+      SELECT p.id, p.analyst_id, p.division_id, p.year, p.name, p.status, p.tasks, p.comments, p.notes, p.enterprise_analyst, p.summary, p.created_date, p.last_touched_date, p.dashboard_id,
+             COALESCE(tc.active_task_count, 0) AS active_task_count
+      FROM psqs p
+      LEFT JOIN (
+        SELECT psq_id, COUNT(*) AS active_task_count
+        FROM tasks
+        WHERE owner_analyst_id = ${analystId} AND status <> 'done'
+        GROUP BY psq_id
+      ) tc ON tc.psq_id = p.id
+      WHERE p.analyst_id = ${analystId}
+      ORDER BY p.year DESC NULLS LAST, p.name
     `;
 
-    return NextResponse.json(rows.map(mapPsqRow));
+    return NextResponse.json(rows.map(mapPsqWithTaskCountRow));
   } catch (err: unknown) {
     console.error('List psqs error:', err);
     const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
@@ -42,9 +49,10 @@ export async function POST(req: NextRequest) {
       notes?: string;
       enterpriseAnalyst?: string;
       summary?: string;
+      dashboardId?: number;
     };
 
-    const { analystId, name, divisionId, year, status, tasks, comments, notes, enterpriseAnalyst, summary } = body;
+    const { analystId, name, divisionId, year, status, tasks, comments, notes, enterpriseAnalyst, summary, dashboardId } = body;
 
     if (analystId === undefined || analystId === null) {
       return NextResponse.json(
@@ -61,9 +69,9 @@ export async function POST(req: NextRequest) {
     }
 
     const rows = await sql`
-      INSERT INTO psqs (analyst_id, division_id, year, name, status, tasks, comments, notes, enterprise_analyst, summary)
-      VALUES (${analystId}, ${divisionId ?? null}, ${year ?? null}, ${name}, ${status ?? null}, ${tasks ?? null}, ${comments ?? null}, ${notes ?? null}, ${enterpriseAnalyst ?? null}, ${summary ?? null})
-      RETURNING id, analyst_id, division_id, year, name, status, tasks, comments, notes, enterprise_analyst, summary, created_date, last_touched_date
+      INSERT INTO psqs (analyst_id, division_id, year, name, status, tasks, comments, notes, enterprise_analyst, summary, dashboard_id)
+      VALUES (${analystId}, ${divisionId ?? null}, ${year ?? null}, ${name}, ${status ?? null}, ${tasks ?? null}, ${comments ?? null}, ${notes ?? null}, ${enterpriseAnalyst ?? null}, ${summary ?? null}, ${dashboardId ?? null})
+      RETURNING id, analyst_id, division_id, year, name, status, tasks, comments, notes, enterprise_analyst, summary, created_date, last_touched_date, dashboard_id
     `;
 
     return NextResponse.json(mapPsqRow(rows[0]), { status: 201 });

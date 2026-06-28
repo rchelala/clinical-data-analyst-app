@@ -123,6 +123,7 @@ export interface Task {
   dashboardId: number | null;
   subscriptionId: number | null;
   divisionId: number | null;
+  psqId: number | null;
   ownerAnalystId: number | null;
   createdById: number;
   title: string;
@@ -134,7 +135,7 @@ export interface Task {
 }
 
 export interface TaskWithContext extends Task {
-  contextType: 'dashboard' | 'subscription' | 'division';
+  contextType: 'dashboard' | 'subscription' | 'division' | 'psq';
   contextName: string;
   contextOwnerName: string | null;
   ownerName: string | null;
@@ -154,6 +155,11 @@ export interface Psq {
   summary: string | null;
   createdDate: string;
   lastTouchedDate: string;
+  dashboardId: number | null;
+}
+
+export interface PsqWithTaskCount extends Psq {
+  activeTaskCount: number;
 }
 
 export interface WorklistDashboard {

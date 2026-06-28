@@ -2,7 +2,7 @@
 // Dashboard Brain module. Centralized here because multiple routes map
 // dashboards and/or requests.
 
-import { Analyst, Dashboard, Division, Request, RequestWithCreator, ReportSubscription, Tag, Task, TaskWithContext, Psq, WorklistDashboard, WeeklyNote } from '@/lib/brain-types';
+import { Analyst, Dashboard, Division, Request, RequestWithCreator, ReportSubscription, Tag, Task, TaskWithContext, Psq, PsqWithTaskCount, WorklistDashboard, WeeklyNote } from '@/lib/brain-types';
 
 export function mapAnalystRow(row: any): Analyst {
   return {
@@ -97,6 +97,7 @@ export function mapTaskRow(row: any): Task {
     dashboardId: row.dashboard_id,
     subscriptionId: row.subscription_id,
     divisionId: row.division_id,
+    psqId: row.psq_id,
     ownerAnalystId: row.owner_analyst_id,
     createdById: row.created_by_id,
     title: row.title,
@@ -133,6 +134,14 @@ export function mapPsqRow(row: any): Psq {
     summary: row.summary,
     createdDate: row.created_date,
     lastTouchedDate: row.last_touched_date,
+    dashboardId: row.dashboard_id,
+  };
+}
+
+export function mapPsqWithTaskCountRow(row: any): PsqWithTaskCount {
+  return {
+    ...mapPsqRow(row),
+    activeTaskCount: row.active_task_count,
   };
 }
 

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Loader2, ClipboardPlus, ArrowLeft, Home, FolderPlus } from "lucide-react";
+import { Loader2, ClipboardPlus, ArrowLeft, Home, FolderPlus, ClipboardList } from "lucide-react";
 import { AnalystSelector } from "@/components/brain/AnalystSelector";
 import { SolarSystemView, DivisionNode } from "@/components/brain/SolarSystemView";
 import { PlanetView } from "@/components/brain/PlanetView";
@@ -301,6 +301,13 @@ export default function BrainPage() {
           >
             <Home className="w-3 h-3" />
             Home
+          </Link>
+          <Link
+            href="/worklist"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+          >
+            <ClipboardList className="w-3 h-3" />
+            Worklist
           </Link>
           <div>
             <h1 className="text-base font-semibold text-primary leading-none">

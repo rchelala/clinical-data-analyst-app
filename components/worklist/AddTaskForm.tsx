@@ -1,27 +1,36 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { ClipboardPlus } from "lucide-react";
 import { Analyst } from "@/lib/brain-types";
 import { StatusPrioritySelect } from "@/components/worklist/StatusPrioritySelect";
 
 interface AddTaskFormProps {
-  dashboardId: number;
   currentAnalystId: number;
   statusSuggestions: string[];
   prioritySuggestions: string[];
   onCreated: () => void;
   onCancel: () => void;
+  lockedDashboardId?: number; // when set, target is locked to this dashboard, picker not interactive
+}
+
+type TargetType = "dashboard" | "subscription" | "division";
+
+interface TargetOption {
+  id: number;
+  name: string;
 }
 
 export function AddTaskForm({
-  dashboardId,
   currentAnalystId,
   statusSuggestions,
   prioritySuggestions,
   onCreated,
   onCancel,
+  lockedDashboardId,
 }: AddTaskFormProps) {
+  const isLocked = lockedDashboardId !== undefined;
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState("open");
@@ -30,6 +39,19 @@ export function AddTaskForm({
   const [analysts, setAnalysts] = useState<Analyst[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [targetType, setTargetType] = useState<TargetType>("dashboard");
+  const [targetId, setTargetId] = useState<number | null>(isLocked ? lockedDashboardId! : null);
+  const [optionsByType, setOptionsByType] = useState<Record<TargetType, TargetOption[] | undefined>>({
+    dashboard: undefined,
+    subscription: undefined,
+    division: undefined,
+  });
+  const [optionsLoading, setOptionsLoading] = useState<Record<TargetType, boolean>>({
+    dashboard: false,
+    subscription: false,
+    division: false,
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -47,6 +69,62 @@ export function AddTaskForm({
     };
   }, []);
 
+  const fetchOptionsFor = useCallback(
+    async (type: TargetType) => {
+      setOptionsLoading((prev) => ({ ...prev, [type]: true }));
+      try {
+        let url: string;
+        let headers: Record<string, string> | undefined;
+        if (type === "dashboard") {
+          url = "/api/dashboards";
+          headers = { "x-analyst-id": String(currentAnalystId) };
+        } else if (type === "subscription") {
+          url = "/api/report-subscriptions";
+          headers = { "x-analyst-id": String(currentAnalystId) };
+        } else {
+          url = "/api/divisions";
+        }
+        const res = await fetch(url, headers ? { headers } : undefined);
+        const data = await res.json();
+        if (res.ok) {
+          setOptionsByType((prev) => ({ ...prev, [type]: data }));
+        }
+      } catch {
+        // Non-critical; dropdown will just be empty.
+      } finally {
+        setOptionsLoading((prev) => ({ ...prev, [type]: false }));
+      }
+    },
+    [currentAnalystId]
+  );
+
+  // When locked, fetch the dashboard list once to resolve the dashboard's
+  // display name (falls back to showing nothing extra if not found).
+  useEffect(() => {
+    if (isLocked && optionsByType.dashboard === undefined) {
+      fetchOptionsFor("dashboard");
+    }
+  }, [isLocked, optionsByType.dashboard, fetchOptionsFor]);
+
+  const lockedDashboardName = useMemo(() => {
+    if (!isLocked) return null;
+    const list = optionsByType.dashboard;
+    if (!list) return null;
+    return list.find((d) => d.id === lockedDashboardId)?.name ?? null;
+  }, [isLocked, optionsByType.dashboard, lockedDashboardId]);
+
+  const handleSelectTargetType = useCallback(
+    (type: TargetType) => {
+      if (isLocked) return;
+      setTargetType(type);
+      setTargetId(null);
+      if (optionsByType[type] === undefined) {
+        fetchOptionsFor(type);
+      }
+    },
+    [isLocked, optionsByType, fetchOptionsFor]
+  );
+
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
@@ -57,22 +135,31 @@ export function AddTaskForm({
         return;
       }
 
+      if (targetId === null) {
+        setError("Please select a target.");
+        return;
+      }
+
       setSubmitting(true);
       try {
+        const body: Record<string, unknown> = {
+          title: title.trim(),
+          description: description.trim() ? description.trim() : undefined,
+          status,
+          priority: priority ?? undefined,
+          ownerAnalystId,
+        };
+        if (targetType === "dashboard") body.dashboardId = targetId;
+        else if (targetType === "subscription") body.subscriptionId = targetId;
+        else body.divisionId = targetId;
+
         const res = await fetch("/api/tasks", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "x-analyst-id": String(currentAnalystId),
           },
-          body: JSON.stringify({
-            dashboardId,
-            title: title.trim(),
-            description: description.trim() ? description.trim() : undefined,
-            status,
-            priority: priority ?? undefined,
-            ownerAnalystId,
-          }),
+          body: JSON.stringify(body),
         });
         const data = await res.json();
 
@@ -88,8 +175,11 @@ export function AddTaskForm({
         setSubmitting(false);
       }
     },
-    [title, description, status, priority, ownerAnalystId, dashboardId, currentAnalystId, onCreated]
+    [title, description, status, priority, ownerAnalystId, targetType, targetId, currentAnalystId, onCreated]
   );
+
+  const currentOptions = optionsByType[targetType];
+  const currentLoading = optionsLoading[targetType];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
@@ -100,11 +190,62 @@ export function AddTaskForm({
           </div>
           <div>
             <h2 className="text-sm font-semibold text-primary leading-none">Add task</h2>
-            <p className="text-xs text-secondary mt-0.5">Add a new task to this dashboard.</p>
+            <p className="text-xs text-secondary mt-0.5">
+              {isLocked ? "Add a new task to this dashboard." : "Add a new task."}
+            </p>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="px-5 py-4 flex flex-col gap-4">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-secondary">Target</label>
+            {isLocked ? (
+              <div className="text-sm text-primary px-3 py-2 rounded-md border border-theme bg-secondary-glass">
+                Dashboard: {lockedDashboardName ?? lockedDashboardId}
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-1.5">
+                  {(
+                    [
+                      { type: "dashboard" as const, label: "Dashboard" },
+                      { type: "subscription" as const, label: "Report Subscription" },
+                      { type: "division" as const, label: "Division" },
+                    ]
+                  ).map(({ type, label }) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => handleSelectTargetType(type)}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                        targetType === type
+                          ? "bg-brand-600 text-white"
+                          : "bg-panel border border-theme text-secondary hover:text-primary"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <select
+                  value={targetId ?? ""}
+                  onChange={(e) => setTargetId(e.target.value ? Number(e.target.value) : null)}
+                  disabled={currentLoading}
+                  className="mt-1 text-sm rounded-md border border-theme px-3 py-2 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer transition-colors disabled:opacity-60"
+                >
+                  <option value="">
+                    {currentLoading ? "Loading…" : "Select…"}
+                  </option>
+                  {(currentOptions ?? []).map((opt) => (
+                    <option key={opt.id} value={opt.id}>
+                      {opt.name}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
+          </div>
+
           <div className="flex flex-col gap-1">
             <label htmlFor="taskTitle" className="text-xs font-medium text-secondary">
               Title <span className="text-red-500">*</span>

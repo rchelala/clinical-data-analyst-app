@@ -15,10 +15,16 @@ export async function GET(req: NextRequest) {
     }
 
     const rows = await sql`
-      SELECT d.*, owner.name AS analyst_name
+      SELECT d.*, owner.name AS analyst_name, COALESCE(tc.active_count, 0) AS active_task_count
       FROM worklist_dashboards w
       JOIN dashboards d ON d.id = w.dashboard_id
       LEFT JOIN analysts owner ON owner.id = d.analyst_id
+      LEFT JOIN (
+        SELECT dashboard_id, COUNT(*) AS active_count
+        FROM tasks
+        WHERE owner_analyst_id = ${analystId} AND status <> 'done' AND dashboard_id IS NOT NULL
+        GROUP BY dashboard_id
+      ) tc ON tc.dashboard_id = d.id
       WHERE w.analyst_id = ${analystId}
       ORDER BY d.priority NULLS LAST, d.name
     `;
@@ -27,6 +33,7 @@ export async function GET(req: NextRequest) {
       ...mapDashboardRow(row),
       ownerName: row.analyst_name,
       isCovering: row.analyst_id !== analystId,
+      activeTaskCount: Number(row.active_task_count),
     }));
 
     return NextResponse.json(result);

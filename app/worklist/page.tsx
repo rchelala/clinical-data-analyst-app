@@ -25,6 +25,7 @@ import { WeeklyUpdateData } from "@/lib/weekly-update";
 interface WorklistDashboardItem extends Dashboard {
   ownerName: string | null;
   isCovering: boolean;
+  activeTaskCount: number;
 }
 
 // Computes the ISO Monday (YYYY-MM-DD) of the week containing `date`.
@@ -73,11 +74,13 @@ export default function WorklistPage() {
   const [dashboardsLoading, setDashboardsLoading] = useState(true);
   const [dashboardsError, setDashboardsError] = useState<string | null>(null);
   const [sortByPriority, setSortByPriority] = useState(true);
+  const [activeOnly, setActiveOnly] = useState(true);
   const [dashboardsExpanded, setDashboardsExpanded] = useState(true);
   const [expandedDashboardId, setExpandedDashboardId] = useState<number | null>(null);
   const [tasksByDashboard, setTasksByDashboard] = useState<Record<number, Task[]>>({});
   const [tasksLoading, setTasksLoading] = useState<Record<number, boolean>>({});
   const [showAddTaskFor, setShowAddTaskFor] = useState<number | null>(null);
+  const [showAddTopLevelTask, setShowAddTopLevelTask] = useState(false);
   const [showAddDashboard, setShowAddDashboard] = useState(false);
 
   // Weekly update drawer
@@ -398,9 +401,10 @@ export default function WorklistPage() {
   }, [dashboards, tasksByDashboard]);
 
   const sortedDashboards = useMemo(() => {
-    if (!sortByPriority) return dashboards;
-    return [...dashboards].sort((a, b) => comparePriority(a.priority, b.priority));
-  }, [dashboards, sortByPriority]);
+    const filtered = activeOnly ? dashboards.filter((d) => d.activeTaskCount > 0) : dashboards;
+    if (!sortByPriority) return filtered;
+    return [...filtered].sort((a, b) => comparePriority(a.priority, b.priority));
+  }, [dashboards, sortByPriority, activeOnly]);
 
   const existingWorklistDashboardIds = useMemo(() => dashboards.map((d) => d.id), [dashboards]);
 
@@ -567,18 +571,37 @@ export default function WorklistPage() {
                 </button>
                 <h2 className="text-sm font-semibold text-primary">My Dashboards</h2>
                 <span className="text-xs text-secondary bg-panel border border-theme rounded-full px-2 py-0.5">
-                  {dashboards.length} dashboard{dashboards.length === 1 ? "" : "s"}
+                  showing {sortedDashboards.length} of {dashboards.length} dashboard{dashboards.length === 1 ? "" : "s"}
                 </span>
                 <button
                   type="button"
-                  onClick={() => setSortByPriority((s) => !s)}
+                  onClick={() => setActiveOnly((a) => !a)}
                   className={`ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border transition-colors ${
+                    activeOnly
+                      ? "text-primary border-brand-500 bg-brand-600/10"
+                      : "border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700"
+                  }`}
+                >
+                  Active only
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSortByPriority((s) => !s)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border transition-colors ${
                     sortByPriority
                       ? "text-primary border-brand-500 bg-brand-600/10"
                       : "border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700"
                   }`}
                 >
                   ↑↓ Sort by priority
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowAddTopLevelTask(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                >
+                  <Plus className="w-3 h-3" />
+                  Task
                 </button>
                 <button
                   type="button"
@@ -809,7 +832,9 @@ export default function WorklistPage() {
                         <div className="flex-1 min-w-0">
                           <div className="text-sm text-primary font-medium">{task.title}</div>
                           <div className="text-xs text-secondary mt-0.5">
-                            {task.contextName}
+                            {task.contextType === "dashboard" && `on dashboard ${task.contextName}`}
+                            {task.contextType === "subscription" && `on subscription ${task.contextName}`}
+                            {task.contextType === "division" && `in division ${task.contextName}`}
                             {task.contextOwnerName ? ` · owned by ${task.contextOwnerName}` : ""}
                           </div>
                         </div>
@@ -948,7 +973,7 @@ export default function WorklistPage() {
 
       {showAddTaskFor !== null && analystId !== null && (
         <AddTaskForm
-          dashboardId={showAddTaskFor}
+          lockedDashboardId={showAddTaskFor}
           currentAnalystId={analystId}
           statusSuggestions={statusSuggestions}
           prioritySuggestions={prioritySuggestions}
@@ -956,8 +981,24 @@ export default function WorklistPage() {
             const dashboardId = showAddTaskFor;
             setShowAddTaskFor(null);
             fetchTasksForDashboard(dashboardId);
+            refetchDashboards();
+            refetchAssigned();
           }}
           onCancel={() => setShowAddTaskFor(null)}
+        />
+      )}
+
+      {showAddTopLevelTask && analystId !== null && (
+        <AddTaskForm
+          currentAnalystId={analystId}
+          statusSuggestions={statusSuggestions}
+          prioritySuggestions={prioritySuggestions}
+          onCreated={() => {
+            setShowAddTopLevelTask(false);
+            refetchDashboards();
+            refetchAssigned();
+          }}
+          onCancel={() => setShowAddTopLevelTask(false)}
         />
       )}
 

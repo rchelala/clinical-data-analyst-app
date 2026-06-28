@@ -95,6 +95,8 @@ export function mapTaskRow(row: any): Task {
   return {
     id: row.id,
     dashboardId: row.dashboard_id,
+    subscriptionId: row.subscription_id,
+    divisionId: row.division_id,
     ownerAnalystId: row.owner_analyst_id,
     createdById: row.created_by_id,
     title: row.title,
@@ -109,8 +111,9 @@ export function mapTaskRow(row: any): Task {
 export function mapTaskWithContextRow(row: any): TaskWithContext {
   return {
     ...mapTaskRow(row),
-    dashboardName: row.dashboard_name,
-    dashboardOwnerName: row.dashboard_owner_name,
+    contextType: row.context_type,
+    contextName: row.context_name,
+    contextOwnerName: row.context_owner_name,
     ownerName: row.owner_name,
   };
 }

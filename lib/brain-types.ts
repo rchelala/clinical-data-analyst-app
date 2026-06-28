@@ -120,7 +120,9 @@ export interface RequestWithCreator extends Request {
 // matching the documented-but-unenforced convention used by dashboards.status.
 export interface Task {
   id: number;
-  dashboardId: number;
+  dashboardId: number | null;
+  subscriptionId: number | null;
+  divisionId: number | null;
   ownerAnalystId: number | null;
   createdById: number;
   title: string;
@@ -132,8 +134,9 @@ export interface Task {
 }
 
 export interface TaskWithContext extends Task {
-  dashboardName: string;
-  dashboardOwnerName: string | null;
+  contextType: 'dashboard' | 'subscription' | 'division';
+  contextName: string;
+  contextOwnerName: string | null;
   ownerName: string | null;
 }
 

@@ -85,9 +85,13 @@ CREATE INDEX idx_worklist_dashboards_dashboard_id ON worklist_dashboards(dashboa
 -- status: 'open' | 'in_progress' | 'done' plus custom values; priority is free-form
 -- (not enforced by a DB enum/check constraint, documented only). Standalone category
 -- with its own assignee (owner_analyst_id), distinct from the dashboard's owner.
+-- A task attaches to exactly one of: a dashboard, a report subscription, or a
+-- division (the "standalone" home for work not tied to a dashboard/subscription).
 CREATE TABLE tasks (
    id               serial PRIMARY KEY,
-   dashboard_id     int  NOT NULL REFERENCES dashboards(id) ON DELETE CASCADE,
+   dashboard_id     int  REFERENCES dashboards(id) ON DELETE CASCADE,
+   subscription_id  int  REFERENCES report_subscriptions(id) ON DELETE CASCADE,
+   division_id      int  REFERENCES divisions(id) ON DELETE CASCADE,
    owner_analyst_id int  REFERENCES analysts(id),
    created_by_id    int  NOT NULL REFERENCES analysts(id),
    title            text NOT NULL,
@@ -95,10 +99,13 @@ CREATE TABLE tasks (
    status           text NOT NULL DEFAULT 'open',
    priority         text,
    created_date     date NOT NULL DEFAULT CURRENT_DATE,
-   completed_date   date
+   completed_date   date,
+   CHECK (num_nonnulls(dashboard_id, subscription_id, division_id) = 1)
 );
 
 CREATE INDEX idx_tasks_dashboard_id ON tasks(dashboard_id);
+CREATE INDEX idx_tasks_subscription_id ON tasks(subscription_id);
+CREATE INDEX idx_tasks_division_id ON tasks(division_id);
 CREATE INDEX idx_tasks_owner_analyst_id ON tasks(owner_analyst_id);
 
 -- Mirrors the Excel PSQ columns. status is free-form, e.g. '60%' / 'completed'

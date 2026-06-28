@@ -453,7 +453,7 @@ export default function WorklistPage() {
         assignedTasks: assignedTasks.map((t) => ({
           title: t.title,
           status: t.status,
-          dashboardName: t.dashboardName,
+          dashboardName: t.contextName,
         })),
         psqs: psqs.map((p) => ({
           division: p.divisionId !== null ? divisionNameById.get(p.divisionId) ?? null : null,
@@ -809,8 +809,8 @@ export default function WorklistPage() {
                         <div className="flex-1 min-w-0">
                           <div className="text-sm text-primary font-medium">{task.title}</div>
                           <div className="text-xs text-secondary mt-0.5">
-                            {task.dashboardName}
-                            {task.dashboardOwnerName ? ` · owned by ${task.dashboardOwnerName}` : ""}
+                            {task.contextName}
+                            {task.contextOwnerName ? ` · owned by ${task.contextOwnerName}` : ""}
                           </div>
                         </div>
                         <StatusPrioritySelect

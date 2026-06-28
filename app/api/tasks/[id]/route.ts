@@ -45,7 +45,7 @@ export async function PATCH(
     }
 
     const current = await sql`
-      SELECT id, dashboard_id, owner_analyst_id, created_by_id, title, description, status, priority, created_date, completed_date
+      SELECT id, dashboard_id, subscription_id, division_id, owner_analyst_id, created_by_id, title, description, status, priority, created_date, completed_date
       FROM tasks
       WHERE id = ${taskId}
     `;
@@ -85,7 +85,7 @@ export async function PATCH(
               priority = ${merged.priority}, owner_analyst_id = ${merged.ownerAnalystId},
               completed_date = CURRENT_DATE
           WHERE id = ${taskId}
-          RETURNING id, dashboard_id, owner_analyst_id, created_by_id, title, description, status, priority, created_date, completed_date
+          RETURNING id, dashboard_id, subscription_id, division_id, owner_analyst_id, created_by_id, title, description, status, priority, created_date, completed_date
         `
       : await sql`
           UPDATE tasks
@@ -93,7 +93,7 @@ export async function PATCH(
               priority = ${merged.priority}, owner_analyst_id = ${merged.ownerAnalystId},
               completed_date = ${merged.completedDate}
           WHERE id = ${taskId}
-          RETURNING id, dashboard_id, owner_analyst_id, created_by_id, title, description, status, priority, created_date, completed_date
+          RETURNING id, dashboard_id, subscription_id, division_id, owner_analyst_id, created_by_id, title, description, status, priority, created_date, completed_date
         `;
 
     return NextResponse.json(mapTaskRow(rows[0]));

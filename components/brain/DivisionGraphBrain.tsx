@@ -12,6 +12,7 @@ import {
   ReportSubscriptionWithUrgency,
   RequestWithCreator,
   BrainEntityKind,
+  Task,
 } from "@/lib/brain-types";
 import { BrainFilters, fadeOpacity, isRequestStatusVisible, isStatusVisible, isUrgencyVisible } from "@/lib/filters";
 
@@ -47,6 +48,7 @@ export function DivisionGraphBrain({
   );
   const [requestsLoading, setRequestsLoading] = useState(false);
   const [requestsError, setRequestsError] = useState<string | null>(null);
+  const [tasksByEntity, setTasksByEntity] = useState<Map<string, Task[]>>(new Map());
   const [hoveredNode, setHoveredNode] = useState<GraphData["nodes"][number] | null>(null);
   const { resolvedTheme } = useTheme();
 
@@ -113,9 +115,58 @@ export function DivisionGraphBrain({
     };
   }, [dashboards, subscriptions]);
 
+  // Fetch each entity's tasks, plus the division's standalone tasks (no
+  // dashboard/subscription parent), so they can render as graph nodes
+  // alongside requests. Mirrors the requests effect above but degrades
+  // gracefully on error rather than surfacing a blocking error banner —
+  // tasks are supplementary to the requests-driven view.
+  useEffect(() => {
+    let cancelled = false;
+
+    const entities: { kind: BrainEntityKind; id: number }[] = [
+      ...dashboards.map((d) => ({ kind: "dashboard" as const, id: d.id })),
+      ...subscriptions.map((s) => ({ kind: "subscription" as const, id: s.id })),
+    ];
+
+    (async () => {
+      try {
+        const entityResults = await Promise.all(
+          entities.map(async ({ kind, id }) => {
+            const param = kind === "dashboard" ? `dashboardId=${id}` : `subscriptionId=${id}`;
+            const res = await fetch(`/api/tasks?${param}`);
+            if (!res.ok) return [`${kind}-${id}`, [] as Task[]] as const;
+            const data = await res.json();
+            return [`${kind}-${id}`, data as Task[]] as const;
+          })
+        );
+
+        const centerRes = await fetch(`/api/tasks?divisionId=${division.id}`);
+        const centerTasks: Task[] = centerRes.ok ? await centerRes.json() : [];
+
+        if (cancelled) return;
+        setTasksByEntity(new Map([...entityResults, ["center", centerTasks] as const]));
+      } catch {
+        // Tasks are supplementary — silently skip on network error rather
+        // than blocking the requests-driven graph from rendering.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dashboards, subscriptions, division.id]);
+
   const graphData: GraphData = useMemo(
-    () => buildGraphData(dashboards, subscriptions, requestsByEntity, centerLabel, isViewerCenter),
-    [dashboards, subscriptions, requestsByEntity, centerLabel, isViewerCenter]
+    () =>
+      buildGraphData(
+        dashboards,
+        subscriptions,
+        requestsByEntity,
+        tasksByEntity,
+        centerLabel,
+        isViewerCenter
+      ),
+    [dashboards, subscriptions, requestsByEntity, tasksByEntity, centerLabel, isViewerCenter]
   );
 
   // Urgency bucketing for THIS division's dashboards+subscriptions only,
@@ -225,6 +276,10 @@ export function DivisionGraphBrain({
         )?.requestStatus;
         const faded = requestStatus ? !isRequestStatusVisible(requestStatus, filters) : false;
         opacity = fadeOpacity(1, faded, "multiplicative");
+      } else if (n.kind === "task") {
+        // Tasks render small with no glow, like requests, but skip the
+        // request-state fade logic for simplicity — always full opacity.
+        opacity = 1;
       } else {
         opacity = fadeOpacity(1, isEntityNodeFaded(n));
       }
@@ -240,7 +295,7 @@ export function DivisionGraphBrain({
       // subscription entity nodes — mirroring the rest of the app's
       // convention of reserving glow for "primary" nodes (analyst stars,
       // division planets) and not small decorative/leaf nodes (here:
-      // request nodes, the canvas equivalent of a "moon").
+      // request and task nodes, the canvas equivalent of a "moon").
       if (n.kind === "center" || n.kind === "dashboard" || n.kind === "subscription") {
         ctx.shadowColor = n.color;
         // shadowBlur is specified in screen pixels and is NOT affected by the
@@ -329,7 +384,10 @@ export function DivisionGraphBrain({
             nodeCanvasObject={paintNode}
             onNodeClick={handleNodeClick}
             onNodeHover={handleNodeHover}
-            nodeLabel={(node: any) => ((node as GraphData["nodes"][number]).kind === "request" ? (node as GraphData["nodes"][number]).label : "")}
+            nodeLabel={(node: any) => {
+              const kind = (node as GraphData["nodes"][number]).kind;
+              return kind === "request" || kind === "task" ? (node as GraphData["nodes"][number]).label : "";
+            }}
           />
         )}
         {hoveredNode && (
@@ -355,6 +413,10 @@ export function DivisionGraphBrain({
             <div className="flex items-center gap-1.5 text-xs text-primary">
               <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: "#94a3b8" }} />
               Open request
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-primary">
+              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: "#2dd4bf" }} />
+              Task
             </div>
           </div>
           <div className="border-t border-theme my-1.5" />

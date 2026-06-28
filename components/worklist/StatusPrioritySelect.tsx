@@ -60,9 +60,20 @@ const ADD_NEW = "__add_new__";
 
 export function StatusPrioritySelect({ kind, value, suggestions, onChange }: StatusPrioritySelectProps) {
   const [open, setOpen] = useState(false);
+  const [openUp, setOpenUp] = useState(false);
   const [addingNew, setAddingNew] = useState(false);
   const [customValue, setCustomValue] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Open the menu upward when there isn't enough room below the trigger
+  // (e.g. the last rows of a table whose card clips overflow), so it's never cut off.
+  const handleToggle = useCallback(() => {
+    if (!open && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      setOpenUp(window.innerHeight - rect.bottom < 260);
+    }
+    setOpen((o) => !o);
+  }, [open]);
 
   const options = useMemo(() => {
     const set = new Set(suggestions.filter((s) => s && s.trim()));
@@ -110,13 +121,13 @@ export function StatusPrioritySelect({ kind, value, suggestions, onChange }: Sta
       <div ref={containerRef} className="relative inline-block">
         <button
           type="button"
-          onClick={() => setOpen((o) => !o)}
+          onClick={handleToggle}
           className="flex items-center justify-center w-7 h-7 rounded-md border border-theme bg-panel text-secondary hover:text-primary text-xs font-bold transition-colors"
         >
           {value ?? "–"}
         </button>
         {open && (
-          <div className="absolute z-10 mt-1 min-w-[120px] rounded-md border border-theme bg-panel shadow-lg py-1">
+          <div className={`absolute z-20 ${openUp ? "bottom-full mb-1" : "top-full mt-1"} min-w-[120px] rounded-md border border-theme bg-panel shadow-lg py-1`}>
             {addingNew ? (
               <div className="px-2 py-1">
                 <input
@@ -168,7 +179,7 @@ export function StatusPrioritySelect({ kind, value, suggestions, onChange }: Sta
     <div ref={containerRef} className="relative inline-block">
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={handleToggle}
         className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border transition-colors ${
           colors
             ? `${colors.text} ${colors.bg} ${colors.border}`
@@ -180,7 +191,7 @@ export function StatusPrioritySelect({ kind, value, suggestions, onChange }: Sta
         <ChevronDown className="w-3 h-3 opacity-60" />
       </button>
       {open && (
-        <div className="absolute z-10 mt-1 min-w-[160px] rounded-md border border-theme bg-panel shadow-lg py-1">
+        <div className={`absolute z-20 ${openUp ? "bottom-full mb-1" : "top-full mt-1"} min-w-[160px] rounded-md border border-theme bg-panel shadow-lg py-1`}>
           {addingNew ? (
             <div className="px-2 py-1">
               <input

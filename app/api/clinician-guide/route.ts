@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/get-client-ip";
 import {
   Document,
   Packer,
@@ -222,6 +224,14 @@ function buildDocument(d: ClinicianGuideData): Document {
 
 export async function POST(req: NextRequest) {
   try {
+    const { allowed, retryAfterSeconds } = await checkRateLimit(getClientIp(req));
+    if (!allowed) {
+      return NextResponse.json(
+        { error: `Too many requests. Try again in ${retryAfterSeconds} seconds.` },
+        { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } }
+      );
+    }
+
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
 
@@ -240,8 +250,9 @@ export async function POST(req: NextRequest) {
     try {
       dashboard = await parsePbixFile(buffer, file.name);
     } catch (parseErr) {
+      console.error("Parse .pbix file error:", parseErr);
       return NextResponse.json(
-        { error: parseErr instanceof Error ? parseErr.message : "Could not read the .pbix file." },
+        { error: "Could not read the .pbix file. Please check the file and try again." },
         { status: 422 }
       );
     }
@@ -295,7 +306,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("Clinician Guide error:", err);
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Failed to generate the Clinician Guide." },
+      { error: "Something went wrong processing your request. Please try again." },
       { status: 500 }
     );
   }

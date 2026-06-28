@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const blob = await put(`request-attachments/${Date.now()}-${file.name}`, file, {
+    const blob = await put(`request-attachments/${crypto.randomUUID()}-${file.name}`, file, {
       access: 'private',
     });
 
@@ -32,7 +32,9 @@ export async function POST(req: NextRequest) {
     );
   } catch (err: unknown) {
     console.error('Upload request attachment error:', err);
-    const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Something went wrong processing your request. Please try again.' },
+      { status: 500 }
+    );
   }
 }

@@ -3,15 +3,35 @@
 
 import { UrgencyBucket } from '@/lib/brain-types';
 
+const STALE_WEIGHT = 1.0;
+const OPEN_WEIGHT = 5;
+const IN_PROGRESS_WEIGHT = 9;
+const OLDEST_OPEN_WEIGHT = 0.5;
+
 /**
- * urgency = (days_stale * 1.0) + (open_requests * 7) + (oldest_open_request_age * 0.5)
+ * urgency = (has_open_work ? days_stale * 1.0 : 0)
+ *   + (open_only_requests * 5) + (in_progress_requests * 9)
+ *   + (oldest_open_request_age * 0.5)
+ *
+ * In-progress work pulls a dashboard closer than merely-queued (open) work,
+ * and staleness only contributes once there's actual pending work — a
+ * dashboard with zero open/in_progress requests gets no urgency boost from
+ * staleness alone.
  */
 export function computeUrgency(
   daysStale: number,
-  openRequestCount: number,
+  openRequestCount: number, // total non-done (open + in_progress) requests
+  inProgressRequestCount: number,
   oldestOpenRequestAgeDays: number
 ): number {
-  return daysStale * 1.0 + openRequestCount * 7 + oldestOpenRequestAgeDays * 0.5;
+  const openOnlyCount = openRequestCount - inProgressRequestCount;
+  const hasOpenWork = openRequestCount > 0;
+  return (
+    (hasOpenWork ? daysStale * STALE_WEIGHT : 0) +
+    openOnlyCount * OPEN_WEIGHT +
+    inProgressRequestCount * IN_PROGRESS_WEIGHT +
+    oldestOpenRequestAgeDays * OLDEST_OPEN_WEIGHT
+  );
 }
 
 export const MIN_RADIUS = 80;

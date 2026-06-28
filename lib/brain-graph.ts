@@ -31,6 +31,7 @@ export interface GraphNode {
   stakeholder?: string | null;
   lastTouchedDate?: string;
   openRequestCount?: number;
+  inProgressRequestCount?: number;
 }
 
 export interface GraphLink {
@@ -41,6 +42,13 @@ export interface GraphLink {
   // rendering itself only branches on the value ("done"/"in_progress"), not
   // on whether this field is present.
   requestStatus?: RequestStatus;
+  // Present only on subscription->dashboard tethers for a linked entity
+  // (subscription.linkedDashboardId). Marks this link as needing the
+  // visually distinct "linked entity" treatment rather than the
+  // request-status-colored treatment. Never set alongside requestStatus —
+  // each link is either a request tether, a linked-entity tether, or a
+  // plain entity->center tether.
+  linkedEntity?: boolean;
 }
 
 export interface GraphData {
@@ -106,6 +114,13 @@ function taskStatusToRequestStatus(status: string): RequestStatus {
  * `divisionId` set and no dashboard/subscription parent), which are linked
  * directly to the center node since they have no entity parent.
  *
+ * A subscription whose `linkedDashboardId` resolves to a real dashboard in
+ * this division skips its own center tether entirely — it connects to the
+ * graph solely through its dashboard (the `linkedEntity` tether below),
+ * mirroring how a request has no direct center tether either. A subscription
+ * with no link, or a stale/cross-division link, keeps the normal center
+ * tether so it's never left disconnected from the graph.
+ *
  * `centerLabel` is the viewed analyst's name; `isViewerCenter` is true only
  * when the viewed analyst IS the viewer, mirroring SolarSystemView's
  * isViewerCenter treatment (distinct ring color + slightly larger radius).
@@ -130,7 +145,13 @@ export function buildGraphData(
   ];
   const links: GraphLink[] = [];
 
-  const addEntity = (kind: BrainEntityKind, entity: EntityWithUrgency) => {
+  // Computed up front (not just in the linked-entity pass below) because
+  // addEntity also needs it to decide whether a linked subscription should
+  // skip its center tether — both decisions must agree, or a subscription
+  // with a stale/cross-division link would end up with neither tether.
+  const dashboardIds = new Set(dashboards.map((d) => d.id));
+
+  const addEntity = (kind: BrainEntityKind, entity: EntityWithUrgency, skipCenterTether: boolean) => {
     const nodeId = entityNodeId(kind, entity.id);
     const isMaintenance = entity.status === 'maintenance';
 
@@ -146,8 +167,11 @@ export function buildGraphData(
       stakeholder: entity.stakeholder,
       lastTouchedDate: entity.lastTouchedDate,
       openRequestCount: entity.openRequestCount,
+      inProgressRequestCount: entity.inProgressRequestCount,
     });
-    links.push({ source: CENTER_NODE_ID, target: nodeId });
+    if (!skipCenterTether) {
+      links.push({ source: CENTER_NODE_ID, target: nodeId });
+    }
 
     const requests = requestsByEntity.get(nodeId) ?? [];
     for (const request of requests) {
@@ -182,8 +206,40 @@ export function buildGraphData(
     }
   };
 
-  dashboards.forEach((d) => addEntity('dashboard', d));
-  subscriptions.forEach((s) => addEntity('subscription', s));
+  // A subscription's link only counts if it actually resolves to a
+  // dashboard present in this division — used below both to decide whether
+  // to skip the subscription's center tether and whether to draw the
+  // linked-entity tether, so the two decisions can't drift apart.
+  const hasValidDashboardLink = (s: ReportSubscriptionWithUrgency) =>
+    s.linkedDashboardId !== null && dashboardIds.has(s.linkedDashboardId);
+
+  dashboards.forEach((d) => addEntity('dashboard', d, false));
+  subscriptions.forEach((s) => addEntity('subscription', s, hasValidDashboardLink(s)));
+
+  // Linked-entity tether: a subscription may optionally link to one
+  // dashboard in the same division (subscription.linkedDashboardId). The
+  // API enforces same-division linking at the moment a link is created or
+  // edited, but that's a write-time check, not an invariant: a dashboard's
+  // own division can still be changed afterward (PATCH /api/dashboards/[id]
+  // has no guard against this), which would leave any subscription that
+  // links to it pointing cross-division. hasValidDashboardLink catches that
+  // case and skips the edge rather than creating a dangling link to a node
+  // that doesn't exist in this graph — logged so a real desync doesn't
+  // disappear silently.
+  subscriptions.forEach((s) => {
+    if (s.linkedDashboardId === null) return;
+    if (hasValidDashboardLink(s)) {
+      links.push({
+        source: entityNodeId('subscription', s.id),
+        target: entityNodeId('dashboard', s.linkedDashboardId),
+        linkedEntity: true,
+      });
+    } else {
+      console.warn(
+        `Subscription ${s.id} links to dashboard ${s.linkedDashboardId}, which is not in this division — skipping tether.`
+      );
+    }
+  });
 
   const standaloneTasks = tasksByEntity.get(CENTER_NODE_ID) ?? [];
   for (const task of standaloneTasks) {

@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Loader2, ClipboardPlus, ArrowLeft, Home, FolderPlus, ClipboardList, ListTodo } from "lucide-react";
+import { Loader2, ClipboardPlus, ArrowLeft, Home, FolderPlus, ClipboardList, ListTodo, HelpCircle, Trash2, Inbox } from "lucide-react";
 import { AnalystSelector } from "@/components/brain/AnalystSelector";
+import { UrgencyInfoModal } from "@/components/brain/UrgencyInfoModal";
 import { SolarSystemView, DivisionNode } from "@/components/brain/SolarSystemView";
 import { PlanetView } from "@/components/brain/PlanetView";
 import { GalaxyCanvas } from "@/components/brain/GalaxyCanvas";
@@ -14,6 +15,7 @@ import { DivisionTasksPanel } from "@/components/brain/DivisionTasksPanel";
 import { AddRequestForm } from "@/components/brain/AddRequestForm";
 import { AddEntityForm } from "@/components/brain/AddEntityForm";
 import { AddDivisionForm } from "@/components/brain/AddDivisionForm";
+import { DeleteDivisionModal } from "@/components/brain/DeleteDivisionModal";
 import { FilterRail } from "@/components/brain/FilterRail";
 import { useBrainData, ZoomState } from "@/hooks/useBrainData";
 import {
@@ -30,6 +32,18 @@ import { resolveSearchResults, SearchResult } from "@/lib/brain-search";
 interface SelectedEntity {
   kind: BrainEntityKind;
   id: number;
+}
+
+// Resolves a subscription's linkedDashboardId to the {id, name} shape the
+// side panel needs, looking the dashboard up in the unscoped "all" list so
+// this keeps working regardless of the current zoom's scoped data.
+function findLinkedDashboard(
+  linkedDashboardId: number | null,
+  allDashboards: DashboardWithUrgency[]
+): { id: number; name: string } | null {
+  if (linkedDashboardId === null) return null;
+  const dashboard = allDashboards.find((d) => d.id === linkedDashboardId);
+  return dashboard ? { id: dashboard.id, name: dashboard.name } : null;
 }
 
 export default function BrainPage() {
@@ -50,15 +64,28 @@ export default function BrainPage() {
   const [showAddEntityForm, setShowAddEntityForm] = useState(false);
   const [showAddDivisionForm, setShowAddDivisionForm] = useState(false);
   const [showDivisionTasks, setShowDivisionTasks] = useState(false);
+  const [showDeleteDivision, setShowDeleteDivision] = useState(false);
+  const [showUrgencyInfo, setShowUrgencyInfo] = useState(false);
   // Bumping this re-runs the unscoped "all" fetch below, letting us refresh
   // urgency/counts after a new request is created.
   const [refreshKey, setRefreshKey] = useState(0);
   const [filters, setFilters] = useState<BrainFilters>(createDefaultFilters());
   const [searchQuery, setSearchQuery] = useState("");
 
-  const handleSelectAnalyst = useCallback((analystId: number) => {
-    setViewerAnalystId(analystId);
-  }, []);
+  const handleSelectAnalyst = useCallback(
+    (analystId: number, _analystName: string, isManualSwitch: boolean) => {
+      setViewerAnalystId(analystId);
+      // Only navigate on a deliberate pick (clicking a name in the
+      // selector modal) — the silent on-mount restore of a previously
+      // stored identity must leave `zoom` alone so returning users still
+      // land on the Galaxy overview, not get auto-navigated into their
+      // own system.
+      if (isManualSwitch) {
+        setZoom({ level: "analyst", analystId });
+      }
+    },
+    []
+  );
 
   const brainData = useBrainData(zoom, refreshKey);
 
@@ -212,6 +239,11 @@ export default function BrainPage() {
         stakeholder: dashboard.stakeholder,
         status: dashboard.status,
         jiraTicketId: dashboard.jiraTicketId,
+        divisionId: dashboard.divisionId,
+        linkedDashboard: null,
+        linkedSubscriptions: allSubscriptions
+          .filter((s) => s.linkedDashboardId === dashboard.id)
+          .map((s) => ({ id: s.id, name: s.name })),
       };
     }
 
@@ -224,8 +256,24 @@ export default function BrainPage() {
       stakeholder: subscription.stakeholder,
       status: subscription.status,
       jiraTicketId: subscription.jiraTicketId,
+      divisionId: subscription.divisionId,
+      linkedDashboard: findLinkedDashboard(subscription.linkedDashboardId, allDashboards),
+      linkedSubscriptions: [],
     };
-  }, [selectedEntity, dashboards, subscriptions]);
+  }, [selectedEntity, dashboards, subscriptions, allDashboards, allSubscriptions]);
+
+  // Dashboards available to link/show in the side panel, scoped to whichever
+  // division the side panel's CURRENT entity belongs to — not necessarily the
+  // same division as the currently-zoomed view.
+  const sidePanelDashboardsInDivision = useMemo(
+    () =>
+      sidePanelEntity
+        ? allDashboards
+            .filter((d) => d.divisionId === sidePanelEntity.divisionId)
+            .map((d) => ({ id: d.id, name: d.name }))
+        : [],
+    [sidePanelEntity, allDashboards]
+  );
 
   const hasAnyDivisions = divisionNodes.length > 0;
 
@@ -359,7 +407,30 @@ export default function BrainPage() {
             <FolderPlus className="w-3 h-3" />
             Add Division
           </button>
+          <Link
+            href="/brain/unassigned"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+          >
+            <Inbox className="w-3 h-3" />
+            Unassigned
+          </Link>
+          {zoom.level === "division" && selectedDivision && (
+            <button
+              onClick={() => setShowDeleteDivision(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-60"
+            >
+              <Trash2 className="w-3 h-3" />
+              Delete Division
+            </button>
+          )}
           <AnalystSelector onSelect={handleSelectAnalyst} />
+          <button
+            onClick={() => setShowUrgencyInfo(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+          >
+            <HelpCircle className="w-3 h-3" />
+            How distance works
+          </button>
         </div>
       </header>
 
@@ -454,6 +525,10 @@ export default function BrainPage() {
                     setSelectedRequestId(focusRequestId);
                   }}
                   onAddEntity={() => setShowAddEntityForm(true)}
+                  viewedAnalystId={zoom.analystId}
+                  onJumpToAnalyst={(otherAnalystId) =>
+                    setZoom({ level: "division", analystId: otherAnalystId, divisionId: selectedDivision.id })
+                  }
                 />
               </GalaxyCanvas>
             )}
@@ -465,6 +540,8 @@ export default function BrainPage() {
           entity={sidePanelEntity}
           currentAnalystId={viewerAnalystId}
           focusRequestId={selectedRequestId}
+          divisions={allDivisions}
+          dashboardsInDivision={sidePanelDashboardsInDivision}
           onClose={() => {
             setSelectedEntity(null);
             setSelectedRequestId(undefined);
@@ -474,7 +551,22 @@ export default function BrainPage() {
             setSelectedRequestId(undefined);
             setRefreshKey((k) => k + 1);
           }}
-          onEntityUpdated={() => setRefreshKey((k) => k + 1)}
+          onNavigateToEntity={(kind, id) => {
+            setSelectedEntity({ kind, id });
+            setSelectedRequestId(undefined);
+          }}
+          onEntityUpdated={(newIdentity) => {
+            // Follow the entity to its new kind/id. sidePanelEntity briefly
+            // resolves to null until the refreshKey-triggered refetch below
+            // picks up the entity under its new identity, so the panel
+            // flickers closed/reopen rather than ever showing stale data
+            // against the new id. Do not "fix" the flicker by falling back
+            // to the previous sidePanelEntity value instead of null — that
+            // would reintroduce a real race where the old entity's data is
+            // shown mislabeled under the new id.
+            setSelectedEntity(newIdentity);
+            setRefreshKey((k) => k + 1);
+          }}
         />
       )}
 
@@ -506,6 +598,7 @@ export default function BrainPage() {
         <AddEntityForm
           division={selectedDivision}
           currentAnalystId={viewerAnalystId}
+          dashboardsInDivision={divisionDashboards.map((d) => ({ id: d.id, name: d.name }))}
           onCreated={() => {
             setShowAddEntityForm(false);
             setRefreshKey((k) => k + 1);
@@ -521,6 +614,22 @@ export default function BrainPage() {
           onClose={() => setShowDivisionTasks(false)}
         />
       )}
+
+      {showDeleteDivision && zoom.level === "division" && selectedDivision && (
+        <DeleteDivisionModal
+          division={selectedDivision}
+          dashboardCount={divisionDashboards.length}
+          subscriptionCount={divisionSubscriptions.length}
+          onDeleted={() => {
+            setShowDeleteDivision(false);
+            handleZoomOut();
+            setRefreshKey((k) => k + 1);
+          }}
+          onCancel={() => setShowDeleteDivision(false)}
+        />
+      )}
+
+      {showUrgencyInfo && <UrgencyInfoModal onClose={() => setShowUrgencyInfo(false)} />}
     </div>
   );
 }

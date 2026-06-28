@@ -39,8 +39,9 @@ export async function PATCH(
       notes?: string | null;
       worklistStatus?: string | null;
       summary?: string | null;
+      divisionId?: number;
     };
-    const { name, status } = body;
+    const { name, status, divisionId } = body;
     const stakeholder = normalizeNullableString(body.stakeholder);
     const jiraTicketId = normalizeNullableString(body.jiraTicketId);
     const priority = normalizeNullableString(body.priority);
@@ -60,7 +61,8 @@ export async function PATCH(
       comments === undefined &&
       notes === undefined &&
       worklistStatus === undefined &&
-      summary === undefined
+      summary === undefined &&
+      divisionId === undefined
     ) {
       return NextResponse.json(
         { error: 'At least one field must be provided.' },
@@ -80,7 +82,7 @@ export async function PATCH(
     }
 
     const current = await sql`
-      SELECT id, name, stakeholder, status, jira_ticket_id, priority, enterprise_analyst, comments, notes, worklist_status, summary
+      SELECT id, name, division_id, stakeholder, status, jira_ticket_id, priority, enterprise_analyst, comments, notes, worklist_status, summary
       FROM dashboards
       WHERE id = ${dashboardId}
     `;
@@ -102,6 +104,7 @@ export async function PATCH(
       notes: notes !== undefined ? notes : current[0].notes,
       worklistStatus: worklistStatus !== undefined ? worklistStatus : current[0].worklist_status,
       summary: summary !== undefined ? summary : current[0].summary,
+      divisionId: divisionId !== undefined ? divisionId : current[0].division_id,
     };
 
     // last_touched_date intentionally untouched here: it drives the
@@ -112,7 +115,7 @@ export async function PATCH(
       UPDATE dashboards
       SET name = ${merged.name}, stakeholder = ${merged.stakeholder}, status = ${merged.status}, jira_ticket_id = ${merged.jiraTicketId},
           priority = ${merged.priority}, enterprise_analyst = ${merged.enterpriseAnalyst}, comments = ${merged.comments},
-          notes = ${merged.notes}, worklist_status = ${merged.worklistStatus}, summary = ${merged.summary}
+          notes = ${merged.notes}, worklist_status = ${merged.worklistStatus}, summary = ${merged.summary}, division_id = ${merged.divisionId}
       WHERE id = ${dashboardId}
       RETURNING id, name, division_id, analyst_id, stakeholder, status, jira_ticket_id, last_touched_date, created_date,
                 priority, enterprise_analyst, comments, notes, worklist_status, summary
@@ -121,8 +124,16 @@ export async function PATCH(
     return NextResponse.json(mapDashboardRow(rows[0]));
   } catch (err: unknown) {
     console.error('Update dashboard error:', err);
-    const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    if (err && typeof err === 'object' && 'code' in err && (err as { code?: string }).code === '23503') {
+      return NextResponse.json(
+        { error: 'Referenced divisionId does not exist.' },
+        { status: 400 }
+      );
+    }
+    return NextResponse.json(
+      { error: 'Something went wrong processing your request. Please try again.' },
+      { status: 500 }
+    );
   }
 }
 
@@ -153,7 +164,9 @@ export async function DELETE(
     return NextResponse.json({ id: dashboardId }, { status: 200 });
   } catch (err: unknown) {
     console.error('Delete dashboard error:', err);
-    const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Something went wrong processing your request. Please try again.' },
+      { status: 500 }
+    );
   }
 }

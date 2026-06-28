@@ -39,8 +39,10 @@ export async function PATCH(
       notes?: string | null;
       worklistStatus?: string | null;
       summary?: string | null;
+      divisionId?: number;
+      linkedDashboardId?: number | null;
     };
-    const { name, status } = body;
+    const { name, status, divisionId, linkedDashboardId } = body;
     const stakeholder = normalizeNullableString(body.stakeholder);
     const jiraTicketId = normalizeNullableString(body.jiraTicketId);
     const priority = normalizeNullableString(body.priority);
@@ -60,7 +62,9 @@ export async function PATCH(
       comments === undefined &&
       notes === undefined &&
       worklistStatus === undefined &&
-      summary === undefined
+      summary === undefined &&
+      divisionId === undefined &&
+      linkedDashboardId === undefined
     ) {
       return NextResponse.json(
         { error: 'At least one field must be provided.' },
@@ -80,13 +84,32 @@ export async function PATCH(
     }
 
     const current = await sql`
-      SELECT id, name, stakeholder, status, jira_ticket_id, priority, enterprise_analyst, comments, notes, worklist_status, summary
+      SELECT id, name, division_id, stakeholder, status, jira_ticket_id, linked_dashboard_id, priority, enterprise_analyst, comments, notes, worklist_status, summary
       FROM report_subscriptions
       WHERE id = ${subscriptionId}
     `;
 
     if (current.length === 0) {
       return NextResponse.json({ error: 'Report subscription not found.' }, { status: 404 });
+    }
+
+    if (linkedDashboardId !== undefined && linkedDashboardId !== null) {
+      const linkedDashboardRows = await sql`
+        SELECT division_id FROM dashboards WHERE id = ${linkedDashboardId}
+      `;
+      if (linkedDashboardRows.length === 0) {
+        return NextResponse.json(
+          { error: 'linkedDashboardId does not refer to an existing dashboard.' },
+          { status: 400 }
+        );
+      }
+      const effectiveDivisionId = divisionId !== undefined ? divisionId : current[0].division_id;
+      if (linkedDashboardRows[0].division_id !== effectiveDivisionId) {
+        return NextResponse.json(
+          { error: 'linkedDashboardId must be a dashboard in the same division.' },
+          { status: 400 }
+        );
+      }
     }
 
     // No optimistic lock on this fetch-merge-write; acceptable for
@@ -102,6 +125,8 @@ export async function PATCH(
       notes: notes !== undefined ? notes : current[0].notes,
       worklistStatus: worklistStatus !== undefined ? worklistStatus : current[0].worklist_status,
       summary: summary !== undefined ? summary : current[0].summary,
+      divisionId: divisionId !== undefined ? divisionId : current[0].division_id,
+      linkedDashboardId: linkedDashboardId !== undefined ? linkedDashboardId : current[0].linked_dashboard_id,
     };
 
     // last_touched_date intentionally untouched here: it drives the
@@ -112,17 +137,26 @@ export async function PATCH(
       UPDATE report_subscriptions
       SET name = ${merged.name}, stakeholder = ${merged.stakeholder}, status = ${merged.status}, jira_ticket_id = ${merged.jiraTicketId},
           priority = ${merged.priority}, enterprise_analyst = ${merged.enterpriseAnalyst}, comments = ${merged.comments},
-          notes = ${merged.notes}, worklist_status = ${merged.worklistStatus}, summary = ${merged.summary}
+          notes = ${merged.notes}, worklist_status = ${merged.worklistStatus}, summary = ${merged.summary},
+          division_id = ${merged.divisionId}, linked_dashboard_id = ${merged.linkedDashboardId}
       WHERE id = ${subscriptionId}
-      RETURNING id, name, division_id, analyst_id, stakeholder, status, jira_ticket_id, last_touched_date, created_date,
+      RETURNING id, name, division_id, analyst_id, linked_dashboard_id, stakeholder, status, jira_ticket_id, last_touched_date, created_date,
                 priority, enterprise_analyst, comments, notes, worklist_status, summary
     `;
 
     return NextResponse.json(mapReportSubscriptionRow(rows[0]));
   } catch (err: unknown) {
     console.error('Update report subscription error:', err);
-    const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    if (err && typeof err === 'object' && 'code' in err && (err as { code?: string }).code === '23503') {
+      return NextResponse.json(
+        { error: 'Referenced divisionId does not exist.' },
+        { status: 400 }
+      );
+    }
+    return NextResponse.json(
+      { error: 'Something went wrong processing your request. Please try again.' },
+      { status: 500 }
+    );
   }
 }
 
@@ -154,7 +188,9 @@ export async function DELETE(
     return NextResponse.json({ id: subscriptionId }, { status: 200 });
   } catch (err: unknown) {
     console.error('Delete report subscription error:', err);
-    const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Something went wrong processing your request. Please try again.' },
+      { status: 500 }
+    );
   }
 }

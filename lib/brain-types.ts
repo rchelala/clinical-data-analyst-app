@@ -18,6 +18,13 @@ export interface AnalystSummary {
   highUrgencyCount: number; // dashboards+subscriptions in the top urgency tercile, computed globally across ALL analysts, not just this one
 }
 
+export interface DivisionAnalystCoverage {
+  id: number;
+  name: string;
+  dashboardCount: number;
+  subscriptionCount: number;
+}
+
 export interface Division {
   id: number;
   name: string;
@@ -47,17 +54,27 @@ export interface Dashboard {
 
 export interface DashboardWithUrgency extends Dashboard {
   openRequestCount: number;
+  inProgressRequestCount: number;
   urgency: number;
   radius: number;
 }
 
 export type BrainEntityKind = 'dashboard' | 'subscription';
 
+// Shape returned by AddEntityForm's onCreated callback after a successful
+// create, so callers (e.g. the intake "convert" flow) know what was just
+// created without re-deriving it from form state.
+export interface CreatedBrainEntity {
+  id: number;
+  kind: BrainEntityKind;
+}
+
 export interface ReportSubscription {
   id: number;
   name: string;
   divisionId: number;
   analystId: number | null;
+  linkedDashboardId: number | null;
   stakeholder: string | null;
   status: DashboardStatus; // reuse the existing status union type, it's generic enough
   jiraTicketId: string | null;
@@ -73,6 +90,7 @@ export interface ReportSubscription {
 
 export interface ReportSubscriptionWithUrgency extends ReportSubscription {
   openRequestCount: number;
+  inProgressRequestCount: number;
   urgency: number;
   radius: number;
 }
@@ -174,4 +192,31 @@ export interface WeeklyNote {
   analystId: number;
   weekStart: string;
   meetings: string | null;
+}
+
+// Intake requests: an "Unassigned" backlog of dashboard/subscription requests
+// that don't yet have an owning analyst.
+export type IntakePriority = 'low' | 'medium' | 'high';
+export type IntakeStatus = 'not_started' | 'discovery' | 'ready' | 'in_progress' | 'on_hold' | 'fulfilled';
+
+export interface IntakeRequest {
+  id: number;
+  priority: IntakePriority;
+  dateReceived: string;
+  divisionId: number | null;
+  topic: string;
+  stakeholder: string | null;
+  analystId: number | null;
+  requestedKind: BrainEntityKind | null;
+  status: IntakeStatus;
+  ticketLink: string | null;
+  internalComments: string | null;
+  createdDate: string;
+  fulfilledEntityKind: BrainEntityKind | null;
+  fulfilledEntityId: number | null;
+}
+
+export interface IntakeRequestWithNames extends IntakeRequest {
+  divisionName: string | null;
+  analystName: string | null;
 }

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/get-client-ip";
 import {
   Document,
   Packer,
@@ -318,6 +320,14 @@ function buildDocument(d: ExtractedData): Document {
 
 export async function POST(req: NextRequest) {
   try {
+    const { allowed, retryAfterSeconds } = await checkRateLimit(getClientIp(req));
+    if (!allowed) {
+      return NextResponse.json(
+        { error: `Too many requests. Try again in ${retryAfterSeconds} seconds.` },
+        { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } }
+      );
+    }
+
     const { sql } = await req.json() as { sql: string };
     if (!sql?.trim()) {
       return NextResponse.json({ error: "No SQL provided." }, { status: 400 });
@@ -362,7 +372,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error("IT Reference error:", err);
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Failed to generate IT Reference document." },
+      { error: "Something went wrong processing your request. Please try again." },
       { status: 500 }
     );
   }

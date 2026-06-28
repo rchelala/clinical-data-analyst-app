@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { X, Loader2, ClipboardList, Paperclip, Trash2, Pencil, ListTodo } from "lucide-react";
-import { Analyst, BrainEntityKind, DashboardStatus, RequestStatus, RequestWithCreator, Tag, Task } from "@/lib/brain-types";
+import { Analyst, BrainEntityKind, DashboardStatus, Division, RequestStatus, RequestWithCreator, Tag, Task } from "@/lib/brain-types";
 import { AttachFieldRequestForm } from "@/components/brain/AttachFieldRequestForm";
 import { EditEntityForm } from "@/components/brain/EditEntityForm";
 import { RequestTagEditor } from "./RequestTagEditor";
@@ -15,15 +15,21 @@ export interface RequestSidePanelEntity {
   stakeholder: string | null;
   status: DashboardStatus;
   jiraTicketId: string | null;
+  divisionId: number;
+  linkedDashboard: { id: number; name: string } | null;
+  linkedSubscriptions: { id: number; name: string }[];
 }
 
 interface RequestSidePanelProps {
   entity: RequestSidePanelEntity | null;
   currentAnalystId: number;
   focusRequestId?: number;
+  divisions: Division[];
+  dashboardsInDivision: { id: number; name: string }[];
   onClose: () => void;
-  onEntityUpdated: () => void;
+  onEntityUpdated: (newIdentity: { kind: BrainEntityKind; id: number }) => void;
   onEntityDeleted: () => void;
+  onNavigateToEntity: (kind: BrainEntityKind, id: number) => void;
 }
 
 const STATUS_OPTIONS: RequestStatus[] = ["open", "in_progress", "done"];
@@ -89,9 +95,12 @@ export function RequestSidePanel({
   entity,
   currentAnalystId,
   focusRequestId,
+  divisions,
+  dashboardsInDivision,
   onClose,
   onEntityUpdated,
   onEntityDeleted,
+  onNavigateToEntity,
 }: RequestSidePanelProps) {
   const [requests, setRequests] = useState<RequestWithCreator[]>([]);
   const [loading, setLoading] = useState(false);
@@ -476,6 +485,35 @@ export function RequestSidePanel({
             <p className="text-xs text-secondary mt-0.5">
               Stakeholder: {entity.stakeholder ?? "—"}
             </p>
+            {entity.kind === "subscription" && entity.linkedDashboard && (
+              <p className="text-xs text-secondary mt-0.5">
+                Linked dashboard:{" "}
+                <button
+                  type="button"
+                  onClick={() => onNavigateToEntity("dashboard", entity.linkedDashboard!.id)}
+                  className="text-brand-600 dark:text-brand-400 hover:underline"
+                >
+                  {entity.linkedDashboard.name}
+                </button>
+              </p>
+            )}
+            {entity.kind === "dashboard" && entity.linkedSubscriptions.length > 0 && (
+              <p className="text-xs text-secondary mt-0.5">
+                Linked subscription(s):{" "}
+                {entity.linkedSubscriptions.map((sub, i) => (
+                  <span key={sub.id}>
+                    {i > 0 && ", "}
+                    <button
+                      type="button"
+                      onClick={() => onNavigateToEntity("subscription", sub.id)}
+                      className="text-brand-600 dark:text-brand-400 hover:underline"
+                    >
+                      {sub.name}
+                    </button>
+                  </span>
+                ))}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             {entity.kind === "dashboard" && (
@@ -798,9 +836,13 @@ export function RequestSidePanel({
           initialStakeholder={entity.stakeholder}
           initialStatus={entity.status}
           initialJiraTicketId={entity.jiraTicketId}
-          onSaved={() => {
+          divisions={divisions}
+          initialDivisionId={entity.divisionId}
+          dashboardsInDivision={dashboardsInDivision}
+          initialLinkedDashboardId={entity.kind === "subscription" ? entity.linkedDashboard?.id ?? null : null}
+          onSaved={(newIdentity) => {
             setEntityEditOpen(false);
-            onEntityUpdated();
+            onEntityUpdated(newIdentity);
           }}
           onCancel={() => setEntityEditOpen(false)}
         />

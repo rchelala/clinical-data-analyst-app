@@ -30,19 +30,21 @@ export async function fetchDashboardRowsWithStaleness(analystId?: number) {
           d.worklist_status,
           d.summary,
           COALESCE(agg.open_request_count, 0) AS open_request_count,
+          COALESCE(agg.in_progress_request_count, 0) AS in_progress_request_count,
           (CURRENT_DATE - d.last_touched_date) AS days_stale,
           COALESCE(agg.oldest_open_request_age_days, 0) AS oldest_open_request_age_days
         FROM dashboards d
         LEFT JOIN (
           SELECT
             dashboard_id,
-            COUNT(*) AS open_request_count,
-            MAX(CURRENT_DATE - created_date) AS oldest_open_request_age_days
+            COUNT(*) FILTER (WHERE status != 'done') AS open_request_count,
+            COUNT(*) FILTER (WHERE status = 'in_progress') AS in_progress_request_count,
+            MAX(CURRENT_DATE - created_date) FILTER (WHERE status != 'done') AS oldest_open_request_age_days
           FROM requests
-          WHERE status != 'done'
           GROUP BY dashboard_id
         ) agg ON agg.dashboard_id = d.id
         WHERE d.analyst_id = ${analystId}
+        ORDER BY d.name
       `
     : await sql`
         SELECT
@@ -62,18 +64,20 @@ export async function fetchDashboardRowsWithStaleness(analystId?: number) {
           d.worklist_status,
           d.summary,
           COALESCE(agg.open_request_count, 0) AS open_request_count,
+          COALESCE(agg.in_progress_request_count, 0) AS in_progress_request_count,
           (CURRENT_DATE - d.last_touched_date) AS days_stale,
           COALESCE(agg.oldest_open_request_age_days, 0) AS oldest_open_request_age_days
         FROM dashboards d
         LEFT JOIN (
           SELECT
             dashboard_id,
-            COUNT(*) AS open_request_count,
-            MAX(CURRENT_DATE - created_date) AS oldest_open_request_age_days
+            COUNT(*) FILTER (WHERE status != 'done') AS open_request_count,
+            COUNT(*) FILTER (WHERE status = 'in_progress') AS in_progress_request_count,
+            MAX(CURRENT_DATE - created_date) FILTER (WHERE status != 'done') AS oldest_open_request_age_days
           FROM requests
-          WHERE status != 'done'
           GROUP BY dashboard_id
         ) agg ON agg.dashboard_id = d.id
+        ORDER BY d.name
       `;
 }
 
@@ -91,6 +95,7 @@ export async function fetchSubscriptionRowsWithStaleness(analystId?: number) {
           s.stakeholder,
           s.status,
           s.jira_ticket_id,
+          s.linked_dashboard_id,
           s.last_touched_date,
           s.created_date,
           s.priority,
@@ -100,16 +105,17 @@ export async function fetchSubscriptionRowsWithStaleness(analystId?: number) {
           s.worklist_status,
           s.summary,
           COALESCE(agg.open_request_count, 0) AS open_request_count,
+          COALESCE(agg.in_progress_request_count, 0) AS in_progress_request_count,
           (CURRENT_DATE - s.last_touched_date) AS days_stale,
           COALESCE(agg.oldest_open_request_age_days, 0) AS oldest_open_request_age_days
         FROM report_subscriptions s
         LEFT JOIN (
           SELECT
             subscription_id,
-            COUNT(*) AS open_request_count,
-            MAX(CURRENT_DATE - created_date) AS oldest_open_request_age_days
+            COUNT(*) FILTER (WHERE status != 'done') AS open_request_count,
+            COUNT(*) FILTER (WHERE status = 'in_progress') AS in_progress_request_count,
+            MAX(CURRENT_DATE - created_date) FILTER (WHERE status != 'done') AS oldest_open_request_age_days
           FROM requests
-          WHERE status != 'done'
           GROUP BY subscription_id
         ) agg ON agg.subscription_id = s.id
         WHERE s.analyst_id = ${analystId}
@@ -123,6 +129,7 @@ export async function fetchSubscriptionRowsWithStaleness(analystId?: number) {
           s.stakeholder,
           s.status,
           s.jira_ticket_id,
+          s.linked_dashboard_id,
           s.last_touched_date,
           s.created_date,
           s.priority,
@@ -132,16 +139,17 @@ export async function fetchSubscriptionRowsWithStaleness(analystId?: number) {
           s.worklist_status,
           s.summary,
           COALESCE(agg.open_request_count, 0) AS open_request_count,
+          COALESCE(agg.in_progress_request_count, 0) AS in_progress_request_count,
           (CURRENT_DATE - s.last_touched_date) AS days_stale,
           COALESCE(agg.oldest_open_request_age_days, 0) AS oldest_open_request_age_days
         FROM report_subscriptions s
         LEFT JOIN (
           SELECT
             subscription_id,
-            COUNT(*) AS open_request_count,
-            MAX(CURRENT_DATE - created_date) AS oldest_open_request_age_days
+            COUNT(*) FILTER (WHERE status != 'done') AS open_request_count,
+            COUNT(*) FILTER (WHERE status = 'in_progress') AS in_progress_request_count,
+            MAX(CURRENT_DATE - created_date) FILTER (WHERE status != 'done') AS oldest_open_request_age_days
           FROM requests
-          WHERE status != 'done'
           GROUP BY subscription_id
         ) agg ON agg.subscription_id = s.id
       `;

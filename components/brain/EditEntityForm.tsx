@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { Pencil } from "lucide-react";
-import { BrainEntityKind, DashboardStatus } from "@/lib/brain-types";
+import { BrainEntityKind, DashboardStatus, Division } from "@/lib/brain-types";
 
 interface EditEntityFormProps {
   kind: BrainEntityKind;
@@ -11,7 +11,11 @@ interface EditEntityFormProps {
   initialStakeholder: string | null;
   initialStatus: DashboardStatus;
   initialJiraTicketId: string | null;
-  onSaved: () => void;
+  divisions: Division[];
+  initialDivisionId: number;
+  dashboardsInDivision: { id: number; name: string }[];
+  initialLinkedDashboardId: number | null;
+  onSaved: (newIdentity: { kind: BrainEntityKind; id: number }) => void;
   onCancel: () => void;
 }
 
@@ -35,13 +39,22 @@ export function EditEntityForm({
   initialStakeholder,
   initialStatus,
   initialJiraTicketId,
+  divisions,
+  initialDivisionId,
+  dashboardsInDivision,
+  initialLinkedDashboardId,
   onSaved,
   onCancel,
 }: EditEntityFormProps) {
+  const [selectedKind, setSelectedKind] = useState<BrainEntityKind>(kind);
   const [name, setName] = useState(initialName);
   const [stakeholder, setStakeholder] = useState(initialStakeholder ?? "");
   const [status, setStatus] = useState<DashboardStatus>(initialStatus);
   const [jiraTicketId, setJiraTicketId] = useState(initialJiraTicketId ?? "");
+  const [divisionId, setDivisionId] = useState(initialDivisionId);
+  const [linkedDashboardId, setLinkedDashboardId] = useState(
+    initialLinkedDashboardId !== null ? String(initialLinkedDashboardId) : ""
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,33 +70,43 @@ export function EditEntityForm({
 
       setSubmitting(true);
       try {
-        const res = await fetch(`${ENTITY_ENDPOINTS[kind]}/${id}`, {
-          method: "PATCH",
+        const fields = {
+          name: name.trim(),
+          stakeholder: stakeholder.trim() ? stakeholder.trim() : null,
+          status,
+          jiraTicketId: jiraTicketId.trim() ? jiraTicketId.trim() : null,
+          divisionId: Number(divisionId),
+          linkedDashboardId: linkedDashboardId ? Number(linkedDashboardId) : null,
+        };
+
+        const url =
+          selectedKind === kind
+            ? `${ENTITY_ENDPOINTS[kind]}/${id}`
+            : `${ENTITY_ENDPOINTS[kind]}/${id}/convert`;
+        const method = selectedKind === kind ? "PATCH" : "POST";
+
+        const res = await fetch(url, {
+          method,
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            name: name.trim(),
-            stakeholder: stakeholder.trim() ? stakeholder.trim() : null,
-            status,
-            jiraTicketId: jiraTicketId.trim() ? jiraTicketId.trim() : null,
-          }),
+          body: JSON.stringify(fields),
         });
         const data = await res.json();
 
         if (!res.ok) {
-          setError(data.error ?? `Could not update ${kind}.`);
+          setError(data.error ?? (selectedKind !== kind ? `Could not convert ${kind} to ${selectedKind}.` : `Could not save ${kind}.`));
           return;
         }
 
-        onSaved();
+        onSaved(selectedKind === kind ? { kind, id } : { kind: selectedKind, id: data.id });
       } catch {
         setError("Network error — could not reach the server.");
       } finally {
         setSubmitting(false);
       }
     },
-    [kind, id, name, stakeholder, status, jiraTicketId, onSaved]
+    [kind, id, selectedKind, name, stakeholder, status, jiraTicketId, divisionId, linkedDashboardId, onSaved]
   );
 
   return (
@@ -104,6 +127,36 @@ export function EditEntityForm({
         </div>
 
         <form onSubmit={handleSubmit} className="px-5 py-4 flex flex-col gap-4">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-medium text-secondary">Type</label>
+            <div className="flex gap-2">
+              {(["dashboard", "subscription"] as BrainEntityKind[]).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => {
+                    if (option !== selectedKind) {
+                      setSelectedKind(option);
+                      setDivisionId(initialDivisionId);
+                    }
+                  }}
+                  className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md border transition-colors capitalize ${
+                    selectedKind === option
+                      ? "bg-brand-600 border-brand-600 text-white"
+                      : "border-theme text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700"
+                  }`}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+            {selectedKind !== kind && (
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                Converting type will move this {kind} to {selectedKind}s. Division cannot be changed during a type conversion.
+              </p>
+            )}
+          </div>
+
           <div className="flex flex-col gap-1">
             <label htmlFor="editEntityName" className="text-xs font-medium text-secondary">
               Name <span className="text-red-500">*</span>
@@ -150,6 +203,66 @@ export function EditEntityForm({
           </div>
 
           <div className="flex flex-col gap-1">
+            <label htmlFor="editEntityDivision" className="text-xs font-medium text-secondary">
+              Division
+            </label>
+            <select
+              id="editEntityDivision"
+              value={divisionId}
+              onChange={(e) => {
+                setDivisionId(Number(e.target.value));
+                // dashboardsInDivision is scoped to the entity's original
+                // division — once the user picks a different one, any
+                // previously selected link no longer refers to a dashboard
+                // in the (new) target division, so clear it rather than
+                // submit a stale id the API would reject as a 400.
+                setLinkedDashboardId("");
+              }}
+              disabled={selectedKind !== kind}
+              className="text-sm rounded-md border border-theme px-3 py-2 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {divisions.map((division) => (
+                <option key={division.id} value={division.id}>
+                  {division.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {selectedKind === "subscription" && (
+            <div className="flex flex-col gap-1">
+              <label htmlFor="editEntityLinkedDashboard" className="text-xs font-medium text-secondary">
+                Link to dashboard (optional)
+              </label>
+              <select
+                id="editEntityLinkedDashboard"
+                value={linkedDashboardId}
+                onChange={(e) => setLinkedDashboardId(e.target.value)}
+                disabled={selectedKind !== kind || divisionId !== initialDivisionId}
+                className="text-sm rounded-md border border-theme px-3 py-2 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <option value="">None</option>
+                {dashboardsInDivision.map((d) => (
+                  <option key={d.id} value={String(d.id)}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+              {selectedKind !== kind && (
+                <p className="text-xs text-secondary">
+                  Linking isn&apos;t supported as part of a type conversion — save the
+                  conversion first, then edit the new subscription to set a link.
+                </p>
+              )}
+              {selectedKind === kind && divisionId !== initialDivisionId && (
+                <p className="text-xs text-secondary">
+                  Save the division change first, then reopen to link a dashboard in the new division.
+                </p>
+              )}
+            </div>
+          )}
+
+          <div className="flex flex-col gap-1">
             <label htmlFor="editEntityJiraTicketId" className="text-xs font-medium text-secondary">
               Jira ticket ID
             </label>
@@ -180,7 +293,9 @@ export function EditEntityForm({
               disabled={submitting}
               className="px-3 py-1.5 text-xs font-medium rounded-md bg-brand-600 hover:bg-brand-700 text-white transition-colors disabled:opacity-60"
             >
-              {submitting ? "Saving…" : "Save changes"}
+              {submitting
+                ? (selectedKind !== kind ? "Converting…" : "Saving…")
+                : (selectedKind !== kind ? "Convert & save" : "Save changes")}
             </button>
           </div>
         </form>

@@ -13,8 +13,10 @@ import {
   RequestWithCreator,
   BrainEntityKind,
   Task,
+  RequestStatus,
 } from "@/lib/brain-types";
 import { BrainFilters, fadeOpacity, isRequestStatusVisible, isStatusVisible, isUrgencyVisible } from "@/lib/filters";
+import { OtherAnalystsPanel } from "@/components/brain/OtherAnalystsPanel";
 
 const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
   ssr: false,
@@ -29,6 +31,8 @@ interface DivisionGraphBrainProps {
   isViewerCenter: boolean; // true only when the viewed analyst IS the viewer
   onSelectEntity: (kind: BrainEntityKind, id: number, focusRequestId?: number) => void;
   onAddEntity?: () => void;
+  viewedAnalystId: number;
+  onJumpToAnalyst: (analystId: number) => void;
 }
 
 export function DivisionGraphBrain({
@@ -40,6 +44,8 @@ export function DivisionGraphBrain({
   isViewerCenter,
   onSelectEntity,
   onAddEntity,
+  viewedAnalystId,
+  onJumpToAnalyst,
 }: DivisionGraphBrainProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -225,7 +231,18 @@ export function DivisionGraphBrain({
   const linkRgb = resolvedTheme === "dark" ? "148, 163, 184" : "71, 85, 105";
   const linkColor = `rgba(${linkRgb}, 0.55)`;
   const linkColorFaded = `rgba(${linkRgb}, 0.2)`;
+  // Distinct brand-blue tether for a subscription linked to a dashboard —
+  // never confused with the gray center-tether or status-colored request
+  // tethers. Always rendered at full opacity, unaffected by any filter.
+  const linkedEntityColor = "rgba(37, 64, 245, 0.6)";
   const LINK_DASH = [4, 3];
+  const LINK_DASH_CLOSED = [1, 3];
+
+  const LINK_DASH_BY_STATUS: Record<RequestStatus, number[] | null> = {
+    open: null,
+    in_progress: LINK_DASH,
+    done: LINK_DASH_CLOSED,
+  };
 
   // Applies the request-state filter's fade to a "rgba(r, g, b, a)" color
   // string's alpha channel via fadeOpacity(), layering on top of the
@@ -240,6 +257,12 @@ export function DivisionGraphBrain({
   const getLinkColor = useCallback(
     (link: any) => {
       const l = link as GraphData["links"][number];
+      // Linked-entity tethers (subscription<->dashboard) always render at
+      // full opacity in their own distinct color — never subject to the
+      // request-state filter's fading below.
+      if (l.linkedEntity) {
+        return linkedEntityColor;
+      }
       const base = l.requestStatus === "done" ? linkColorFaded : linkColor;
       // Request-state filter layers an additional opacity reduction on top
       // of the existing status-based color (solid/faded-by-status) — only
@@ -249,12 +272,12 @@ export function DivisionGraphBrain({
       }
       return base;
     },
-    [linkColor, linkColorFaded, filters, fadeRgbaAlpha]
+    [linkedEntityColor, linkColor, linkColorFaded, filters, fadeRgbaAlpha]
   );
 
   const getLinkDash = useCallback((link: any) => {
     const l = link as GraphData["links"][number];
-    return l.requestStatus === "in_progress" ? LINK_DASH : null;
+    return l.requestStatus ? LINK_DASH_BY_STATUS[l.requestStatus] : null;
   }, []);
 
   const paintNode = useCallback(
@@ -419,17 +442,26 @@ export function DivisionGraphBrain({
               </p>
             )}
             <p className="text-xs text-secondary">
-              Open requests: {hoveredNode.openRequestCount ?? 0}
+              Open requests: {(hoveredNode.openRequestCount ?? 0) - (hoveredNode.inProgressRequestCount ?? 0)}
+            </p>
+            <p className="text-xs text-secondary">
+              In progress: {hoveredNode.inProgressRequestCount ?? 0}
             </p>
           </div>
         )}
+
+        <OtherAnalystsPanel
+          divisionId={division.id}
+          excludeAnalystId={viewedAnalystId}
+          onJumpToAnalyst={onJumpToAnalyst}
+        />
 
         <div className="absolute bottom-4 right-4 rounded-lg border border-theme bg-panel shadow-lg px-3 py-2.5 pointer-events-none">
           <p className="text-[10px] font-semibold uppercase tracking-wide text-secondary mb-1.5">Legend</p>
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-1.5 text-xs text-primary">
               <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: "#94a3b8" }} />
-              Open request
+              Request
             </div>
             <div className="flex items-center gap-1.5 text-xs text-primary">
               <span className="w-2 h-2 rotate-45 flex-shrink-0" style={{ backgroundColor: "#2dd4bf" }} />
@@ -476,9 +508,15 @@ export function DivisionGraphBrain({
             </div>
             <div className="flex items-center gap-1.5 text-xs text-primary">
               <svg width="16" height="10" className="flex-shrink-0">
-                <line x1="0" y1="5" x2="16" y2="5" stroke={linkColorFaded} strokeWidth="1.5" />
+                <line x1="0" y1="5" x2="16" y2="5" stroke={linkColorFaded} strokeWidth="1.5" strokeDasharray={LINK_DASH_CLOSED.join(" ")} />
               </svg>
               Closed
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-primary">
+              <svg width="16" height="10" className="flex-shrink-0">
+                <line x1="0" y1="5" x2="16" y2="5" stroke={linkedEntityColor} strokeWidth="1.5" />
+              </svg>
+              Linked dashboard ↔ subscription
             </div>
           </div>
         </div>

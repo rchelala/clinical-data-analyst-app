@@ -2,7 +2,7 @@
 // Dashboard Brain module. Centralized here because multiple routes map
 // dashboards and/or requests.
 
-import { Analyst, Dashboard, Division, Request, RequestWithCreator, ReportSubscription, Tag, Task, TaskWithContext, Psq, PsqWithTaskCount, WorklistDashboard, WeeklyNote } from '@/lib/brain-types';
+import { Analyst, Dashboard, Division, DivisionAnalystCoverage, IntakeRequest, IntakeRequestWithNames, Request, RequestWithCreator, ReportSubscription, Tag, Task, TaskWithContext, Psq, PsqWithTaskCount, WorklistDashboard, WeeklyNote } from '@/lib/brain-types';
 
 export function mapAnalystRow(row: any): Analyst {
   return {
@@ -17,6 +17,15 @@ export function mapDivisionRow(row: any): Division {
     name: row.name,
     sortOrder: row.sort_order,
     createdByAnalystId: row.created_by_analyst_id,
+  };
+}
+
+export function mapDivisionAnalystCoverageRow(row: any): DivisionAnalystCoverage {
+  return {
+    id: row.id,
+    name: row.name,
+    dashboardCount: Number(row.dashboard_count),
+    subscriptionCount: Number(row.subscription_count),
   };
 }
 
@@ -46,6 +55,7 @@ export function mapReportSubscriptionRow(row: any): ReportSubscription {
     name: row.name,
     divisionId: row.division_id,
     analystId: row.analyst_id,
+    linkedDashboardId: row.linked_dashboard_id,
     stakeholder: row.stakeholder,
     status: row.status,
     jiraTicketId: row.jira_ticket_id,
@@ -160,5 +170,32 @@ export function mapWeeklyNoteRow(row: any): WeeklyNote {
     analystId: row.analyst_id,
     weekStart: row.week_start,
     meetings: row.meetings,
+  };
+}
+
+export function mapIntakeRequestRow(row: any): IntakeRequest {
+  return {
+    id: row.id,
+    priority: row.priority,
+    dateReceived: row.date_received,
+    divisionId: row.division_id,
+    topic: row.topic,
+    stakeholder: row.stakeholder,
+    analystId: row.analyst_id,
+    requestedKind: row.requested_kind,
+    status: row.status,
+    ticketLink: row.ticket_link,
+    internalComments: row.internal_comments,
+    createdDate: row.created_date,
+    fulfilledEntityKind: row.fulfilled_entity_kind,
+    fulfilledEntityId: row.fulfilled_entity_id,
+  };
+}
+
+export function mapIntakeRequestWithNamesRow(row: any): IntakeRequestWithNames {
+  return {
+    ...mapIntakeRequestRow(row),
+    divisionName: row.division_name,
+    analystName: row.analyst_name,
   };
 }

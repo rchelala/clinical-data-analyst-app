@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { GoogleGenAI } from "@google/genai";
 import { AIProvider } from "@/lib/providers";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/get-client-ip";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -57,6 +59,14 @@ ${fieldList}`;
 
 export async function POST(req: NextRequest) {
   try {
+    const { allowed, retryAfterSeconds } = await checkRateLimit(getClientIp(req));
+    if (!allowed) {
+      return NextResponse.json(
+        { error: `Too many requests. Try again in ${retryAfterSeconds} seconds.` },
+        { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } }
+      );
+    }
+
     const { tableName, fields, provider = "claude" } = await req.json() as {
       tableName: string;
       fields: FieldRow[];
@@ -123,7 +133,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ sql: result.text });
   } catch (err: unknown) {
     console.error("Generate SQL error:", err);
-    const message = err instanceof Error ? err.message : "An unexpected error occurred.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: "Something went wrong processing your request. Please try again." },
+      { status: 500 }
+    );
   }
 }

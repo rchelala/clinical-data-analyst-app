@@ -12,9 +12,10 @@ interface AddTaskFormProps {
   onCreated: () => void;
   onCancel: () => void;
   lockedDashboardId?: number; // when set, target is locked to this dashboard, picker not interactive
+  lockedPsqId?: number; // when set, target is locked to this PSQ, picker not interactive
 }
 
-type TargetType = "dashboard" | "subscription" | "division";
+type TargetType = "dashboard" | "subscription" | "division" | "psq";
 
 interface TargetOption {
   id: number;
@@ -28,8 +29,9 @@ export function AddTaskForm({
   onCreated,
   onCancel,
   lockedDashboardId,
+  lockedPsqId,
 }: AddTaskFormProps) {
-  const isLocked = lockedDashboardId !== undefined;
+  const isLocked = lockedDashboardId !== undefined || lockedPsqId !== undefined;
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -40,17 +42,21 @@ export function AddTaskForm({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [targetType, setTargetType] = useState<TargetType>("dashboard");
-  const [targetId, setTargetId] = useState<number | null>(isLocked ? lockedDashboardId! : null);
+  const [targetType, setTargetType] = useState<TargetType>(
+    lockedPsqId !== undefined ? "psq" : "dashboard"
+  );
+  const [targetId, setTargetId] = useState<number | null>(lockedPsqId ?? lockedDashboardId ?? null);
   const [optionsByType, setOptionsByType] = useState<Record<TargetType, TargetOption[] | undefined>>({
     dashboard: undefined,
     subscription: undefined,
     division: undefined,
+    psq: undefined,
   });
   const [optionsLoading, setOptionsLoading] = useState<Record<TargetType, boolean>>({
     dashboard: false,
     subscription: false,
     division: false,
+    psq: false,
   });
 
   useEffect(() => {
@@ -81,13 +87,22 @@ export function AddTaskForm({
         } else if (type === "subscription") {
           url = "/api/report-subscriptions";
           headers = { "x-analyst-id": String(currentAnalystId) };
+        } else if (type === "psq") {
+          url = `/api/psqs?analystId=${currentAnalystId}`;
         } else {
           url = "/api/divisions";
         }
         const res = await fetch(url, headers ? { headers } : undefined);
         const data = await res.json();
         if (res.ok) {
-          setOptionsByType((prev) => ({ ...prev, [type]: data }));
+          if (type === "psq") {
+            setOptionsByType((prev) => ({
+              ...prev,
+              psq: data.map((p: { id: number; name: string }) => ({ id: p.id, name: p.name })),
+            }));
+          } else {
+            setOptionsByType((prev) => ({ ...prev, [type]: data }));
+          }
         }
       } catch {
         // Non-critical; dropdown will just be empty.
@@ -101,17 +116,31 @@ export function AddTaskForm({
   // When locked, fetch the dashboard list once to resolve the dashboard's
   // display name (falls back to showing nothing extra if not found).
   useEffect(() => {
-    if (isLocked && optionsByType.dashboard === undefined) {
+    if (lockedDashboardId !== undefined && optionsByType.dashboard === undefined) {
       fetchOptionsFor("dashboard");
     }
-  }, [isLocked, optionsByType.dashboard, fetchOptionsFor]);
+  }, [lockedDashboardId, optionsByType.dashboard, fetchOptionsFor]);
+
+  // When locked to a PSQ, fetch the PSQ list once to resolve its display name.
+  useEffect(() => {
+    if (lockedPsqId !== undefined && optionsByType.psq === undefined) {
+      fetchOptionsFor("psq");
+    }
+  }, [lockedPsqId, optionsByType.psq, fetchOptionsFor]);
 
   const lockedDashboardName = useMemo(() => {
-    if (!isLocked) return null;
+    if (lockedDashboardId === undefined) return null;
     const list = optionsByType.dashboard;
     if (!list) return null;
     return list.find((d) => d.id === lockedDashboardId)?.name ?? null;
-  }, [isLocked, optionsByType.dashboard, lockedDashboardId]);
+  }, [lockedDashboardId, optionsByType.dashboard]);
+
+  const lockedPsqName = useMemo(() => {
+    if (lockedPsqId === undefined) return null;
+    const list = optionsByType.psq;
+    if (!list) return null;
+    return list.find((p) => p.id === lockedPsqId)?.name ?? null;
+  }, [lockedPsqId, optionsByType.psq]);
 
   const handleSelectTargetType = useCallback(
     (type: TargetType) => {
@@ -151,7 +180,8 @@ export function AddTaskForm({
         };
         if (targetType === "dashboard") body.dashboardId = targetId;
         else if (targetType === "subscription") body.subscriptionId = targetId;
-        else body.divisionId = targetId;
+        else if (targetType === "division") body.divisionId = targetId;
+        else body.psqId = targetId;
 
         const res = await fetch("/api/tasks", {
           method: "POST",
@@ -191,7 +221,11 @@ export function AddTaskForm({
           <div>
             <h2 className="text-sm font-semibold text-primary leading-none">Add task</h2>
             <p className="text-xs text-secondary mt-0.5">
-              {isLocked ? "Add a new task to this dashboard." : "Add a new task."}
+              {lockedPsqId !== undefined
+                ? "Add a new task to this PSQ."
+                : isLocked
+                ? "Add a new task to this dashboard."
+                : "Add a new task."}
             </p>
           </div>
         </div>
@@ -201,7 +235,9 @@ export function AddTaskForm({
             <label className="text-xs font-medium text-secondary">Target</label>
             {isLocked ? (
               <div className="text-sm text-primary px-3 py-2 rounded-md border border-theme bg-secondary-glass">
-                Dashboard: {lockedDashboardName ?? lockedDashboardId}
+                {lockedPsqId !== undefined
+                  ? `PSQ: ${lockedPsqName ?? lockedPsqId}`
+                  : `Dashboard: ${lockedDashboardName ?? lockedDashboardId}`}
               </div>
             ) : (
               <>
@@ -211,6 +247,7 @@ export function AddTaskForm({
                       { type: "dashboard" as const, label: "Dashboard" },
                       { type: "subscription" as const, label: "Report Subscription" },
                       { type: "division" as const, label: "Division" },
+                      { type: "psq" as const, label: "PSQ" },
                     ]
                   ).map(({ type, label }) => (
                     <button

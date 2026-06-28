@@ -19,7 +19,7 @@ import { AddWorklistDashboard } from "@/components/worklist/AddWorklistDashboard
 import { StatusPrioritySelect } from "@/components/worklist/StatusPrioritySelect";
 import { WeeklyUpdateDrawer } from "@/components/worklist/WeeklyUpdateDrawer";
 import { loadAnalystId } from "@/lib/analyst-identity";
-import { Dashboard, Division, Psq, Task, TaskWithContext } from "@/lib/brain-types";
+import { Dashboard, Division, PsqWithTaskCount, Task, TaskWithContext } from "@/lib/brain-types";
 import { WeeklyUpdateData } from "@/lib/weekly-update";
 
 interface WorklistDashboardItem extends Dashboard {
@@ -93,9 +93,14 @@ export default function WorklistPage() {
   const [assignedLoading, setAssignedLoading] = useState(true);
 
   // PSQs
-  const [psqs, setPsqs] = useState<Psq[]>([]);
+  const [psqs, setPsqs] = useState<PsqWithTaskCount[]>([]);
   const [psqsLoading, setPsqsLoading] = useState(true);
   const [divisions, setDivisions] = useState<Division[]>([]);
+  const [psqActiveOnly, setPsqActiveOnly] = useState(true);
+  const [expandedPsqId, setExpandedPsqId] = useState<number | null>(null);
+  const [tasksByPsq, setTasksByPsq] = useState<Record<number, Task[]>>({});
+  const [psqTasksLoading, setPsqTasksLoading] = useState<Record<number, boolean>>({});
+  const [showAddTaskForPsq, setShowAddTaskForPsq] = useState<number | null>(null);
 
   const handleSelectAnalyst = useCallback((id: number, name: string) => {
     setAnalystId(id);
@@ -328,6 +333,71 @@ export default function WorklistPage() {
     []
   );
 
+  const fetchTasksForPsq = useCallback(
+    async (psqId: number) => {
+      if (analystId === null) return;
+      setPsqTasksLoading((prev) => ({ ...prev, [psqId]: true }));
+      try {
+        const res = await fetch(`/api/tasks?psqId=${psqId}&ownerAnalystId=${analystId}`);
+        const data = await res.json();
+        if (res.ok) {
+          setTasksByPsq((prev) => ({ ...prev, [psqId]: data }));
+        }
+      } catch {
+        // Non-critical
+      } finally {
+        setPsqTasksLoading((prev) => ({ ...prev, [psqId]: false }));
+      }
+    },
+    [analystId]
+  );
+
+  const togglePsqExpand = useCallback(
+    (psqId: number) => {
+      if (expandedPsqId === psqId) {
+        setExpandedPsqId(null);
+        return;
+      }
+      setExpandedPsqId(psqId);
+      if (!tasksByPsq[psqId]) {
+        fetchTasksForPsq(psqId);
+      }
+    },
+    [expandedPsqId, tasksByPsq, fetchTasksForPsq]
+  );
+
+  const patchPsqTask = useCallback(
+    async (psqId: number, taskId: number, body: Record<string, unknown>) => {
+      try {
+        const res = await fetch(`/api/tasks/${taskId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (res.ok) {
+          const updated = await res.json();
+          setTasksByPsq((prev) => ({
+            ...prev,
+            [psqId]: (prev[psqId] ?? []).map((t) => (t.id === taskId ? updated : t)),
+          }));
+        }
+      } catch {
+        // Non-critical
+      }
+    },
+    []
+  );
+
+  const psqTaskCounts = useCallback(
+    (psqId: number) => {
+      const tasks = tasksByPsq[psqId];
+      if (!tasks) return null;
+      const open = tasks.filter((t) => t.status !== "done").length;
+      return `${open} open · ${tasks.length} total`;
+    },
+    [tasksByPsq]
+  );
+
   const patchPsq = useCallback(async (id: number, body: Record<string, unknown>) => {
     try {
       const res = await fetch(`/api/psqs/${id}`, {
@@ -386,10 +456,13 @@ export default function WorklistPage() {
     Object.values(tasksByDashboard)
       .flat()
       .forEach((t) => t.status && set.add(t.status));
+    Object.values(tasksByPsq)
+      .flat()
+      .forEach((t) => t.status && set.add(t.status));
     assignedTasks.forEach((t) => t.status && set.add(t.status));
     psqs.forEach((p) => p.status && set.add(p.status));
     return Array.from(set);
-  }, [dashboards, tasksByDashboard, assignedTasks, psqs]);
+  }, [dashboards, tasksByDashboard, tasksByPsq, assignedTasks, psqs]);
 
   const prioritySuggestions = useMemo(() => {
     const set = new Set<string>(["1", "2", "3", "4", "5"]);
@@ -397,14 +470,21 @@ export default function WorklistPage() {
     Object.values(tasksByDashboard)
       .flat()
       .forEach((t) => t.priority && set.add(t.priority));
+    Object.values(tasksByPsq)
+      .flat()
+      .forEach((t) => t.priority && set.add(t.priority));
     return Array.from(set);
-  }, [dashboards, tasksByDashboard]);
+  }, [dashboards, tasksByDashboard, tasksByPsq]);
 
   const sortedDashboards = useMemo(() => {
     const filtered = activeOnly ? dashboards.filter((d) => d.activeTaskCount > 0) : dashboards;
     if (!sortByPriority) return filtered;
     return [...filtered].sort((a, b) => comparePriority(a.priority, b.priority));
   }, [dashboards, sortByPriority, activeOnly]);
+
+  const sortedPsqs = useMemo(() => {
+    return psqActiveOnly ? psqs.filter((p) => p.activeTaskCount > 0) : psqs;
+  }, [psqs, psqActiveOnly]);
 
   const existingWorklistDashboardIds = useMemo(() => dashboards.map((d) => d.id), [dashboards]);
 
@@ -856,12 +936,23 @@ export default function WorklistPage() {
               <div className="flex items-center gap-3 mb-2.5">
                 <h2 className="text-sm font-semibold text-primary">PSQ — Performance &amp; Service Quality</h2>
                 <span className="text-xs text-secondary bg-panel border border-theme rounded-full px-2 py-0.5">
-                  {psqs.length} PSQ{psqs.length === 1 ? "" : "s"}
+                  showing {sortedPsqs.length} of {psqs.length} PSQ{psqs.length === 1 ? "" : "s"}
                 </span>
                 <button
                   type="button"
+                  onClick={() => setPsqActiveOnly((a) => !a)}
+                  className={`ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border transition-colors ${
+                    psqActiveOnly
+                      ? "text-primary border-brand-500 bg-brand-600/10"
+                      : "border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700"
+                  }`}
+                >
+                  Active only
+                </button>
+                <button
+                  type="button"
                   onClick={handleAddPsq}
-                  className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                 >
                   <Plus className="w-3 h-3" />
                   PSQ
@@ -885,83 +976,211 @@ export default function WorklistPage() {
                   <table className="w-full border-collapse">
                     <thead>
                       <tr className="bg-secondary-glass border-b border-theme">
-                        {["Status", "Year", "Division", "PSQ", "Tasks", "Comments", "Enterprise Analyst", "Notes", "Summary"].map(
-                          (h) => (
-                            <th
-                              key={h}
-                              className="text-left text-[10.5px] uppercase tracking-wide text-secondary font-semibold px-3 py-2 whitespace-nowrap"
-                            >
-                              {h}
-                            </th>
-                          )
-                        )}
+                        {[
+                          "Status",
+                          "Year",
+                          "Division",
+                          "PSQ",
+                          "Tasks",
+                          "Dashboard",
+                          "Comments",
+                          "Enterprise Analyst",
+                          "Notes",
+                          "Summary",
+                        ].map((h) => (
+                          <th
+                            key={h}
+                            className="text-left text-[10.5px] uppercase tracking-wide text-secondary font-semibold px-3 py-2 whitespace-nowrap"
+                          >
+                            {h}
+                          </th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {psqs.map((p) => (
-                        <tr key={p.id} className="border-b border-theme/60 hover:bg-white/[0.02] align-top">
-                          <td className="px-3 py-2.5">
-                            <StatusPrioritySelect
-                              kind="status"
-                              value={p.status}
-                              suggestions={statusSuggestions}
-                              onChange={(value) => patchPsq(p.id, { status: value })}
-                            />
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <EditableCell
-                              value={p.year !== null ? String(p.year) : null}
-                              onSave={(value) => patchPsq(p.id, { year: value ? Number(value) : null })}
-                            />
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <select
-                              value={p.divisionId ?? ""}
-                              onChange={(e) =>
-                                patchPsq(p.id, {
-                                  divisionId: e.target.value ? Number(e.target.value) : null,
-                                })
-                              }
-                              className="text-xs rounded-md border border-theme px-2 py-1 bg-panel text-primary focus:outline-none focus:ring-1 focus:ring-brand-500 cursor-pointer transition-colors"
-                            >
-                              <option value="">–</option>
-                              {divisions.map((div) => (
-                                <option key={div.id} value={div.id}>
-                                  {div.name}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <EditableCell
-                              value={p.name}
-                              placeholder="PSQ measure…"
-                              onSave={(value) => patchPsq(p.id, { name: value })}
-                            />
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <EditableCell value={p.tasks} onSave={(value) => patchPsq(p.id, { tasks: value })} />
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <EditableCell
-                              value={p.comments}
-                              onSave={(value) => patchPsq(p.id, { comments: value })}
-                            />
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <EditableCell
-                              value={p.enterpriseAnalyst}
-                              onSave={(value) => patchPsq(p.id, { enterpriseAnalyst: value })}
-                            />
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <EditableCell value={p.notes} onSave={(value) => patchPsq(p.id, { notes: value })} />
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <EditableCell value={p.summary} onSave={(value) => patchPsq(p.id, { summary: value })} />
-                          </td>
-                        </tr>
-                      ))}
+                      {sortedPsqs.map((p) => {
+                        const isPsqOpen = expandedPsqId === p.id;
+                        const psqCounts = psqTaskCounts(p.id);
+                        return (
+                          <Fragment key={p.id}>
+                            <tr className="border-b border-theme/60 hover:bg-white/[0.02] align-top">
+                              <td className="px-3 py-2.5">
+                                <StatusPrioritySelect
+                                  kind="status"
+                                  value={p.status}
+                                  suggestions={statusSuggestions}
+                                  onChange={(value) => patchPsq(p.id, { status: value })}
+                                />
+                              </td>
+                              <td className="px-3 py-2.5">
+                                <EditableCell
+                                  value={p.year !== null ? String(p.year) : null}
+                                  onSave={(value) => patchPsq(p.id, { year: value ? Number(value) : null })}
+                                />
+                              </td>
+                              <td className="px-3 py-2.5">
+                                <select
+                                  value={p.divisionId ?? ""}
+                                  onChange={(e) =>
+                                    patchPsq(p.id, {
+                                      divisionId: e.target.value ? Number(e.target.value) : null,
+                                    })
+                                  }
+                                  className="text-xs rounded-md border border-theme px-2 py-1 bg-panel text-primary focus:outline-none focus:ring-1 focus:ring-brand-500 cursor-pointer transition-colors"
+                                >
+                                  <option value="">–</option>
+                                  {divisions.map((div) => (
+                                    <option key={div.id} value={div.id}>
+                                      {div.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="px-3 py-2.5">
+                                <EditableCell
+                                  value={p.name}
+                                  placeholder="PSQ measure…"
+                                  onSave={(value) => patchPsq(p.id, { name: value })}
+                                />
+                              </td>
+                              <td className="px-3 py-2.5">
+                                <button
+                                  type="button"
+                                  onClick={() => togglePsqExpand(p.id)}
+                                  className="flex items-center gap-1.5 text-xs text-secondary hover:text-primary transition-colors"
+                                >
+                                  <ChevronRight
+                                    className={`w-3.5 h-3.5 transition-transform ${isPsqOpen ? "rotate-90" : ""}`}
+                                  />
+                                  {psqCounts ?? "View tasks"}
+                                </button>
+                              </td>
+                              <td className="px-3 py-2.5">
+                                <select
+                                  value={p.dashboardId ?? ""}
+                                  onChange={(e) =>
+                                    patchPsq(p.id, {
+                                      dashboardId: e.target.value ? Number(e.target.value) : null,
+                                    })
+                                  }
+                                  className="text-xs rounded-md border border-theme px-2 py-1 bg-panel text-primary focus:outline-none focus:ring-1 focus:ring-brand-500 cursor-pointer transition-colors"
+                                >
+                                  <option value="">–</option>
+                                  {dashboards.map((d) => (
+                                    <option key={d.id} value={d.id}>
+                                      {d.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td className="px-3 py-2.5">
+                                <EditableCell
+                                  value={p.comments}
+                                  onSave={(value) => patchPsq(p.id, { comments: value })}
+                                />
+                              </td>
+                              <td className="px-3 py-2.5">
+                                <EditableCell
+                                  value={p.enterpriseAnalyst}
+                                  onSave={(value) => patchPsq(p.id, { enterpriseAnalyst: value })}
+                                />
+                              </td>
+                              <td className="px-3 py-2.5">
+                                <EditableCell value={p.notes} onSave={(value) => patchPsq(p.id, { notes: value })} />
+                              </td>
+                              <td className="px-3 py-2.5">
+                                <EditableCell
+                                  value={p.summary}
+                                  onSave={(value) => patchPsq(p.id, { summary: value })}
+                                />
+                              </td>
+                            </tr>
+                            {isPsqOpen && (
+                              <tr className="bg-black/20 border-b border-theme/60">
+                                <td colSpan={10} className="px-3 py-3 pl-10">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <span className="text-[11px] uppercase tracking-wide text-secondary font-medium">
+                                      Tasks — {p.name}
+                                    </span>
+                                  </div>
+
+                                  {psqTasksLoading[p.id] && (
+                                    <div className="flex items-center gap-2 text-xs text-secondary py-2">
+                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                      Loading tasks…
+                                    </div>
+                                  )}
+
+                                  {!psqTasksLoading[p.id] && (tasksByPsq[p.id]?.length ?? 0) === 0 && (
+                                    <p className="text-xs text-secondary py-2">No tasks yet.</p>
+                                  )}
+
+                                  {!psqTasksLoading[p.id] &&
+                                    (tasksByPsq[p.id] ?? []).map((task) => (
+                                      <div
+                                        key={task.id}
+                                        className="flex items-start gap-2.5 px-2.5 py-2 mb-1.5 rounded-md border border-theme/60 bg-panel"
+                                      >
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            patchPsqTask(p.id, task.id, {
+                                              status: task.status === "done" ? "open" : "done",
+                                            })
+                                          }
+                                          className={`mt-0.5 w-4 h-4 rounded flex-shrink-0 border flex items-center justify-center text-[10px] transition-colors ${
+                                            task.status === "done"
+                                              ? "bg-green-500 border-green-500 text-black"
+                                              : "border-secondary"
+                                          }`}
+                                        >
+                                          {task.status === "done" ? "✓" : ""}
+                                        </button>
+                                        <div className="flex-1 min-w-0">
+                                          <div
+                                            className={`text-[13px] font-medium ${
+                                              task.status === "done"
+                                                ? "line-through text-secondary"
+                                                : "text-primary"
+                                            }`}
+                                          >
+                                            {task.title}
+                                          </div>
+                                          {task.description && (
+                                            <div className="text-xs text-secondary mt-0.5">{task.description}</div>
+                                          )}
+                                          <div className="flex items-center gap-2 mt-1.5">
+                                            <StatusPrioritySelect
+                                              kind="status"
+                                              value={task.status}
+                                              suggestions={statusSuggestions}
+                                              onChange={(value) => patchPsqTask(p.id, task.id, { status: value })}
+                                            />
+                                            <StatusPrioritySelect
+                                              kind="priority"
+                                              value={task.priority}
+                                              suggestions={prioritySuggestions}
+                                              onChange={(value) => patchPsqTask(p.id, task.id, { priority: value })}
+                                            />
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ))}
+
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowAddTaskForPsq(p.id)}
+                                    className="flex items-center gap-1.5 text-xs text-secondary hover:text-primary border border-dashed border-theme rounded-md px-3 py-1.5 transition-colors"
+                                  >
+                                    <Plus className="w-3 h-3" />
+                                    Task
+                                  </button>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        );
+                      })}
                     </tbody>
                   </table>
                 )}
@@ -985,6 +1204,22 @@ export default function WorklistPage() {
             refetchAssigned();
           }}
           onCancel={() => setShowAddTaskFor(null)}
+        />
+      )}
+
+      {showAddTaskForPsq !== null && analystId !== null && (
+        <AddTaskForm
+          lockedPsqId={showAddTaskForPsq}
+          currentAnalystId={analystId}
+          statusSuggestions={statusSuggestions}
+          prioritySuggestions={prioritySuggestions}
+          onCreated={() => {
+            const psqId = showAddTaskForPsq;
+            setShowAddTaskForPsq(null);
+            fetchTasksForPsq(psqId);
+            refetchPsqs();
+          }}
+          onCancel={() => setShowAddTaskForPsq(null)}
         />
       )}
 

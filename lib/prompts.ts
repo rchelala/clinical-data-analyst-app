@@ -42,6 +42,23 @@ ${langLabel} code to comment:
 ${code}`;
 }
 
+export function buildWeeklyUpdatePrompt(structuredMarkdown: string, analystName: string): string {
+  return `You are an analytics manager's trusted analyst, ${analystName}, writing your own weekly status update.
+
+Rewrite the structured worklist data below into a concise, professional weekly status update in prose, suitable for sharing with your manager and team.
+
+Guidance:
+- Group related work by theme rather than listing every dashboard mechanically
+- Lead with the most important progress first
+- Mention what was completed and what's coming next
+- Keep it tight — a few short paragraphs, not a wall of text
+- No preamble (e.g. "Here is your update") and no sign-off — just the update itself
+- Plain, professional tone — no markdown fences, no headers, no bullet lists; write in flowing paragraphs
+
+Structured worklist data:
+${structuredMarkdown}`;
+}
+
 export function buildSummaryPrompt(code: string, language: Language): string {
   const langLabel = language === "dax" ? "DAX (Data Analysis Expressions for Power BI / SSAS)" : "SQL";
 

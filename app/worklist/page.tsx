@@ -16,8 +16,10 @@ import { AnalystSelector } from "@/components/brain/AnalystSelector";
 import { AddTaskForm } from "@/components/worklist/AddTaskForm";
 import { AddWorklistDashboard } from "@/components/worklist/AddWorklistDashboard";
 import { StatusPrioritySelect } from "@/components/worklist/StatusPrioritySelect";
+import { WeeklyUpdateDrawer } from "@/components/worklist/WeeklyUpdateDrawer";
 import { loadAnalystId } from "@/lib/analyst-identity";
 import { Dashboard, Division, Psq, Task, TaskWithContext } from "@/lib/brain-types";
+import { WeeklyUpdateData } from "@/lib/weekly-update";
 
 interface WorklistDashboardItem extends Dashboard {
   ownerName: string | null;
@@ -75,6 +77,11 @@ export default function WorklistPage() {
   const [tasksLoading, setTasksLoading] = useState<Record<number, boolean>>({});
   const [showAddTaskFor, setShowAddTaskFor] = useState<number | null>(null);
   const [showAddDashboard, setShowAddDashboard] = useState(false);
+
+  // Weekly update drawer
+  const [weeklyUpdateData, setWeeklyUpdateData] = useState<WeeklyUpdateData | null>(null);
+  const [weeklyUpdateLoading, setWeeklyUpdateLoading] = useState(false);
+  const [weeklyUpdateError, setWeeklyUpdateError] = useState<string | null>(null);
 
   // Assigned to me
   const [assignedTasks, setAssignedTasks] = useState<TaskWithContext[]>([]);
@@ -405,6 +412,64 @@ export default function WorklistPage() {
     [tasksByDashboard]
   );
 
+  // Compiles WeeklyUpdateData for the drawer. Fetches tasks for every
+  // worklist dashboard in parallel (not just the currently expanded one) so
+  // the update reflects all dashboards, then opens the drawer.
+  const handleGenerateWeeklyUpdate = useCallback(async () => {
+    if (analystId === null) return;
+    setWeeklyUpdateLoading(true);
+    setWeeklyUpdateError(null);
+    try {
+      const results = await Promise.all(
+        dashboards.map(async (d) => {
+          // Reuse already-fetched tasks if this dashboard happens to be expanded.
+          const cached = tasksByDashboard[d.id];
+          if (cached) return { dashboard: d, tasks: cached };
+          try {
+            const res = await fetch(`/api/tasks?dashboardId=${d.id}&ownerAnalystId=${analystId}`);
+            const data = await res.json();
+            return { dashboard: d, tasks: res.ok ? (data as Task[]) : [] };
+          } catch {
+            return { dashboard: d, tasks: [] as Task[] };
+          }
+        })
+      );
+
+      const data: WeeklyUpdateData = {
+        analystName,
+        meetings,
+        dashboards: results.map(({ dashboard, tasks }) => ({
+          name: dashboard.name,
+          priority: dashboard.priority,
+          worklistStatus: dashboard.worklistStatus,
+          tasks: tasks.map((t) => ({
+            title: t.title,
+            status: t.status,
+            completedDate: t.completedDate,
+          })),
+        })),
+        assignedTasks: assignedTasks.map((t) => ({
+          title: t.title,
+          status: t.status,
+          dashboardName: t.dashboardName,
+        })),
+        psqs: psqs.map((p) => ({
+          division: p.divisionId !== null ? divisionNameById.get(p.divisionId) ?? null : null,
+          name: p.name,
+          status: p.status,
+          tasks: p.tasks,
+          comments: p.comments,
+        })),
+      };
+
+      setWeeklyUpdateData(data);
+    } catch {
+      setWeeklyUpdateError("Could not compile weekly update.");
+    } finally {
+      setWeeklyUpdateLoading(false);
+    }
+  }, [analystId, analystName, meetings, dashboards, tasksByDashboard, assignedTasks, psqs, divisionNameById]);
+
   return (
     <div className="flex flex-col min-h-screen bg-primary">
       <div className="fixed inset-0 -z-10 bg-[#0d1117]" />
@@ -435,11 +500,15 @@ export default function WorklistPage() {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            disabled
-            title="Coming soon"
+            disabled={analystId === null || weeklyUpdateLoading}
+            onClick={handleGenerateWeeklyUpdate}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-brand-600 text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <FileText className="w-3 h-3" />
+            {weeklyUpdateLoading ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <FileText className="w-3 h-3" />
+            )}
             Generate Weekly Update
           </button>
           <AnalystSelector onSelect={handleSelectAnalyst} />
@@ -879,6 +948,24 @@ export default function WorklistPage() {
           }}
           onCancel={() => setShowAddDashboard(false)}
         />
+      )}
+
+      {weeklyUpdateData && (
+        <WeeklyUpdateDrawer data={weeklyUpdateData} onClose={() => setWeeklyUpdateData(null)} />
+      )}
+
+      {weeklyUpdateError && (
+        <div className="fixed bottom-6 right-6 z-[60] flex items-center gap-3 px-4 py-3 rounded-md border border-red-500/40 bg-red-500/10 text-sm text-red-400 shadow-lg">
+          {weeklyUpdateError}
+          <button
+            type="button"
+            onClick={() => setWeeklyUpdateError(null)}
+            className="text-red-400 hover:text-red-300"
+            aria-label="Dismiss"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
       )}
     </div>
   );

@@ -369,7 +369,7 @@ export default function WorklistPage() {
       const res = await fetch("/api/psqs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ analystId, name: "", year: new Date().getFullYear(), summary: null }),
+        body: JSON.stringify({ analystId, name: "New PSQ", year: new Date().getFullYear(), summary: null }),
       });
       const data = await res.json();
       if (res.ok) {

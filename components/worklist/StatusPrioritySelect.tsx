@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, useCallback, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown } from "lucide-react";
 
 interface StatusPrioritySelectProps {
@@ -60,20 +61,38 @@ const ADD_NEW = "__add_new__";
 
 export function StatusPrioritySelect({ kind, value, suggestions, onChange }: StatusPrioritySelectProps) {
   const [open, setOpen] = useState(false);
-  const [openUp, setOpenUp] = useState(false);
   const [addingNew, setAddingNew] = useState(false);
   const [customValue, setCustomValue] = useState("");
+  // Fixed-position coordinates for the portal menu, measured from the trigger.
+  const [pos, setPos] = useState<{ top: number; left: number; openUp: boolean }>({ top: 0, left: 0, openUp: false });
+  const [mounted, setMounted] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
-  // Open the menu upward when there isn't enough room below the trigger
-  // (e.g. the last rows of a table whose card clips overflow), so it's never cut off.
+  useEffect(() => setMounted(true), []);
+
+  const close = useCallback(() => {
+    setOpen(false);
+    setAddingNew(false);
+    setCustomValue("");
+  }, []);
+
+  // The menu is rendered in a portal (so it can't be clipped by a parent's
+  // overflow-hidden, e.g. the table card). Position it relative to the trigger
+  // and flip upward when there isn't room below the trigger in the viewport.
   const handleToggle = useCallback(() => {
-    if (!open && containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      setOpenUp(window.innerHeight - rect.bottom < 260);
+    if (open) {
+      close();
+      return;
     }
-    setOpen((o) => !o);
-  }, [open]);
+    const el = containerRef.current;
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      const openUp = window.innerHeight - rect.bottom < 260;
+      setPos({ left: rect.left, top: openUp ? rect.top - 4 : rect.bottom + 4, openUp });
+    }
+    setOpen(true);
+  }, [open, close]);
 
   const options = useMemo(() => {
     const set = new Set(suggestions.filter((s) => s && s.trim()));
@@ -81,18 +100,25 @@ export function StatusPrioritySelect({ kind, value, suggestions, onChange }: Sta
     return Array.from(set);
   }, [suggestions, value]);
 
+  // Close on outside click (checking both the trigger and the portalled menu),
+  // and on scroll/resize since the fixed coordinates would otherwise drift.
   useEffect(() => {
     if (!open) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-        setAddingNew(false);
-        setCustomValue("");
-      }
+    const onPointerDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (containerRef.current?.contains(t) || menuRef.current?.contains(t)) return;
+      close();
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open]);
+    const onReflow = () => close();
+    document.addEventListener("mousedown", onPointerDown);
+    window.addEventListener("scroll", onReflow, true);
+    window.addEventListener("resize", onReflow);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      window.removeEventListener("scroll", onReflow, true);
+      window.removeEventListener("resize", onReflow);
+    };
+  }, [open, close]);
 
   const handleSelect = useCallback(
     (val: string) => {
@@ -101,20 +127,71 @@ export function StatusPrioritySelect({ kind, value, suggestions, onChange }: Sta
         return;
       }
       onChange(val);
-      setOpen(false);
+      close();
     },
-    [onChange]
+    [onChange, close]
   );
 
   const handleCustomSubmit = useCallback(() => {
     const trimmed = customValue.trim();
-    if (trimmed) {
-      onChange(trimmed);
-    }
-    setAddingNew(false);
-    setCustomValue("");
-    setOpen(false);
-  }, [customValue, onChange]);
+    if (trimmed) onChange(trimmed);
+    close();
+  }, [customValue, onChange, close]);
+
+  const menu = open && mounted
+    ? createPortal(
+        <div
+          ref={menuRef}
+          style={{
+            position: "fixed",
+            top: pos.top,
+            left: pos.left,
+            transform: pos.openUp ? "translateY(-100%)" : "none",
+            zIndex: 60,
+          }}
+          className="min-w-[160px] rounded-md border border-theme bg-panel shadow-lg py-1"
+        >
+          {addingNew ? (
+            <div className="px-2 py-1">
+              <input
+                autoFocus
+                value={customValue}
+                onChange={(e) => setCustomValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleCustomSubmit();
+                  if (e.key === "Escape") close();
+                }}
+                onBlur={handleCustomSubmit}
+                placeholder={kind === "priority" ? "Custom priority…" : "Custom status…"}
+                className="w-full text-xs rounded border border-theme px-2 py-1 bg-panel text-primary focus:outline-none focus:ring-1 focus:ring-brand-500"
+              />
+            </div>
+          ) : (
+            <>
+              {options.map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  onClick={() => handleSelect(opt)}
+                  className="w-full flex items-center gap-2 text-left px-3 py-1.5 text-xs text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                >
+                  {kind === "status" && <span className={`w-1.5 h-1.5 rounded-full ${colorsFor(opt).dot}`} />}
+                  {kind === "status" ? labelFor(opt) : opt}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() => handleSelect(ADD_NEW)}
+                className="w-full text-left px-3 py-1.5 text-xs text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors border-t border-theme"
+              >
+                Add new…
+              </button>
+            </>
+          )}
+        </div>,
+        document.body
+      )
+    : null;
 
   if (kind === "priority") {
     return (
@@ -126,49 +203,7 @@ export function StatusPrioritySelect({ kind, value, suggestions, onChange }: Sta
         >
           {value ?? "–"}
         </button>
-        {open && (
-          <div className={`absolute z-20 ${openUp ? "bottom-full mb-1" : "top-full mt-1"} min-w-[120px] rounded-md border border-theme bg-panel shadow-lg py-1`}>
-            {addingNew ? (
-              <div className="px-2 py-1">
-                <input
-                  autoFocus
-                  value={customValue}
-                  onChange={(e) => setCustomValue(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleCustomSubmit();
-                    if (e.key === "Escape") {
-                      setAddingNew(false);
-                      setCustomValue("");
-                    }
-                  }}
-                  onBlur={handleCustomSubmit}
-                  placeholder="Custom value…"
-                  className="w-full text-xs rounded border border-theme px-2 py-1 bg-panel text-primary focus:outline-none focus:ring-1 focus:ring-brand-500"
-                />
-              </div>
-            ) : (
-              <>
-                {options.map((opt) => (
-                  <button
-                    key={opt}
-                    type="button"
-                    onClick={() => handleSelect(opt)}
-                    className="w-full text-left px-3 py-1.5 text-xs text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                  >
-                    {opt}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => handleSelect(ADD_NEW)}
-                  className="w-full text-left px-3 py-1.5 text-xs text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors border-t border-theme"
-                >
-                  Add new…
-                </button>
-              </>
-            )}
-          </div>
-        )}
+        {menu}
       </div>
     );
   }
@@ -181,62 +216,14 @@ export function StatusPrioritySelect({ kind, value, suggestions, onChange }: Sta
         type="button"
         onClick={handleToggle}
         className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border transition-colors ${
-          colors
-            ? `${colors.text} ${colors.bg} ${colors.border}`
-            : "text-secondary bg-panel border-theme"
+          colors ? `${colors.text} ${colors.bg} ${colors.border}` : "text-secondary bg-panel border-theme"
         }`}
       >
         {colors && <span className={`w-1.5 h-1.5 rounded-full ${colors.dot}`} />}
         {value ? labelFor(value) : "–"}
         <ChevronDown className="w-3 h-3 opacity-60" />
       </button>
-      {open && (
-        <div className={`absolute z-20 ${openUp ? "bottom-full mb-1" : "top-full mt-1"} min-w-[160px] rounded-md border border-theme bg-panel shadow-lg py-1`}>
-          {addingNew ? (
-            <div className="px-2 py-1">
-              <input
-                autoFocus
-                value={customValue}
-                onChange={(e) => setCustomValue(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleCustomSubmit();
-                  if (e.key === "Escape") {
-                    setAddingNew(false);
-                    setCustomValue("");
-                  }
-                }}
-                onBlur={handleCustomSubmit}
-                placeholder="Custom status…"
-                className="w-full text-xs rounded border border-theme px-2 py-1 bg-panel text-primary focus:outline-none focus:ring-1 focus:ring-brand-500"
-              />
-            </div>
-          ) : (
-            <>
-              {options.map((opt) => {
-                const optColors = colorsFor(opt);
-                return (
-                  <button
-                    key={opt}
-                    type="button"
-                    onClick={() => handleSelect(opt)}
-                    className="w-full flex items-center gap-2 text-left px-3 py-1.5 text-xs text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-                  >
-                    <span className={`w-1.5 h-1.5 rounded-full ${optColors.dot}`} />
-                    {labelFor(opt)}
-                  </button>
-                );
-              })}
-              <button
-                type="button"
-                onClick={() => handleSelect(ADD_NEW)}
-                className="w-full text-left px-3 py-1.5 text-xs text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors border-t border-theme"
-              >
-                Add new…
-              </button>
-            </>
-          )}
-        </div>
-      )}
+      {menu}
     </div>
   );
 }

@@ -288,7 +288,19 @@ export function DivisionGraphBrain({
       ctx.globalAlpha = opacity;
 
       ctx.beginPath();
-      ctx.arc(x, y, n.val, 0, 2 * Math.PI, false);
+      if (n.kind === "task") {
+        // Tasks render as a diamond (rotated square) so they're instantly
+        // distinguishable from the circular request nodes and the large
+        // glowing dashboard/subscription moons.
+        const r = n.val + 2;
+        ctx.moveTo(x, y - r);
+        ctx.lineTo(x + r, y);
+        ctx.lineTo(x, y + r);
+        ctx.lineTo(x - r, y);
+        ctx.closePath();
+      } else {
+        ctx.arc(x, y, n.val, 0, 2 * Math.PI, false);
+      }
       ctx.fillStyle = n.color;
 
       // Glow halo on primary nodes only — the center node and dashboard/
@@ -312,6 +324,11 @@ export function DivisionGraphBrain({
       if (n.ringColor) {
         ctx.lineWidth = 2;
         ctx.strokeStyle = n.ringColor;
+        ctx.stroke();
+      } else if (n.kind === "task") {
+        // Crisp outline on the task diamond for extra definition against tethers.
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = "#0d9488"; // teal-600
         ctx.stroke();
       }
 
@@ -415,8 +432,8 @@ export function DivisionGraphBrain({
               Open request
             </div>
             <div className="flex items-center gap-1.5 text-xs text-primary">
-              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: "#2dd4bf" }} />
-              Task
+              <span className="w-2 h-2 rotate-45 flex-shrink-0" style={{ backgroundColor: "#2dd4bf" }} />
+              Task (diamond)
             </div>
           </div>
           <div className="border-t border-theme my-1.5" />

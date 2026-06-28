@@ -122,6 +122,13 @@ export async function GET(req: NextRequest) {
               SELECT dashboard_id FROM worklist_dashboards WHERE analyst_id = ${excludeWorklistOf}
             )
           )
+          -- Exclude tasks on the analyst's own PSQs; those already show in the PSQ section.
+          AND (
+            t.psq_id IS NULL
+            OR t.psq_id NOT IN (
+              SELECT id FROM psqs WHERE analyst_id = ${excludeWorklistOf}
+            )
+          )
         ORDER BY t.created_date DESC
       `;
 

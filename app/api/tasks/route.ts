@@ -31,16 +31,18 @@ export async function GET(req: NextRequest) {
     if (hasDashboardId) {
       const rows = hasOwnerAnalystId
         ? await sql`
-            SELECT id, dashboard_id, subscription_id, division_id, psq_id, owner_analyst_id, created_by_id, title, description, status, priority, created_date, completed_date
-            FROM tasks
-            WHERE dashboard_id = ${dashboardId} AND owner_analyst_id = ${ownerAnalystId}
-            ORDER BY created_date DESC
+            SELECT t.id, t.dashboard_id, t.subscription_id, t.division_id, t.psq_id, t.owner_analyst_id, t.created_by_id, t.title, t.description, t.status, t.priority, t.created_date, t.completed_date, owner.name AS owner_name
+            FROM tasks t
+            LEFT JOIN analysts owner ON owner.id = t.owner_analyst_id
+            WHERE t.dashboard_id = ${dashboardId} AND t.owner_analyst_id = ${ownerAnalystId}
+            ORDER BY t.created_date DESC
           `
         : await sql`
-            SELECT id, dashboard_id, subscription_id, division_id, psq_id, owner_analyst_id, created_by_id, title, description, status, priority, created_date, completed_date
-            FROM tasks
-            WHERE dashboard_id = ${dashboardId}
-            ORDER BY created_date DESC
+            SELECT t.id, t.dashboard_id, t.subscription_id, t.division_id, t.psq_id, t.owner_analyst_id, t.created_by_id, t.title, t.description, t.status, t.priority, t.created_date, t.completed_date, owner.name AS owner_name
+            FROM tasks t
+            LEFT JOIN analysts owner ON owner.id = t.owner_analyst_id
+            WHERE t.dashboard_id = ${dashboardId}
+            ORDER BY t.created_date DESC
           `;
 
       return NextResponse.json(rows.map(mapTaskRow));
@@ -49,16 +51,18 @@ export async function GET(req: NextRequest) {
     if (hasSubscriptionId) {
       const rows = hasOwnerAnalystId
         ? await sql`
-            SELECT id, dashboard_id, subscription_id, division_id, psq_id, owner_analyst_id, created_by_id, title, description, status, priority, created_date, completed_date
-            FROM tasks
-            WHERE subscription_id = ${subscriptionId} AND owner_analyst_id = ${ownerAnalystId}
-            ORDER BY created_date DESC
+            SELECT t.id, t.dashboard_id, t.subscription_id, t.division_id, t.psq_id, t.owner_analyst_id, t.created_by_id, t.title, t.description, t.status, t.priority, t.created_date, t.completed_date, owner.name AS owner_name
+            FROM tasks t
+            LEFT JOIN analysts owner ON owner.id = t.owner_analyst_id
+            WHERE t.subscription_id = ${subscriptionId} AND t.owner_analyst_id = ${ownerAnalystId}
+            ORDER BY t.created_date DESC
           `
         : await sql`
-            SELECT id, dashboard_id, subscription_id, division_id, psq_id, owner_analyst_id, created_by_id, title, description, status, priority, created_date, completed_date
-            FROM tasks
-            WHERE subscription_id = ${subscriptionId}
-            ORDER BY created_date DESC
+            SELECT t.id, t.dashboard_id, t.subscription_id, t.division_id, t.psq_id, t.owner_analyst_id, t.created_by_id, t.title, t.description, t.status, t.priority, t.created_date, t.completed_date, owner.name AS owner_name
+            FROM tasks t
+            LEFT JOIN analysts owner ON owner.id = t.owner_analyst_id
+            WHERE t.subscription_id = ${subscriptionId}
+            ORDER BY t.created_date DESC
           `;
 
       return NextResponse.json(rows.map(mapTaskRow));
@@ -66,10 +70,11 @@ export async function GET(req: NextRequest) {
 
     if (hasDivisionId) {
       const rows = await sql`
-        SELECT id, dashboard_id, subscription_id, division_id, psq_id, owner_analyst_id, created_by_id, title, description, status, priority, created_date, completed_date
-        FROM tasks
-        WHERE division_id = ${divisionId}
-        ORDER BY created_date DESC
+        SELECT t.id, t.dashboard_id, t.subscription_id, t.division_id, t.psq_id, t.owner_analyst_id, t.created_by_id, t.title, t.description, t.status, t.priority, t.created_date, t.completed_date, owner.name AS owner_name
+        FROM tasks t
+        LEFT JOIN analysts owner ON owner.id = t.owner_analyst_id
+        WHERE t.division_id = ${divisionId}
+        ORDER BY t.created_date DESC
       `;
 
       return NextResponse.json(rows.map(mapTaskRow));

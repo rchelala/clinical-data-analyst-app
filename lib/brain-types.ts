@@ -150,6 +150,10 @@ export interface Task {
   priority: string | null;
   createdDate: string;
   completedDate: string | null;
+  // Optional assignee display name, populated by queries that join the
+  // owner analyst (e.g. the galaxy's per-entity task fetch). Absent on
+  // plain inserts/updates that don't join analysts.
+  ownerName?: string | null;
 }
 
 export interface TaskWithContext extends Task {

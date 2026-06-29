@@ -28,6 +28,9 @@ export interface GraphNode {
   entityId?: number;
   requestId?: number;
   taskId?: number;
+  // For 'task' nodes: the assignee's display name, so the hover tooltip can
+  // show who a task is assigned to (especially on another analyst's galaxy).
+  taskOwnerName?: string | null;
   stakeholder?: string | null;
   lastTouchedDate?: string;
   openRequestCount?: number;
@@ -201,6 +204,7 @@ export function buildGraphData(
         entityKind: kind,
         entityId: entity.id,
         taskId: task.id,
+        taskOwnerName: task.ownerName ?? null,
       });
       links.push({ source: nodeId, target: taskNode, requestStatus: taskStatusToRequestStatus(task.status) });
     }
@@ -251,6 +255,7 @@ export function buildGraphData(
       val: TASK_NODE_VAL,
       color: TASK_NODE_COLOR,
       taskId: task.id,
+      taskOwnerName: task.ownerName ?? null,
     });
     links.push({ source: CENTER_NODE_ID, target: taskNode, requestStatus: taskStatusToRequestStatus(task.status) });
   }

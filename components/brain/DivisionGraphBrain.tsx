@@ -425,8 +425,19 @@ export function DivisionGraphBrain({
             onNodeClick={handleNodeClick}
             onNodeHover={handleNodeHover}
             nodeLabel={(node: any) => {
-              const kind = (node as GraphData["nodes"][number]).kind;
-              return kind === "request" || kind === "task" ? (node as GraphData["nodes"][number]).label : "";
+              const n = node as GraphData["nodes"][number];
+              if (n.kind === "task") {
+                // Show the assignee in the tooltip so it's clear who owns a
+                // task, especially one on a dashboard you don't own / when
+                // viewing another analyst's galaxy.
+                const escapeHtml = (s: string) =>
+                  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                const owner = n.taskOwnerName
+                  ? `<div style="opacity:0.7;margin-top:2px">Assigned to ${escapeHtml(n.taskOwnerName)}</div>`
+                  : "";
+                return `<div>${escapeHtml(n.label)}${owner}</div>`;
+              }
+              return n.kind === "request" ? n.label : "";
             }}
           />
         )}

@@ -127,6 +127,14 @@ export async function GET(req: NextRequest) {
               SELECT dashboard_id FROM worklist_dashboards WHERE analyst_id = ${excludeWorklistOf}
             )
           )
+          -- Exclude tasks on the analyst's own report subscriptions; those
+          -- already show under the subscription's row in the main section.
+          AND (
+            t.subscription_id IS NULL
+            OR t.subscription_id NOT IN (
+              SELECT id FROM report_subscriptions WHERE analyst_id = ${excludeWorklistOf}
+            )
+          )
           -- Exclude tasks on the analyst's own PSQs; those already show in the PSQ section.
           AND (
             t.psq_id IS NULL

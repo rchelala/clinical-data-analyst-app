@@ -21,13 +21,17 @@ export async function GET(req: NextRequest) {
     }
 
     const rows = await sql`
-      SELECT s.*, owner.name AS analyst_name, COALESCE(tc.active_count, 0) AS active_task_count
+      SELECT s.*, owner.name AS analyst_name,
+        COALESCE(tc.active_count, 0) AS active_task_count,
+        COALESCE(tc.total_count, 0) AS total_task_count
       FROM report_subscriptions s
       LEFT JOIN analysts owner ON owner.id = s.analyst_id
       LEFT JOIN (
-        SELECT subscription_id, COUNT(*) AS active_count
+        SELECT subscription_id,
+          COUNT(*) FILTER (WHERE status <> 'done') AS active_count,
+          COUNT(*) AS total_count
         FROM tasks
-        WHERE owner_analyst_id = ${analystId} AND status <> 'done' AND subscription_id IS NOT NULL
+        WHERE owner_analyst_id = ${analystId} AND subscription_id IS NOT NULL
         GROUP BY subscription_id
       ) tc ON tc.subscription_id = s.id
       WHERE s.analyst_id = ${analystId}
@@ -39,6 +43,7 @@ export async function GET(req: NextRequest) {
       ownerName: row.analyst_name,
       isCovering: false,
       activeTaskCount: Number(row.active_task_count),
+      totalTaskCount: Number(row.total_task_count),
     }));
 
     return NextResponse.json(result);

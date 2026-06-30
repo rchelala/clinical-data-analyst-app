@@ -27,12 +27,14 @@ interface WorklistDashboardItem extends Dashboard {
   ownerName: string | null;
   isCovering: boolean;
   activeTaskCount: number;
+  totalTaskCount: number;
 }
 
 interface WorklistSubscriptionItem extends ReportSubscription {
   ownerName: string | null;
   isCovering: boolean;
   activeTaskCount: number;
+  totalTaskCount: number;
 }
 
 type WorklistItemKind = "dashboard" | "subscription";
@@ -55,6 +57,7 @@ interface WorklistItem {
   ownerName: string | null;
   isCovering: boolean;
   activeTaskCount: number;
+  totalTaskCount: number;
 }
 
 // Composite key so dashboard and subscription ids (separate sequences that can
@@ -585,6 +588,7 @@ export default function WorklistPage() {
       ownerName: d.ownerName,
       isCovering: d.isCovering,
       activeTaskCount: d.activeTaskCount,
+      totalTaskCount: d.totalTaskCount,
     }));
     const fromSubscriptions: WorklistItem[] = subscriptions.map((s) => ({
       kind: "subscription",
@@ -599,6 +603,7 @@ export default function WorklistPage() {
       ownerName: s.ownerName,
       isCovering: s.isCovering,
       activeTaskCount: s.activeTaskCount,
+      totalTaskCount: s.totalTaskCount,
     }));
     return [...fromDashboards, ...fromSubscriptions];
   }, [dashboards, subscriptions]);
@@ -630,7 +635,12 @@ export default function WorklistPage() {
   }, [items, tasksByItem, tasksByPsq]);
 
   const sortedItems = useMemo(() => {
-    const filtered = activeOnly ? items.filter((i) => i.activeTaskCount > 0) : items;
+    // "Active only" is purely status-driven: show items whose Status column
+    // (worklistStatus) is "active" (free-form, matched case-insensitively),
+    // regardless of how many open tasks they have.
+    const filtered = activeOnly
+      ? items.filter((i) => (i.worklistStatus ?? "").trim().toLowerCase() === "active")
+      : items;
     if (!sortByPriority) return filtered;
     return [...filtered].sort((a, b) => comparePriority(a.priority, b.priority));
   }, [items, sortByPriority, activeOnly]);
@@ -642,11 +652,17 @@ export default function WorklistPage() {
   const existingWorklistDashboardIds = useMemo(() => dashboards.map((d) => d.id), [dashboards]);
 
   const taskCounts = useCallback(
-    (key: string) => {
-      const tasks = tasksByItem[key];
-      if (!tasks) return null;
-      const open = tasks.filter((t) => t.status !== "done").length;
-      return `${open} open · ${tasks.length} total`;
+    (item: WorklistItem) => {
+      // Prefer the live, already-fetched task list when the row is expanded so
+      // the count reflects in-row edits/deletes immediately; otherwise fall
+      // back to the counts the list endpoint returns, so the count always
+      // shows without needing to expand.
+      const tasks = tasksByItem[itemKey(item.kind, item.id)];
+      if (tasks) {
+        const open = tasks.filter((t) => t.status !== "done").length;
+        return `${open} open · ${tasks.length} total`;
+      }
+      return `${item.activeTaskCount} open · ${item.totalTaskCount} total`;
     },
     [tasksByItem]
   );
@@ -887,7 +903,7 @@ export default function WorklistPage() {
                       {sortedItems.map((item) => {
                         const key = itemKey(item.kind, item.id);
                         const isOpen = expandedKey === key;
-                        const counts = taskCounts(key);
+                        const counts = taskCounts(item);
                         return (
                           <Fragment key={key}>
                             <tr className="border-b border-theme/60 hover:bg-white/[0.02] align-top">
@@ -923,7 +939,7 @@ export default function WorklistPage() {
                                   <ChevronRight
                                     className={`w-3.5 h-3.5 transition-transform ${isOpen ? "rotate-90" : ""}`}
                                   />
-                                  {counts ?? "View tasks"}
+                                  {counts}
                                 </button>
                               </td>
                               <td className="px-3 py-2.5">

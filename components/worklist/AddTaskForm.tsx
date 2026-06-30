@@ -12,6 +12,7 @@ interface AddTaskFormProps {
   onCreated: () => void;
   onCancel: () => void;
   lockedDashboardId?: number; // when set, target is locked to this dashboard, picker not interactive
+  lockedSubscriptionId?: number; // when set, target is locked to this report subscription, picker not interactive
   lockedPsqId?: number; // when set, target is locked to this PSQ, picker not interactive
 }
 
@@ -29,9 +30,13 @@ export function AddTaskForm({
   onCreated,
   onCancel,
   lockedDashboardId,
+  lockedSubscriptionId,
   lockedPsqId,
 }: AddTaskFormProps) {
-  const isLocked = lockedDashboardId !== undefined || lockedPsqId !== undefined;
+  const isLocked =
+    lockedDashboardId !== undefined ||
+    lockedSubscriptionId !== undefined ||
+    lockedPsqId !== undefined;
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -43,9 +48,15 @@ export function AddTaskForm({
   const [error, setError] = useState<string | null>(null);
 
   const [targetType, setTargetType] = useState<TargetType>(
-    lockedPsqId !== undefined ? "psq" : "dashboard"
+    lockedPsqId !== undefined
+      ? "psq"
+      : lockedSubscriptionId !== undefined
+      ? "subscription"
+      : "dashboard"
   );
-  const [targetId, setTargetId] = useState<number | null>(lockedPsqId ?? lockedDashboardId ?? null);
+  const [targetId, setTargetId] = useState<number | null>(
+    lockedPsqId ?? lockedSubscriptionId ?? lockedDashboardId ?? null
+  );
   const [optionsByType, setOptionsByType] = useState<Record<TargetType, TargetOption[] | undefined>>({
     dashboard: undefined,
     subscription: undefined,
@@ -121,6 +132,13 @@ export function AddTaskForm({
     }
   }, [lockedDashboardId, optionsByType.dashboard, fetchOptionsFor]);
 
+  // When locked to a subscription, fetch the subscription list once to resolve its name.
+  useEffect(() => {
+    if (lockedSubscriptionId !== undefined && optionsByType.subscription === undefined) {
+      fetchOptionsFor("subscription");
+    }
+  }, [lockedSubscriptionId, optionsByType.subscription, fetchOptionsFor]);
+
   // When locked to a PSQ, fetch the PSQ list once to resolve its display name.
   useEffect(() => {
     if (lockedPsqId !== undefined && optionsByType.psq === undefined) {
@@ -134,6 +152,13 @@ export function AddTaskForm({
     if (!list) return null;
     return list.find((d) => d.id === lockedDashboardId)?.name ?? null;
   }, [lockedDashboardId, optionsByType.dashboard]);
+
+  const lockedSubscriptionName = useMemo(() => {
+    if (lockedSubscriptionId === undefined) return null;
+    const list = optionsByType.subscription;
+    if (!list) return null;
+    return list.find((s) => s.id === lockedSubscriptionId)?.name ?? null;
+  }, [lockedSubscriptionId, optionsByType.subscription]);
 
   const lockedPsqName = useMemo(() => {
     if (lockedPsqId === undefined) return null;
@@ -223,6 +248,8 @@ export function AddTaskForm({
             <p className="text-xs text-secondary mt-0.5">
               {lockedPsqId !== undefined
                 ? "Add a new task to this PSQ."
+                : lockedSubscriptionId !== undefined
+                ? "Add a new task to this report subscription."
                 : isLocked
                 ? "Add a new task to this dashboard."
                 : "Add a new task."}
@@ -237,6 +264,8 @@ export function AddTaskForm({
               <div className="text-sm text-primary px-3 py-2 rounded-md border border-theme bg-secondary-glass">
                 {lockedPsqId !== undefined
                   ? `PSQ: ${lockedPsqName ?? lockedPsqId}`
+                  : lockedSubscriptionId !== undefined
+                  ? `Report Subscription: ${lockedSubscriptionName ?? lockedSubscriptionId}`
                   : `Dashboard: ${lockedDashboardName ?? lockedDashboardId}`}
               </div>
             ) : (

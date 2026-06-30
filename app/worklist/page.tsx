@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Plus,
   X,
+  Trash2,
   Loader2,
   CalendarDays,
   BrainCircuit,
@@ -360,6 +361,57 @@ export default function WorklistPage() {
       }
     },
     []
+  );
+
+  // Shared task deletion: confirms (destructive — also removes the node from
+  // the galaxy/brain), DELETEs, then runs the caller's local-state updater.
+  const deleteTask = useCallback(
+    async (taskId: number, onSuccess: () => void) => {
+      if (!window.confirm("Delete this task? This cannot be undone and removes it from the galaxy.")) return;
+      try {
+        const res = await fetch(`/api/tasks/${taskId}`, { method: "DELETE" });
+        if (res.ok) onSuccess();
+      } catch {
+        // Non-critical
+      }
+    },
+    []
+  );
+
+  const deleteItemTask = useCallback(
+    (key: string, taskId: number) => {
+      deleteTask(taskId, () => {
+        setTasksByItem((prev) => ({
+          ...prev,
+          [key]: (prev[key] ?? []).filter((t) => t.id !== taskId),
+        }));
+        // Refresh active-task counts so the row can drop out under "Active only".
+        refetchDashboards();
+      });
+    },
+    [deleteTask, refetchDashboards]
+  );
+
+  const deletePsqTask = useCallback(
+    (psqId: number, taskId: number) => {
+      deleteTask(taskId, () => {
+        setTasksByPsq((prev) => ({
+          ...prev,
+          [psqId]: (prev[psqId] ?? []).filter((t) => t.id !== taskId),
+        }));
+        refetchPsqs();
+      });
+    },
+    [deleteTask, refetchPsqs]
+  );
+
+  const deleteAssignedTask = useCallback(
+    (taskId: number) => {
+      deleteTask(taskId, () => {
+        setAssignedTasks((prev) => prev.filter((t) => t.id !== taskId));
+      });
+    },
+    [deleteTask]
   );
 
   const patchAssignedTask = useCallback(
@@ -988,6 +1040,14 @@ export default function WorklistPage() {
                                             />
                                           </div>
                                         </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => deleteItemTask(key, task.id)}
+                                          title="Delete task"
+                                          className="mt-0.5 text-secondary hover:text-red-500 transition-colors flex-shrink-0"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
                                       </div>
                                     ))}
 
@@ -1044,6 +1104,14 @@ export default function WorklistPage() {
                           suggestions={statusSuggestions}
                           onChange={(value) => patchAssignedTask(task.id, { status: value })}
                         />
+                        <button
+                          type="button"
+                          onClick={() => deleteAssignedTask(task.id)}
+                          title="Delete task"
+                          className="text-secondary hover:text-red-500 transition-colors flex-shrink-0"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
                       </li>
                     ))}
                   </ul>
@@ -1295,6 +1363,14 @@ export default function WorklistPage() {
                                             />
                                           </div>
                                         </div>
+                                        <button
+                                          type="button"
+                                          onClick={() => deletePsqTask(p.id, task.id)}
+                                          title="Delete task"
+                                          className="mt-0.5 text-secondary hover:text-red-500 transition-colors flex-shrink-0"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
                                       </div>
                                     ))}
 

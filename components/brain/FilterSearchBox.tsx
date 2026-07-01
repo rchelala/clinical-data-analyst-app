@@ -57,7 +57,7 @@ export function FilterSearchBox({
                   e.preventDefault();
                   onSelectResult(result);
                 }}
-                className="w-full text-left px-3 py-1.5 text-xs text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                className="w-full text-left px-3 py-1.5 text-xs text-primary hover:bg-panel/80 transition-colors"
               >
                 {result.label}
               </button>

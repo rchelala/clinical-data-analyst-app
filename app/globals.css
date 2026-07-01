@@ -5,22 +5,21 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
-    --bg-primary: #f8fafc;
-    --bg-secondary: #ffffff;
-    --bg-panel: #f1f5f9;
-    --border: #e2e8f0;
-    --text-primary: #0f172a;
-    --text-secondary: #64748b;
-  }
-
+  /* Eclipse — dark-only theme. Same values on :root and .dark so the app
+     looks correct regardless of next-themes state (theme is forced dark). */
+  :root,
   .dark {
-    --bg-primary: #0d1117;
-    --bg-secondary: #161b22;
-    --bg-panel: #1c2128;
-    --border: #30363d;
-    --text-primary: #e6edf3;
-    --text-secondary: #8b949e;
+    --bg-primary: #08080c;
+    --bg-secondary: rgba(255, 255, 255, 0.045);
+    --bg-panel: rgba(255, 255, 255, 0.075);
+    /* Near-opaque elevated surface for floating overlays (dropdown menus,
+       portalled selects, modals, drawers). The page-level panels are
+       intentionally translucent so the ambient glow shows through, but
+       overlays open over arbitrary content and need a solid, readable base. */
+    --bg-elevated: rgba(19, 22, 30, 0.97);
+    --border: rgba(255, 255, 255, 0.09);
+    --text-primary: #eaedf6;
+    --text-secondary: #a4aabc;
   }
 
   body {
@@ -39,6 +38,7 @@
   .bg-primary { background-color: var(--bg-primary); }
   .bg-secondary { background-color: var(--bg-secondary); }
   .bg-panel { background-color: var(--bg-panel); }
+  .bg-elevated { background-color: var(--bg-elevated); backdrop-filter: blur(12px); }
   .border-theme { border-color: var(--border); }
   .text-primary { color: var(--text-primary); }
   .text-secondary { color: var(--text-secondary); }
@@ -57,36 +57,62 @@
   background-color: transparent !important;
 }
 
-/* ── Animated accents ── */
-@keyframes logo-pulse {
-  0%, 100% { background-position: 0% 50%; }
-  50%       { background-position: 100% 50%; }
-}
-
-@keyframes btn-shimmer {
-  0%, 100% { background-position: 0% 50%; }
-  50%       { background-position: 100% 50%; }
-}
-
+/* ── Eclipse static accents ──
+   Previously animated (logo-pulse / btn-shimmer keyframes); Eclipse uses a
+   static brand gradient instead. Class names kept so components still work. */
 .logo-pulse-bg {
   background: linear-gradient(135deg, #3a5fff, #7c3aed, #0ea5e9, #3a5fff);
-  background-size: 300% 300%;
-  animation: logo-pulse 5s ease infinite;
 }
 
 .btn-shimmer {
-  background: linear-gradient(135deg, #3a5fff, #7c3aed, #3a5fff, #0ea5e9);
-  background-size: 300% 300%;
-  animation: btn-shimmer 4s ease infinite;
+  background: var(--cta, linear-gradient(135deg, #3a5fff, #2540f5));
+  color: #fff;
+  box-shadow: 0 4px 18px -3px rgba(58, 95, 255, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 
-/* Semi-transparent zone backgrounds — lets the fixed radial glow show through */
+/* Semi-transparent zone backgrounds — lets the fixed ambient glow show through */
 .bg-secondary-glass {
-  background: rgba(22, 27, 34, 0.75);
+  background: rgba(12, 12, 18, 0.55);
+  backdrop-filter: blur(16px);
 }
 
 .bg-primary-glass {
-  background: rgba(13, 17, 23, 0.70);
+  background: rgba(12, 12, 18, 0.55);
+  backdrop-filter: blur(16px);
+}
+
+/* Eclipse hairline top-highlight (inset box-shadow) */
+.hairline-top {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Eclipse panel shadow */
+.shadow-panel {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 10px 30px -12px rgba(0, 0, 0, 0.7);
+}
+
+/* Ambient blue glow + grain, fixed behind everything (ported from
+   mockup/clinkit-eclipse.html .bg-glow / .bg-grain) */
+.eclipse-glow {
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    radial-gradient(58% 42% at 20% -4%, rgba(58, 95, 255, 0.28), transparent 70%),
+    radial-gradient(52% 40% at 90% 2%, rgba(37, 64, 245, 0.20), transparent 72%),
+    radial-gradient(46% 40% at 62% 108%, rgba(90, 133, 255, 0.10), transparent 72%),
+    #08080c;
+}
+
+.eclipse-grain {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.035;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 /* ── Galaxy zoom transitions ──

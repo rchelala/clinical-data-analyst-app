@@ -33,7 +33,7 @@ export function CodePanel({ value, onChange, language, readOnly = false, placeho
     <div className="relative h-full w-full">
       {showPlaceholder && (
         <div className="absolute inset-0 flex items-start pt-4 pl-14 pointer-events-none z-10">
-          <span className="text-sm font-mono text-slate-400 dark:text-slate-600 whitespace-pre-line leading-relaxed">
+          <span className="text-sm font-mono text-secondary/60 whitespace-pre-line leading-relaxed">
             {placeholder}
           </span>
         </div>

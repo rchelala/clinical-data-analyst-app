@@ -36,7 +36,7 @@ export function HistoryPanel({
       />
 
       {/* Drawer */}
-      <div className="fixed top-0 right-0 z-40 h-full w-80 flex flex-col bg-primary border-l border-theme shadow-2xl">
+      <div className="fixed top-0 right-0 z-40 h-full w-80 flex flex-col bg-secondary-glass border-l border-theme shadow-panel">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-theme bg-panel flex-shrink-0">
           <div className="flex items-center gap-2">
@@ -48,7 +48,7 @@ export function HistoryPanel({
               <button
                 onClick={handleClearAll}
                 title="Clear all history"
-                className="flex items-center gap-1 px-2 py-1 text-xs text-secondary hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 rounded transition-colors"
+                className="flex items-center gap-1 px-2 py-1 text-xs text-secondary hover:text-red-400 hover:bg-red-500/10 rounded transition-colors"
               >
                 <Trash2 className="w-3 h-3" />
                 Clear all
@@ -71,7 +71,7 @@ export function HistoryPanel({
                 <Clock className="w-5 h-5 text-secondary" />
               </div>
               <p className="text-sm text-secondary">No history yet</p>
-              <p className="text-xs text-slate-400 dark:text-slate-600">
+              <p className="text-xs text-secondary/70">
                 Sessions are saved automatically after commenting
               </p>
             </div>
@@ -85,11 +85,11 @@ export function HistoryPanel({
                   >
                     {/* Language badge + date */}
                     <div className="flex items-center justify-between mb-1">
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-brand-100 dark:bg-brand-950/40 text-brand-700 dark:text-brand-400">
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-brand-500/15 text-brand-400">
                         <Code2 className="w-2.5 h-2.5" />
                         {entry.language}
                       </span>
-                      <span className="text-[10px] text-slate-400 dark:text-slate-600">
+                      <span className="text-[10px] text-secondary/70">
                         {formatHistoryDate(entry.timestamp)}
                       </span>
                     </div>
@@ -107,7 +107,7 @@ export function HistoryPanel({
                   <button
                     onClick={(e) => { e.stopPropagation(); onDelete(entry.id); }}
                     title="Remove this entry"
-                    className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded text-secondary hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-all"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1 rounded text-secondary hover:text-red-400 hover:bg-red-500/10 transition-all"
                   >
                     <Trash2 className="w-3 h-3" />
                   </button>
@@ -118,7 +118,7 @@ export function HistoryPanel({
         </div>
 
         <div className="px-4 py-2 border-t border-theme bg-panel flex-shrink-0">
-          <p className="text-[10px] text-slate-400 dark:text-slate-600 text-center">
+          <p className="text-[10px] text-secondary/70 text-center">
             Saved locally in this browser only
           </p>
         </div>

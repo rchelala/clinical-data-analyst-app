@@ -1,8 +1,6 @@
 "use client";
 
-import { useTheme } from "next-themes";
-import { Sun, Moon, Bot } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Bot } from "lucide-react";
 import { AIProvider, PROVIDER_LABELS } from "@/lib/providers";
 
 interface HeaderProps {
@@ -11,11 +9,6 @@ interface HeaderProps {
 }
 
 export function Header({ provider, onProviderChange }: HeaderProps) {
-  const { theme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => setMounted(true), []);
-
   return (
     <header className="flex items-center justify-between px-6 py-4 border-b border-theme bg-secondary-glass flex-shrink-0">
       <div className="flex items-center gap-3">
@@ -56,23 +49,6 @@ export function Header({ provider, onProviderChange }: HeaderProps) {
             ))}
           </select>
         </div>
-
-        {/* Theme toggle */}
-        <button
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          className="flex items-center justify-center w-9 h-9 rounded-lg border border-theme bg-panel hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-          aria-label="Toggle theme"
-        >
-          {mounted ? (
-            theme === "dark" ? (
-              <Sun className="w-4 h-4 text-secondary" />
-            ) : (
-              <Moon className="w-4 h-4 text-secondary" />
-            )
-          ) : (
-            <div className="w-4 h-4" />
-          )}
-        </button>
       </div>
     </header>
   );

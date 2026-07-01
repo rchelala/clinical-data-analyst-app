@@ -9,14 +9,15 @@ interface Props {
 
 export function LanguageToggle({ value, onChange }: Props) {
   return (
-    <div className="flex items-center gap-1 p-1 rounded-lg bg-panel border border-theme">
+    <div className="flex items-center gap-0.5 p-[3px] rounded-lg bg-panel border border-theme">
       {(["dax", "sql"] as Language[]).map((lang) => (
         <button
           key={lang}
           onClick={() => onChange(lang)}
-          className={`px-4 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${
+          aria-pressed={value === lang}
+          className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${
             value === lang
-              ? "bg-brand-600 text-white shadow-sm"
+              ? "bg-secondary text-primary shadow-panel"
               : "text-secondary hover:text-primary"
           }`}
         >

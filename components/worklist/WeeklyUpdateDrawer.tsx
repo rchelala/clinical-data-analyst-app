@@ -76,7 +76,7 @@ export function WeeklyUpdateDrawer({ data, onClose }: WeeklyUpdateDrawerProps) {
       <div className="absolute inset-0 bg-black/60" onClick={onClose} aria-hidden="true" />
 
       {/* Panel */}
-      <div className="relative h-full w-full sm:w-[620px] bg-panel border-l border-theme shadow-xl flex flex-col">
+      <div className="relative h-full w-full sm:w-[620px] bg-elevated border-l border-theme shadow-panel flex flex-col">
         <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-theme flex-shrink-0">
           <h2 className="text-sm font-semibold text-primary leading-none">
             Weekly Update — {data.analystName}
@@ -85,7 +85,7 @@ export function WeeklyUpdateDrawer({ data, onClose }: WeeklyUpdateDrawerProps) {
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="flex items-center justify-center w-8 h-8 rounded-md border border-theme bg-panel hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex-shrink-0"
+            className="flex items-center justify-center w-8 h-8 rounded-md border border-theme bg-panel hover:bg-panel/80 transition-colors flex-shrink-0"
           >
             <X className="w-4 h-4 text-secondary" />
           </button>
@@ -116,13 +116,13 @@ export function WeeklyUpdateDrawer({ data, onClose }: WeeklyUpdateDrawerProps) {
 
           {mode === "list" && (
             <>
-              <pre className="whitespace-pre-wrap font-mono text-[12.5px] leading-relaxed text-primary bg-[var(--bg,_#0d1117)] border border-theme rounded-lg p-4 m-0">
+              <pre className="whitespace-pre-wrap font-mono text-[12.5px] leading-relaxed text-primary bg-black/35 border border-theme rounded-lg p-4 m-0">
                 {structuredMarkdown}
               </pre>
               <button
                 type="button"
                 onClick={handleCopy}
-                className="mt-3 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                className="mt-3 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors"
               >
                 {copied ? <ClipboardCheck className="w-3.5 h-3.5" /> : <Clipboard className="w-3.5 h-3.5" />}
                 {copied ? "Copied" : "Copy to clipboard"}
@@ -154,7 +154,7 @@ export function WeeklyUpdateDrawer({ data, onClose }: WeeklyUpdateDrawerProps) {
                   <button
                     type="button"
                     onClick={handleSummarize}
-                    className="self-start flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                    className="self-start flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors"
                   >
                     Try again
                   </button>
@@ -167,14 +167,14 @@ export function WeeklyUpdateDrawer({ data, onClose }: WeeklyUpdateDrawerProps) {
                     contentEditable
                     suppressContentEditableWarning
                     onBlur={(e) => setAiText(e.currentTarget.innerText)}
-                    className="text-[13.5px] leading-relaxed text-primary bg-[var(--bg,_#0d1117)] border border-theme rounded-lg p-4 outline-none focus:border-brand-500 transition-colors min-h-[120px] whitespace-pre-wrap"
+                    className="text-[13.5px] leading-relaxed text-primary bg-black/35 border border-theme rounded-lg p-4 outline-none focus:border-brand-500 transition-colors min-h-[120px] whitespace-pre-wrap"
                   >
                     {aiText}
                   </div>
                   <button
                     type="button"
                     onClick={handleCopy}
-                    className="mt-3 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                    className="mt-3 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors"
                   >
                     {copied ? <ClipboardCheck className="w-3.5 h-3.5" /> : <Clipboard className="w-3.5 h-3.5" />}
                     {copied ? "Copied" : "Copy to clipboard"}

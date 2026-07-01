@@ -68,7 +68,7 @@ export function StatusFilterDropdown({ options, selected, onChange }: StatusFilt
         className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border transition-colors ${
           selected.length > 0
             ? "text-primary border-brand-500 bg-brand-600/10"
-            : "border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700"
+            : "border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80"
         }`}
       >
         Status: {label}
@@ -76,7 +76,7 @@ export function StatusFilterDropdown({ options, selected, onChange }: StatusFilt
       </button>
 
       {open && (
-        <div className="absolute right-0 z-30 mt-1 w-56 max-h-72 overflow-auto rounded-md border border-theme bg-panel shadow-xl py-1">
+        <div className="absolute right-0 z-30 mt-1 w-56 max-h-72 overflow-auto rounded-md border border-theme bg-elevated shadow-panel py-1">
           <div className="flex items-center justify-between px-3 py-1.5 border-b border-theme/60">
             <span className="text-[10px] uppercase tracking-wide text-secondary font-semibold">
               Filter by status
@@ -101,7 +101,7 @@ export function StatusFilterDropdown({ options, selected, onChange }: StatusFilt
                 key={opt}
                 type="button"
                 onClick={() => toggle(opt)}
-                className="flex items-center gap-2 w-full text-left px-3 py-1.5 text-xs text-primary hover:bg-white/[0.04] transition-colors"
+                className="flex items-center gap-2 w-full text-left px-3 py-1.5 text-xs text-primary hover:bg-panel/80 transition-colors"
               >
                 <span
                   className={`flex items-center justify-center w-4 h-4 rounded border flex-shrink-0 ${

@@ -170,10 +170,10 @@ export default function Home() {
   const isWorking = loading || summarizing;
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-primary">
-      {/* Fixed radial glow — behind all content, starts at top of page */}
-      <div className="fixed inset-0 -z-10 bg-[#0d1117]" />
-      <div className="fixed inset-0 -z-10 bg-[radial-gradient(ellipse_80%_40%_at_50%_0%,#525252,transparent)]" />
+    <div className="flex flex-col h-screen overflow-hidden">
+      {/* Eclipse ambient glow — behind all content, starts at top of page */}
+      <div className="eclipse-glow" />
+      <div className="eclipse-grain" />
       <Header provider={provider} onProviderChange={handleProviderChange} />
 
       {/* Tab bar */}
@@ -224,7 +224,7 @@ export default function Home() {
       {activeTab === "commenter" && (
         <>
           {/* Toolbar */}
-          <div className="flex items-center justify-between gap-4 px-6 py-3 border-b border-theme bg-secondary flex-shrink-0">
+          <div className="flex items-center justify-between gap-4 px-6 py-3 border-b border-theme bg-secondary-glass hairline-top flex-shrink-0">
             <div className="flex items-center gap-4 flex-wrap">
               <LanguageToggle value={language} onChange={(l) => { setLanguage(l); setOutput(""); setSummary(""); setError(null); }} />
               <DensitySelector value={density} onChange={setDensity} />
@@ -234,7 +234,7 @@ export default function Home() {
               <button
                 onClick={() => setHistoryOpen(true)}
                 title="Recent sessions"
-                className="relative flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-theme text-secondary hover:text-primary hover:bg-panel transition-colors"
+                className="relative flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors"
               >
                 <History className="w-3.5 h-3.5" />
                 History
@@ -248,7 +248,7 @@ export default function Home() {
               {(input || output) && (
                 <button
                   onClick={handleReset}
-                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-theme text-secondary hover:text-primary hover:bg-panel transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   Reset
@@ -258,7 +258,7 @@ export default function Home() {
               <button
                 onClick={handleSummarize}
                 disabled={!input.trim() || isWorking}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border border-theme bg-panel hover:bg-slate-200 dark:hover:bg-slate-700 text-primary disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border border-theme bg-panel hover:bg-panel/80 text-primary disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
               >
                 {summarizing ? (
                   <><Loader2 className="w-4 h-4 animate-spin" />Summarizing…</>
@@ -270,7 +270,7 @@ export default function Home() {
               <button
                 onClick={handleComment}
                 disabled={!input.trim() || isWorking}
-                className="btn-shimmer flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-lg text-white disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                className="btn-shimmer flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-lg disabled:opacity-60 disabled:cursor-not-allowed hover:brightness-110 transition-all duration-200"
               >
                 {loading ? (
                   <><Loader2 className="w-4 h-4 animate-spin" />Commenting…</>
@@ -283,9 +283,9 @@ export default function Home() {
 
           {/* Error banner */}
           {error && (
-            <div className="flex items-center gap-3 px-6 py-3 bg-red-50 dark:bg-red-950/30 border-b border-red-200 dark:border-red-900 animate-fade-in flex-shrink-0">
-              <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
-              <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
+            <div className="flex items-center gap-3 px-6 py-3 bg-red-500/10 border-b border-red-500/30 animate-fade-in flex-shrink-0">
+              <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+              <p className="text-sm text-red-400">{error}</p>
             </div>
           )}
 
@@ -293,11 +293,11 @@ export default function Home() {
           <div className="flex flex-1 overflow-hidden">
             {/* Input panel */}
             <div className="flex flex-col flex-1 border-r border-theme overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-2 border-b border-theme bg-panel flex-shrink-0">
+              <div className="flex items-center justify-between px-4 py-2 border-b border-theme bg-secondary-glass hairline-top flex-shrink-0">
                 <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-slate-400" />
-                  <span className="text-xs font-medium text-secondary uppercase tracking-wide">
-                    Input — {language.toUpperCase()}
+                  <div className="w-1.5 h-1.5 rounded-full bg-secondary/40" />
+                  <span className="text-xs font-semibold text-secondary uppercase tracking-wide">
+                    Input · {language.toUpperCase()}
                   </span>
                 </div>
                 {input && (
@@ -306,18 +306,18 @@ export default function Home() {
                   </span>
                 )}
               </div>
-              <div className="flex-1 overflow-hidden bg-secondary">
+              <div className="flex-1 overflow-hidden bg-panel">
                 <CodePanel value={input} onChange={setInput} language={language} placeholder={placeholder} />
               </div>
             </div>
 
             {/* Output panel */}
             <div className="flex flex-col flex-1 overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-2 border-b border-theme bg-panel flex-shrink-0">
+              <div className="flex items-center justify-between px-4 py-2 border-b border-theme bg-secondary-glass hairline-top flex-shrink-0">
                 <div className="flex items-center gap-2">
-                  <div className={`w-2 h-2 rounded-full transition-colors ${output ? "bg-green-500" : "bg-slate-400"}`} />
-                  <span className="text-xs font-medium text-secondary uppercase tracking-wide">
-                    Output — Commented
+                  <div className={`w-1.5 h-1.5 rounded-full transition-colors ${output ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" : "bg-secondary/40"}`} />
+                  <span className="text-xs font-semibold text-secondary uppercase tracking-wide">
+                    Output · Commented
                   </span>
                 </div>
                 {output && (
@@ -327,8 +327,8 @@ export default function Home() {
                       title="Toggle diff view"
                       className={`flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border transition-colors ${
                         diffMode
-                          ? "border-brand-500 bg-brand-50 dark:bg-brand-950/30 text-brand-600 dark:text-brand-400"
-                          : "border-theme text-secondary hover:text-primary hover:bg-panel"
+                          ? "border-brand-500/50 bg-brand-500/15 text-brand-400"
+                          : "border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80"
                       }`}
                     >
                       <GitCompare className="w-3 h-3" />
@@ -337,17 +337,17 @@ export default function Home() {
                     <button
                       onClick={handleDownload}
                       title={`Download as .${language === "dax" ? "dax" : "sql"}`}
-                      className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-theme text-secondary hover:text-primary hover:bg-panel transition-colors"
+                      className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors"
                     >
                       <Download className="w-3 h-3" />
                       .{language === "dax" ? "dax" : "sql"}
                     </button>
                     <button
                       onClick={handleCopy}
-                      className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-theme text-secondary hover:text-primary hover:bg-panel transition-colors"
+                      className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors"
                     >
                       {copied ? (
-                        <><Check className="w-3 h-3 text-green-500" />&nbsp;Copied!</>
+                        <><Check className="w-3 h-3 text-emerald-400" />&nbsp;Copied!</>
                       ) : (
                         <><Copy className="w-3 h-3" />&nbsp;Copy</>
                       )}
@@ -356,15 +356,15 @@ export default function Home() {
                 )}
               </div>
 
-              <div className="flex-1 overflow-hidden bg-secondary relative">
+              <div className="flex-1 overflow-hidden bg-panel relative">
                 {!output && !loading && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 pointer-events-none">
-                    <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-panel border border-theme">
+                    <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-secondary border border-theme">
                       <Sparkles className="w-5 h-5 text-secondary" />
                     </div>
                     <div className="text-center">
                       <p className="text-sm font-medium text-secondary">Commented code will appear here</p>
-                      <p className="text-xs text-slate-400 dark:text-slate-600 mt-1">
+                      <p className="text-xs text-secondary/70 mt-1">
                         Paste your {language.toUpperCase()} on the left and click <strong className="text-secondary">Add Comments</strong>
                       </p>
                     </div>
@@ -374,16 +374,16 @@ export default function Home() {
                 {loading && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 animate-fade-in">
                     <div className="flex items-center gap-3">
-                      <Loader2 className="w-5 h-5 text-brand-500 animate-spin" />
+                      <Loader2 className="w-5 h-5 text-brand-400 animate-spin" />
                       <span className="text-sm font-medium text-secondary">
                         {provider === "gemini" ? "Gemini" : "Claude"} is reading your {language.toUpperCase()}…
                       </span>
                     </div>
-                    <div className="flex flex-col gap-2 w-72 opacity-40">
+                    <div className="flex flex-col gap-2 w-72 opacity-60">
                       {[80, 60, 90, 50, 75].map((w, i) => (
                         <div
                           key={i}
-                          className="h-3 rounded bg-slate-300 dark:bg-slate-700 animate-pulse"
+                          className="h-3 rounded bg-panel animate-pulse"
                           style={{ width: `${w}%`, animationDelay: `${i * 100}ms` }}
                         />
                       ))}
@@ -415,14 +415,14 @@ export default function Home() {
 
           {/* Summary panel */}
           {(summaryOpen || summarizing) && (
-            <div className="flex-shrink-0 border-t border-theme bg-secondary animate-fade-in">
+            <div className="flex-shrink-0 border-t border-theme bg-panel animate-fade-in">
               <button
                 onClick={() => setSummaryOpen((o) => !o)}
-                className="flex items-center justify-between w-full px-4 py-2 border-b border-theme bg-panel hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                className="flex items-center justify-between w-full px-4 py-2 border-b border-theme bg-secondary-glass hairline-top hover:bg-panel/60 transition-colors"
               >
                 <div className="flex items-center gap-2">
                   <FileText className="w-3.5 h-3.5 text-secondary" />
-                  <span className="text-xs font-medium text-secondary uppercase tracking-wide">Summary</span>
+                  <span className="text-xs font-semibold text-secondary uppercase tracking-wide">Summary</span>
                 </div>
                 {summaryOpen
                   ? <ChevronDown className="w-3.5 h-3.5 text-secondary" />
@@ -434,7 +434,7 @@ export default function Home() {
                 <div className="px-6 py-4 h-40 overflow-y-auto">
                   {summarizing ? (
                     <div className="flex items-center gap-2 text-secondary">
-                      <Loader2 className="w-4 h-4 animate-spin text-brand-500" />
+                      <Loader2 className="w-4 h-4 animate-spin text-brand-400" />
                       <span className="text-sm">Analyzing your {language.toUpperCase()}…</span>
                     </div>
                   ) : (

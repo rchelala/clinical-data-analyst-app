@@ -170,7 +170,7 @@ export function AddWorklistDashboard({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-lg mx-4 rounded-lg border border-theme bg-panel shadow-xl">
+      <div className="w-full max-w-lg mx-4 rounded-xl border border-theme bg-elevated shadow-panel">
         <div className="flex items-center gap-3 px-5 py-4 border-b border-theme">
           <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-secondary-glass">
             <LayoutDashboard className="w-5 h-5 text-secondary" />
@@ -190,7 +190,7 @@ export function AddWorklistDashboard({
             className={`px-3 py-1.5 text-xs font-medium rounded-md border transition-colors ${
               mode === "mine"
                 ? "bg-brand-600 border-brand-600 text-white"
-                : "border-theme text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700"
+                : "border-theme text-secondary hover:text-primary hover:bg-panel/80"
             }`}
           >
             Mine
@@ -201,7 +201,7 @@ export function AddWorklistDashboard({
             className={`px-3 py-1.5 text-xs font-medium rounded-md border transition-colors ${
               mode === "all"
                 ? "bg-brand-600 border-brand-600 text-white"
-                : "border-theme text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700"
+                : "border-theme text-secondary hover:text-primary hover:bg-panel/80"
             }`}
           >
             Show all dashboards
@@ -212,7 +212,7 @@ export function AddWorklistDashboard({
             className={`px-3 py-1.5 text-xs font-medium rounded-md border transition-colors ${
               mode === "new"
                 ? "bg-brand-600 border-brand-600 text-white"
-                : "border-theme text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700"
+                : "border-theme text-secondary hover:text-primary hover:bg-panel/80"
             }`}
           >
             ＋ New
@@ -243,7 +243,7 @@ export function AddWorklistDashboard({
                       key={d.id}
                       onClick={() => handleAddExisting(d)}
                       disabled={submittingId === d.id}
-                      className="flex items-center justify-between gap-2 px-3 py-2 text-sm font-medium rounded-md border border-theme text-primary hover:bg-slate-200 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-colors disabled:opacity-60 text-left"
+                      className="flex items-center justify-between gap-2 px-3 py-2 text-sm font-medium rounded-md border border-theme bg-panel text-primary hover:bg-panel/80 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-colors disabled:opacity-60 text-left"
                     >
                       <span className="truncate">{d.name}</span>
                       <span className="text-xs text-secondary flex-shrink-0">
@@ -310,14 +310,14 @@ export function AddWorklistDashboard({
                   type="button"
                   onClick={onCancel}
                   disabled={creatingNew}
-                  className="px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-60"
+                  className="px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors disabled:opacity-60"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={creatingNew}
-                  className="px-3 py-1.5 text-xs font-medium rounded-md bg-brand-600 hover:bg-brand-700 text-white transition-colors disabled:opacity-60"
+                  className="btn-shimmer px-3 py-1.5 text-xs font-semibold rounded-md disabled:opacity-60 hover:brightness-110 transition-all duration-200"
                 >
                   {creatingNew ? "Creating…" : "Create & add"}
                 </button>
@@ -330,7 +330,7 @@ export function AddWorklistDashboard({
               <button
                 type="button"
                 onClick={onCancel}
-                className="px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                className="px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors"
               >
                 Close
               </button>

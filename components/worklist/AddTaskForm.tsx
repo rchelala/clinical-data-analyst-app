@@ -238,7 +238,7 @@ export function AddTaskForm({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-md mx-4 rounded-lg border border-theme bg-panel shadow-xl">
+      <div className="w-full max-w-md mx-4 rounded-xl border border-theme bg-elevated shadow-panel">
         <div className="flex items-center gap-3 px-5 py-4 border-b border-theme">
           <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-secondary-glass">
             <ClipboardPlus className="w-5 h-5 text-secondary" />
@@ -286,7 +286,7 @@ export function AddTaskForm({
                       className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
                         targetType === type
                           ? "bg-brand-600 text-white"
-                          : "bg-panel border border-theme text-secondary hover:text-primary"
+                          : "bg-panel border border-theme text-secondary hover:text-primary hover:bg-panel/80"
                       }`}
                     >
                       {label}
@@ -389,14 +389,14 @@ export function AddTaskForm({
               type="button"
               onClick={onCancel}
               disabled={submitting}
-              className="px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-60"
+              className="px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors disabled:opacity-60"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="px-3 py-1.5 text-xs font-medium rounded-md bg-brand-600 hover:bg-brand-700 text-white transition-colors disabled:opacity-60"
+              className="btn-shimmer px-3 py-1.5 text-xs font-semibold rounded-md disabled:opacity-60 hover:brightness-110 transition-all duration-200"
             >
               {submitting ? "Creating…" : "Add task"}
             </button>

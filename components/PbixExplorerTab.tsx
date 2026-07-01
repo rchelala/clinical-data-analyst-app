@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
-import { Upload, X, FileBarChart2, AlertCircle, Search, Loader2 } from "lucide-react";
+import { Upload, X, FileBarChart2, AlertCircle, Search, Loader2, LayoutGrid } from "lucide-react";
 import { parsePbixFileClient } from "@/lib/pbix-parser-browser";
 import type { PbixDashboard, LoadedFile } from "@/lib/pbix-parser";
 import { PbixMeasuresView } from "@/components/PbixMeasuresView";
@@ -171,6 +171,35 @@ export function PbixExplorerTab() {
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
+      {/* Toolbar */}
+      <div className="flex items-center justify-between gap-4 flex-wrap px-6 py-3 border-b border-theme bg-secondary-glass hairline-top flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <LayoutGrid className="w-4 h-4 text-secondary" />
+          <span className="text-sm font-semibold text-primary">PBIX Explorer</span>
+          <span className="text-xs text-secondary hidden sm:inline">— search measures, tables, and visuals inside an uploaded model</span>
+        </div>
+        <button
+          onClick={() => document.getElementById("pbix-file-input")?.click()}
+          disabled={isProcessing}
+          className="btn-shimmer flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg disabled:opacity-60 disabled:cursor-not-allowed hover:brightness-110 transition-all duration-200"
+        >
+          {isProcessing ? (
+            <><Loader2 className="w-4 h-4 animate-spin" />Parsing…</>
+          ) : (
+            <><Upload className="w-4 h-4" />Upload .pbix</>
+          )}
+        </button>
+        <input
+          id="pbix-file-input"
+          type="file"
+          accept=".pbix"
+          multiple
+          className="hidden"
+          disabled={isProcessing}
+          onChange={handleFileInput}
+        />
+      </div>
+
       {/* Drop zone */}
       <div className="px-6 pt-4 pb-2 flex-shrink-0">
         <div
@@ -182,7 +211,7 @@ export function PbixExplorerTab() {
             isProcessing
               ? "pointer-events-none opacity-60 border-theme bg-secondary"
               : isDragging
-              ? "border-brand-500 bg-brand-50 dark:bg-brand-950/20"
+              ? "border-brand-500 bg-brand-500/10"
               : "border-theme hover:border-brand-400 bg-secondary"
           }`}
         >
@@ -201,15 +230,6 @@ export function PbixExplorerTab() {
             </>
           )}
         </div>
-        <input
-          id="pbix-file-input"
-          type="file"
-          accept=".pbix"
-          multiple
-          className="hidden"
-          disabled={isProcessing}
-          onChange={handleFileInput}
-        />
       </div>
 
       {/* File pills + error pills */}
@@ -218,13 +238,13 @@ export function PbixExplorerTab() {
           {loadedFiles.map((f) => (
             <span
               key={f.fileName}
-              className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full border border-brand-300 dark:border-brand-700 bg-brand-50 dark:bg-brand-950/30 text-brand-700 dark:text-brand-300"
+              className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full border border-brand-500/40 bg-brand-500/10 text-brand-400"
             >
               <FileBarChart2 className="w-3 h-3" />
               {f.dashboard.reportName}
               <button
                 onClick={() => removeFile(f.fileName)}
-                className="ml-0.5 hover:text-brand-900 dark:hover:text-brand-100"
+                className="ml-0.5 hover:text-primary"
               >
                 <X className="w-3 h-3" />
               </button>
@@ -233,13 +253,13 @@ export function PbixExplorerTab() {
           {fileErrors.map((e) => (
             <span
               key={e.name}
-              className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300"
+              className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full border border-red-500/30 bg-red-500/10 text-red-400"
             >
               <AlertCircle className="w-3 h-3" />
               {e.name} — not a valid .pbix
               <button
                 onClick={() => removeError(e.name)}
-                className="ml-0.5 hover:text-red-900 dark:hover:text-red-100"
+                className="ml-0.5 hover:text-primary"
               >
                 <X className="w-3 h-3" />
               </button>
@@ -283,7 +303,7 @@ export function PbixExplorerTab() {
                 value={searchTitle}
                 onChange={(e) => { setSearchTitle(e.target.value); setSelectedPage(""); }}
                 placeholder="Search visual title…"
-                className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg border border-theme bg-panel text-primary placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                className="w-full pl-8 pr-3 py-1.5 text-sm rounded-lg border border-theme bg-panel text-primary placeholder:text-secondary focus:outline-none focus:ring-2 focus:ring-brand-500"
               />
             </div>
             <select
@@ -331,12 +351,12 @@ export function PbixExplorerTab() {
           <div className="flex-1 overflow-auto px-6">
             {loadedFiles.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full gap-3 text-secondary">
-                <FileBarChart2 className="w-10 h-10 text-slate-300 dark:text-slate-700" />
+                <FileBarChart2 className="w-10 h-10 text-secondary opacity-40" />
                 <p className="text-sm font-medium">Drop a .pbix file above to get started</p>
               </div>
             ) : filteredRows.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full gap-2 text-secondary">
-                <Search className="w-8 h-8 text-slate-300 dark:text-slate-700" />
+                <Search className="w-8 h-8 text-secondary opacity-40" />
                 <p className="text-sm font-medium">No visuals match your search</p>
               </div>
             ) : (
@@ -353,7 +373,7 @@ export function PbixExplorerTab() {
                   {filteredRows.map((row, i) => (
                     <tr key={`${row.file}|${row.page}|${row.type}|${row.title}|${i}`} className="border-b border-theme hover:bg-panel transition-colors">
                       <td className="py-2 px-2 font-medium text-primary">
-                        {row.title || <span className="text-slate-400 italic">Untitled</span>}
+                        {row.title || <span className="text-secondary italic">Untitled</span>}
                       </td>
                       <td className="py-2 px-2 text-secondary">{row.type}</td>
                       <td className="py-2 px-2 text-secondary">{row.page}</td>

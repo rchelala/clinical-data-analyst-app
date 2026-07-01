@@ -788,22 +788,22 @@ export default function WorklistPage() {
   }, [analystId, analystName, meetings, items, tasksByItem, assignedTasks, psqs, divisionNameById]);
 
   return (
-    <div className="flex flex-col min-h-screen bg-primary">
-      <div className="fixed inset-0 -z-10 bg-[#0d1117]" />
-      <div className="fixed inset-0 -z-10 bg-[radial-gradient(ellipse_80%_40%_at_50%_0%,#525252,transparent)]" />
+    <div className="flex flex-col min-h-screen">
+      <div className="eclipse-glow" />
+      <div className="eclipse-grain" />
 
-      <header className="flex items-center justify-between px-6 py-4 border-b border-theme bg-secondary-glass flex-shrink-0">
+      <header className="flex items-center justify-between px-6 py-4 border-b border-theme bg-secondary-glass hairline-top flex-shrink-0">
         <div className="flex items-center gap-3">
           <Link
             href="/"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors"
           >
             <Home className="w-3 h-3" />
             Home
           </Link>
           <Link
             href="/brain"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors"
           >
             <BrainCircuit className="w-3 h-3" />
             Galaxy
@@ -824,7 +824,7 @@ export default function WorklistPage() {
             type="button"
             disabled={analystId === null || weeklyUpdateLoading}
             onClick={handleGenerateWeeklyUpdate}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-brand-600 text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            className="btn-shimmer flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md disabled:opacity-60 disabled:cursor-not-allowed hover:brightness-110 transition-all duration-200"
           >
             {weeklyUpdateLoading ? (
               <Loader2 className="w-3 h-3 animate-spin" />
@@ -845,7 +845,7 @@ export default function WorklistPage() {
         ) : (
           <>
             {/* Meetings banner */}
-            <div className="mt-4 rounded-lg border border-theme bg-panel px-4 py-3.5">
+            <div className="mt-4 rounded-lg border border-theme bg-panel shadow-panel px-4 py-3.5">
               <label className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-secondary font-medium">
                 <CalendarDays className="w-3 h-3" />
                 Meetings this week
@@ -895,7 +895,7 @@ export default function WorklistPage() {
                   className={`ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border transition-colors ${
                     sortByPriority
                       ? "text-primary border-brand-500 bg-brand-600/10"
-                      : "border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700"
+                      : "border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80"
                   }`}
                 >
                   ↑↓ Sort by priority
@@ -903,7 +903,7 @@ export default function WorklistPage() {
                 <button
                   type="button"
                   onClick={() => setShowAddTopLevelTask(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors"
                 >
                   <Plus className="w-3 h-3" />
                   Task
@@ -911,14 +911,14 @@ export default function WorklistPage() {
                 <button
                   type="button"
                   onClick={() => setShowAddDashboard(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors"
                 >
                   <Plus className="w-3 h-3" />
                   Dashboard
                 </button>
               </div>
 
-              <div className={`rounded-lg border border-theme bg-panel overflow-hidden ${dashboardsExpanded ? "" : "hidden"}`}>
+              <div className={`rounded-xl border border-theme bg-panel shadow-panel overflow-hidden ${dashboardsExpanded ? "" : "hidden"}`}>
                 {dashboardsLoading && (
                   <div className="flex items-center justify-center py-10">
                     <Loader2 className="w-5 h-5 text-brand-500 animate-spin" />
@@ -972,12 +972,12 @@ export default function WorklistPage() {
                                 <div className="font-semibold text-primary text-sm">{item.name}</div>
                                 <div className="flex items-center gap-1.5 mt-1">
                                   {item.kind === "subscription" && (
-                                    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-sky-400 bg-sky-400/10 border border-sky-400/30 rounded-full px-2 py-0.5">
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-sky-400 bg-sky-400/10 border border-sky-400/30 rounded-full px-2 py-0.5">
                                       Subscription
                                     </span>
                                   )}
                                   {item.isCovering && (
-                                    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-400 bg-amber-400/10 border border-amber-400/30 rounded-full px-2 py-0.5">
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-400 bg-amber-400/10 border border-amber-400/30 rounded-full px-2 py-0.5">
                                       Covering{item.ownerName ? ` · ${item.ownerName}` : ""}
                                     </span>
                                   )}
@@ -1041,10 +1041,10 @@ export default function WorklistPage() {
                               </td>
                             </tr>
                             {isOpen && (
-                              <tr className="bg-black/20 border-b border-theme/60">
+                              <tr className="bg-black/25 border-b border-theme/60">
                                 <td colSpan={9} className="px-3 py-3 pl-10">
                                   <div className="flex items-center justify-between mb-2">
-                                    <span className="text-[11px] uppercase tracking-wide text-secondary font-medium">
+                                    <span className="text-[11px] uppercase tracking-wide text-secondary font-semibold">
                                       Tasks — {item.name}
                                     </span>
                                   </div>
@@ -1064,7 +1064,7 @@ export default function WorklistPage() {
                                     (tasksByItem[key] ?? []).map((task) => (
                                       <div
                                         key={task.id}
-                                        className="flex items-start gap-2.5 px-2.5 py-2 mb-1.5 rounded-md border border-theme/60 bg-panel"
+                                        className="flex items-start gap-2.5 px-3 py-2.5 mb-2 rounded-md border border-theme bg-secondary"
                                       >
                                         <button
                                           type="button"
@@ -1073,9 +1073,9 @@ export default function WorklistPage() {
                                               status: task.status === "done" ? "open" : "done",
                                             })
                                           }
-                                          className={`mt-0.5 w-4 h-4 rounded flex-shrink-0 border flex items-center justify-center text-[10px] transition-colors ${
+                                          className={`mt-0.5 w-[18px] h-[18px] rounded-[5px] flex-shrink-0 border flex items-center justify-center text-[10px] transition-colors ${
                                             task.status === "done"
-                                              ? "bg-green-500 border-green-500 text-black"
+                                              ? "bg-emerald-500 border-emerald-500 text-black"
                                               : "border-secondary"
                                           }`}
                                         >
@@ -1124,7 +1124,7 @@ export default function WorklistPage() {
                                   <button
                                     type="button"
                                     onClick={() => setShowAddTaskFor({ kind: item.kind, id: item.id })}
-                                    className="flex items-center gap-1.5 text-xs text-secondary hover:text-primary border border-dashed border-theme rounded-md px-3 py-1.5 transition-colors"
+                                    className="flex items-center gap-1.5 text-xs text-secondary hover:text-primary hover:border-brand-500/40 border border-dashed border-theme rounded-md px-3 py-1.5 transition-colors"
                                   >
                                     <Plus className="w-3 h-3" />
                                     Task
@@ -1150,10 +1150,10 @@ export default function WorklistPage() {
                     {filteredAssignedTasks.length} task{filteredAssignedTasks.length === 1 ? "" : "s"}
                   </span>
                 </div>
-                <div className="rounded-lg border border-theme bg-panel overflow-hidden">
+                <div className="rounded-xl border border-theme bg-panel shadow-panel overflow-hidden">
                   <ul className="divide-y divide-theme/60">
                     {filteredAssignedTasks.map((task) => (
-                      <li key={task.id} className="flex items-center gap-3 px-4 py-2.5">
+                      <li key={task.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02] transition-colors">
                         <div className="flex-1 min-w-0">
                           <div className="text-sm text-primary font-medium">{task.title}</div>
                           {task.description && (
@@ -1200,14 +1200,14 @@ export default function WorklistPage() {
                 <button
                   type="button"
                   onClick={handleAddPsq}
-                  className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                  className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors"
                 >
                   <Plus className="w-3 h-3" />
                   PSQ
                 </button>
               </div>
 
-              <div className="rounded-lg border border-theme bg-panel overflow-hidden">
+              <div className="rounded-xl border border-theme bg-panel shadow-panel overflow-hidden">
                 {psqsLoading && (
                   <div className="flex items-center justify-center py-10">
                     <Loader2 className="w-5 h-5 text-brand-500 animate-spin" />
@@ -1275,7 +1275,7 @@ export default function WorklistPage() {
                                       divisionId: e.target.value ? Number(e.target.value) : null,
                                     })
                                   }
-                                  className="text-xs rounded-md border border-theme px-2 py-1 bg-panel text-primary focus:outline-none focus:ring-1 focus:ring-brand-500 cursor-pointer transition-colors"
+                                  className="text-xs rounded-md border border-theme px-2 py-1 bg-secondary text-primary focus:outline-none focus:ring-1 focus:ring-brand-500 cursor-pointer transition-colors"
                                 >
                                   <option value="">–</option>
                                   {divisions.map((div) => (
@@ -1312,7 +1312,7 @@ export default function WorklistPage() {
                                       dashboardId: e.target.value ? Number(e.target.value) : null,
                                     })
                                   }
-                                  className="text-xs rounded-md border border-theme px-2 py-1 bg-panel text-primary focus:outline-none focus:ring-1 focus:ring-brand-500 cursor-pointer transition-colors"
+                                  className="text-xs rounded-md border border-theme px-2 py-1 bg-secondary text-primary focus:outline-none focus:ring-1 focus:ring-brand-500 cursor-pointer transition-colors"
                                 >
                                   <option value="">–</option>
                                   {dashboards.map((d) => (
@@ -1355,10 +1355,10 @@ export default function WorklistPage() {
                               </td>
                             </tr>
                             {isPsqOpen && (
-                              <tr className="bg-black/20 border-b border-theme/60">
+                              <tr className="bg-black/25 border-b border-theme/60">
                                 <td colSpan={11} className="px-3 py-3 pl-10">
                                   <div className="flex items-center justify-between mb-2">
-                                    <span className="text-[11px] uppercase tracking-wide text-secondary font-medium">
+                                    <span className="text-[11px] uppercase tracking-wide text-secondary font-semibold">
                                       Tasks — {p.name}
                                     </span>
                                   </div>
@@ -1378,7 +1378,7 @@ export default function WorklistPage() {
                                     (tasksByPsq[p.id] ?? []).map((task) => (
                                       <div
                                         key={task.id}
-                                        className="flex items-start gap-2.5 px-2.5 py-2 mb-1.5 rounded-md border border-theme/60 bg-panel"
+                                        className="flex items-start gap-2.5 px-3 py-2.5 mb-2 rounded-md border border-theme bg-secondary"
                                       >
                                         <button
                                           type="button"
@@ -1387,9 +1387,9 @@ export default function WorklistPage() {
                                               status: task.status === "done" ? "open" : "done",
                                             })
                                           }
-                                          className={`mt-0.5 w-4 h-4 rounded flex-shrink-0 border flex items-center justify-center text-[10px] transition-colors ${
+                                          className={`mt-0.5 w-[18px] h-[18px] rounded-[5px] flex-shrink-0 border flex items-center justify-center text-[10px] transition-colors ${
                                             task.status === "done"
-                                              ? "bg-green-500 border-green-500 text-black"
+                                              ? "bg-emerald-500 border-emerald-500 text-black"
                                               : "border-secondary"
                                           }`}
                                         >
@@ -1438,7 +1438,7 @@ export default function WorklistPage() {
                                   <button
                                     type="button"
                                     onClick={() => setShowAddTaskForPsq(p.id)}
-                                    className="flex items-center gap-1.5 text-xs text-secondary hover:text-primary border border-dashed border-theme rounded-md px-3 py-1.5 transition-colors"
+                                    className="flex items-center gap-1.5 text-xs text-secondary hover:text-primary hover:border-brand-500/40 border border-dashed border-theme rounded-md px-3 py-1.5 transition-colors"
                                   >
                                     <Plus className="w-3 h-3" />
                                     Task
@@ -1555,7 +1555,7 @@ function EditableCell({ value, placeholder, onSave }: EditableCellProps) {
       suppressContentEditableWarning
       onBlur={(e) => onSave(e.currentTarget.innerText.trim())}
       data-placeholder={placeholder}
-      className="text-xs text-secondary outline-none rounded-md px-1.5 py-1 border border-transparent hover:border-theme hover:bg-secondary-glass focus:border-brand-500 focus:bg-secondary-glass focus:text-primary transition-colors min-h-[1.4em] min-w-[40px] empty:before:content-[attr(data-placeholder)] empty:before:text-secondary/50"
+      className="text-xs text-secondary outline-none rounded-md px-1.5 py-1 border border-transparent hover:border-theme hover:bg-panel focus:border-brand-500 focus:bg-panel focus:text-primary transition-colors min-h-[1.4em] min-w-[40px] empty:before:content-[attr(data-placeholder)] empty:before:text-secondary/50"
     >
       {value ?? ""}
     </div>

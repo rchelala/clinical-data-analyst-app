@@ -19,15 +19,16 @@ export function DensitySelector({ value, onChange }: Props) {
       <span className="text-xs font-medium text-secondary uppercase tracking-wide">
         Depth
       </span>
-      <div className="flex items-center gap-1 p-1 rounded-lg bg-panel border border-theme">
+      <div className="flex items-center gap-0.5 p-[3px] rounded-lg bg-panel border border-theme">
         {options.map((opt) => (
           <button
             key={opt.value}
             onClick={() => onChange(opt.value)}
             title={opt.description}
+            aria-pressed={value === opt.value}
             className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${
               value === opt.value
-                ? "bg-brand-600 text-white shadow-sm"
+                ? "bg-secondary text-primary shadow-panel"
                 : "text-secondary hover:text-primary"
             }`}
           >

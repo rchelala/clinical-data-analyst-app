@@ -348,14 +348,14 @@ export default function BrainPage() {
         <div className="flex items-center gap-3">
           <Link
             href="/"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors"
           >
             <Home className="w-3 h-3" />
             Home
           </Link>
           <Link
             href="/worklist"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors"
           >
             <ClipboardList className="w-3 h-3" />
             Worklist
@@ -374,7 +374,7 @@ export default function BrainPage() {
           <button
             onClick={handleZoomOut}
             disabled={zoom.level === "galaxy"}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <ArrowLeft className="w-3 h-3" />
             Back
@@ -382,7 +382,7 @@ export default function BrainPage() {
           {zoom.level === "division" && selectedDivision && (
             <button
               onClick={() => setShowDivisionTasks(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors"
             >
               <ListTodo className="w-3 h-3" />
               Division Tasks
@@ -394,7 +394,7 @@ export default function BrainPage() {
           <button
             onClick={() => setShowAddRequestForm(true)}
             disabled={viewerAnalystId === null}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-60"
+            className="btn-shimmer flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200"
           >
             <ClipboardPlus className="w-3 h-3" />
             Add Request
@@ -402,14 +402,14 @@ export default function BrainPage() {
           <button
             onClick={() => setShowAddDivisionForm(true)}
             disabled={viewerAnalystId === null}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-60"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors disabled:opacity-60"
           >
             <FolderPlus className="w-3 h-3" />
             Add Division
           </button>
           <Link
             href="/brain/unassigned"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors"
           >
             <Inbox className="w-3 h-3" />
             Unassigned
@@ -417,7 +417,7 @@ export default function BrainPage() {
           {zoom.level === "division" && selectedDivision && (
             <button
               onClick={() => setShowDeleteDivision(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-60"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors disabled:opacity-60"
             >
               <Trash2 className="w-3 h-3" />
               Delete Division
@@ -426,7 +426,7 @@ export default function BrainPage() {
           <AnalystSelector onSelect={handleSelectAnalyst} />
           <button
             onClick={() => setShowUrgencyInfo(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors"
           >
             <HelpCircle className="w-3 h-3" />
             How distance works

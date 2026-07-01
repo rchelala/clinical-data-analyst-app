@@ -149,7 +149,7 @@ export function StatusPrioritySelect({ kind, value, suggestions, onChange }: Sta
             transform: pos.openUp ? "translateY(-100%)" : "none",
             zIndex: 60,
           }}
-          className="min-w-[160px] rounded-md border border-theme bg-panel shadow-lg py-1"
+          className="min-w-[160px] rounded-md border border-theme bg-elevated shadow-panel py-1"
         >
           {addingNew ? (
             <div className="px-2 py-1">
@@ -173,7 +173,7 @@ export function StatusPrioritySelect({ kind, value, suggestions, onChange }: Sta
                   key={opt}
                   type="button"
                   onClick={() => handleSelect(opt)}
-                  className="w-full flex items-center gap-2 text-left px-3 py-1.5 text-xs text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                  className="w-full flex items-center gap-2 text-left px-3 py-1.5 text-xs text-secondary hover:text-primary hover:bg-panel/80 transition-colors"
                 >
                   {kind === "status" && <span className={`w-1.5 h-1.5 rounded-full ${colorsFor(opt).dot}`} />}
                   {kind === "status" ? labelFor(opt) : opt}
@@ -182,7 +182,7 @@ export function StatusPrioritySelect({ kind, value, suggestions, onChange }: Sta
               <button
                 type="button"
                 onClick={() => handleSelect(ADD_NEW)}
-                className="w-full text-left px-3 py-1.5 text-xs text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors border-t border-theme"
+                className="w-full text-left px-3 py-1.5 text-xs text-secondary hover:text-primary hover:bg-panel/80 transition-colors border-t border-theme"
               >
                 Add new…
               </button>

@@ -11,7 +11,8 @@ const monacoLang: Record<Language, string> = {
 };
 
 // Light theme: soft green background, dark readable text
-// Dark theme: dark green background, light readable text
+// Dark theme (Eclipse): near-black editor background with low-alpha
+// emerald/red tints for added/removed lines, matching the app's dark canvas.
 const beforeMount: BeforeMount = (monaco) => {
   monaco.editor.defineTheme("diff-light", {
     base: "vs",
@@ -31,11 +32,11 @@ const beforeMount: BeforeMount = (monaco) => {
     inherit: true,
     rules: [],
     colors: {
-      "editor.background":                    "#161b22",
-      "diffEditor.insertedLineBackground":    "#1a3a1a",  // dark green bg
-      "diffEditor.insertedTextBackground":    "#2d5a2d",  // slightly lighter for inline
-      "diffEditor.removedLineBackground":     "#3a1a1a",
-      "diffEditor.removedTextBackground":     "#5a2d2d",
+      "editor.background":                    "#08080c",
+      "diffEditor.insertedLineBackground":    "#34d39926",  // emerald @ ~15% alpha
+      "diffEditor.insertedTextBackground":    "#34d3994d",  // emerald @ ~30% alpha for inline
+      "diffEditor.removedLineBackground":     "#f8717120",  // red @ ~12% alpha
+      "diffEditor.removedTextBackground":     "#f8717145",  // red @ ~27% alpha for inline
     },
   });
 };

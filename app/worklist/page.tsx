@@ -18,6 +18,7 @@ import { AnalystSelector } from "@/components/brain/AnalystSelector";
 import { AddTaskForm } from "@/components/worklist/AddTaskForm";
 import { AddWorklistDashboard } from "@/components/worklist/AddWorklistDashboard";
 import { StatusPrioritySelect } from "@/components/worklist/StatusPrioritySelect";
+import { StatusFilterDropdown } from "@/components/worklist/StatusFilterDropdown";
 import { WeeklyUpdateDrawer } from "@/components/worklist/WeeklyUpdateDrawer";
 import { loadAnalystId } from "@/lib/analyst-identity";
 import { Dashboard, Division, PsqWithTaskCount, ReportSubscription, Task, TaskWithContext } from "@/lib/brain-types";
@@ -64,6 +65,25 @@ interface WorklistItem {
 // collide numerically) never clash in the per-item task maps / expanded state.
 function itemKey(kind: WorklistItemKind, id: number): string {
   return `${kind}:${id}`;
+}
+
+// Formats a task's created/completed DATE for display. The value arrives as an
+// ISO-ish string; take the calendar-date part so it isn't shifted by timezone.
+function fmtDate(d: string | null): string | null {
+  if (!d) return null;
+  return d.slice(0, 10);
+}
+
+// Small read-only "Created … · Completed …" line shown under each task.
+function TaskDates({ createdDate, completedDate }: { createdDate: string; completedDate: string | null }) {
+  const created = fmtDate(createdDate);
+  const completed = fmtDate(completedDate);
+  return (
+    <div className="text-[11px] text-secondary mt-1">
+      {created && <span>Created {created}</span>}
+      {completed && <span>{created ? " · " : ""}Completed {completed}</span>}
+    </div>
+  );
 }
 
 // Computes the ISO Monday (YYYY-MM-DD) of the week containing `date`.
@@ -113,7 +133,9 @@ export default function WorklistPage() {
   const [dashboardsLoading, setDashboardsLoading] = useState(true);
   const [dashboardsError, setDashboardsError] = useState<string | null>(null);
   const [sortByPriority, setSortByPriority] = useState(true);
-  const [activeOnly, setActiveOnly] = useState(true);
+  // Single global status filter applied across all sections. Default to
+  // "active"; an empty selection means "show all".
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>(["active"]);
   const [dashboardsExpanded, setDashboardsExpanded] = useState(true);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [tasksByItem, setTasksByItem] = useState<Record<string, Task[]>>({});
@@ -135,7 +157,6 @@ export default function WorklistPage() {
   const [psqs, setPsqs] = useState<PsqWithTaskCount[]>([]);
   const [psqsLoading, setPsqsLoading] = useState(true);
   const [divisions, setDivisions] = useState<Division[]>([]);
-  const [psqActiveOnly, setPsqActiveOnly] = useState(true);
   const [expandedPsqId, setExpandedPsqId] = useState<number | null>(null);
   const [tasksByPsq, setTasksByPsq] = useState<Record<number, Task[]>>({});
   const [psqTasksLoading, setPsqTasksLoading] = useState<Record<number, boolean>>({});
@@ -494,11 +515,15 @@ export default function WorklistPage() {
   );
 
   const psqTaskCounts = useCallback(
-    (psqId: number) => {
-      const tasks = tasksByPsq[psqId];
-      if (!tasks) return null;
-      const open = tasks.filter((t) => t.status !== "done").length;
-      return `${open} open · ${tasks.length} total`;
+    (psq: PsqWithTaskCount) => {
+      // Live fetched list when expanded, otherwise the list-endpoint counts so
+      // the count always shows without expanding (mirrors the main section).
+      const tasks = tasksByPsq[psq.id];
+      if (tasks) {
+        const open = tasks.filter((t) => t.status !== "done").length;
+        return `${open} open · ${tasks.length} total`;
+      }
+      return `${psq.activeTaskCount} open · ${psq.totalTaskCount} total`;
     },
     [tasksByPsq]
   );
@@ -634,20 +659,54 @@ export default function WorklistPage() {
     return Array.from(set);
   }, [items, tasksByItem, tasksByPsq]);
 
+  // Normalized set of selected statuses for O(1) case-insensitive matching.
+  const selectedStatusSet = useMemo(
+    () => new Set(selectedStatuses.map((s) => s.trim().toLowerCase())),
+    [selectedStatuses]
+  );
+
+  // The single global filter: a row passes if its own status is selected.
+  // Empty selection means "no filter — show everything".
+  const statusMatches = useCallback(
+    (status: string | null | undefined) => {
+      if (selectedStatusSet.size === 0) return true;
+      return selectedStatusSet.has((status ?? "").trim().toLowerCase());
+    },
+    [selectedStatusSet]
+  );
+
+  // Distinct statuses in use across every section, de-duplicated
+  // case-insensitively (first-seen casing wins) to populate the filter.
+  const statusFilterOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    const add = (s: string | null | undefined) => {
+      const v = (s ?? "").trim();
+      if (!v) return;
+      const k = v.toLowerCase();
+      if (!seen.has(k)) seen.set(k, v);
+    };
+    items.forEach((i) => add(i.worklistStatus));
+    psqs.forEach((p) => add(p.status));
+    assignedTasks.forEach((t) => add(t.status));
+    // Ensure the default "active" is always offered even if nothing uses it yet.
+    if (!seen.has("active")) seen.set("active", "active");
+    return Array.from(seen.values());
+  }, [items, psqs, assignedTasks]);
+
   const sortedItems = useMemo(() => {
-    // "Active only" is purely status-driven: show items whose Status column
-    // (worklistStatus) is "active" (free-form, matched case-insensitively),
-    // regardless of how many open tasks they have.
-    const filtered = activeOnly
-      ? items.filter((i) => (i.worklistStatus ?? "").trim().toLowerCase() === "active")
-      : items;
+    const filtered = items.filter((i) => statusMatches(i.worklistStatus));
     if (!sortByPriority) return filtered;
     return [...filtered].sort((a, b) => comparePriority(a.priority, b.priority));
-  }, [items, sortByPriority, activeOnly]);
+  }, [items, sortByPriority, statusMatches]);
 
   const sortedPsqs = useMemo(() => {
-    return psqActiveOnly ? psqs.filter((p) => p.activeTaskCount > 0) : psqs;
-  }, [psqs, psqActiveOnly]);
+    return psqs.filter((p) => statusMatches(p.status));
+  }, [psqs, statusMatches]);
+
+  const filteredAssignedTasks = useMemo(
+    () => assignedTasks.filter((t) => statusMatches(t.status)),
+    [assignedTasks, statusMatches]
+  );
 
   const existingWorklistDashboardIds = useMemo(() => dashboards.map((d) => d.id), [dashboards]);
 
@@ -756,6 +815,11 @@ export default function WorklistPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          <StatusFilterDropdown
+            options={statusFilterOptions}
+            selected={selectedStatuses}
+            onChange={setSelectedStatuses}
+          />
           <button
             type="button"
             disabled={analystId === null || weeklyUpdateLoading}
@@ -827,19 +891,8 @@ export default function WorklistPage() {
                 </span>
                 <button
                   type="button"
-                  onClick={() => setActiveOnly((a) => !a)}
-                  className={`ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border transition-colors ${
-                    activeOnly
-                      ? "text-primary border-brand-500 bg-brand-600/10"
-                      : "border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700"
-                  }`}
-                >
-                  Active only
-                </button>
-                <button
-                  type="button"
                   onClick={() => setSortByPriority((s) => !s)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border transition-colors ${
+                  className={`ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border transition-colors ${
                     sortByPriority
                       ? "text-primary border-brand-500 bg-brand-600/10"
                       : "border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700"
@@ -1055,6 +1108,7 @@ export default function WorklistPage() {
                                               onChange={(value) => patchTask(key, task.id, { priority: value })}
                                             />
                                           </div>
+                                          <TaskDates createdDate={task.createdDate} completedDate={task.completedDate} />
                                         </div>
                                         <button
                                           type="button"
@@ -1088,17 +1142,17 @@ export default function WorklistPage() {
             </section>
 
             {/* Assigned to me */}
-            {!assignedLoading && assignedTasks.length > 0 && (
+            {!assignedLoading && filteredAssignedTasks.length > 0 && (
               <section className="mt-6">
                 <div className="flex items-center gap-3 mb-2.5">
                   <h2 className="text-sm font-semibold text-primary">Assigned to me</h2>
                   <span className="text-xs text-secondary bg-panel border border-theme rounded-full px-2 py-0.5">
-                    {assignedTasks.length} task{assignedTasks.length === 1 ? "" : "s"}
+                    {filteredAssignedTasks.length} task{filteredAssignedTasks.length === 1 ? "" : "s"}
                   </span>
                 </div>
                 <div className="rounded-lg border border-theme bg-panel overflow-hidden">
                   <ul className="divide-y divide-theme/60">
-                    {assignedTasks.map((task) => (
+                    {filteredAssignedTasks.map((task) => (
                       <li key={task.id} className="flex items-center gap-3 px-4 py-2.5">
                         <div className="flex-1 min-w-0">
                           <div className="text-sm text-primary font-medium">{task.title}</div>
@@ -1113,6 +1167,7 @@ export default function WorklistPage() {
                             {task.contextType === "division" && `in division ${task.contextName}`}
                             {task.contextOwnerName ? ` · owned by ${task.contextOwnerName}` : ""}
                           </div>
+                          <TaskDates createdDate={task.createdDate} completedDate={task.completedDate} />
                         </div>
                         <StatusPrioritySelect
                           kind="status"
@@ -1144,19 +1199,8 @@ export default function WorklistPage() {
                 </span>
                 <button
                   type="button"
-                  onClick={() => setPsqActiveOnly((a) => !a)}
-                  className={`ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border transition-colors ${
-                    psqActiveOnly
-                      ? "text-primary border-brand-500 bg-brand-600/10"
-                      : "border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700"
-                  }`}
-                >
-                  Active only
-                </button>
-                <button
-                  type="button"
                   onClick={handleAddPsq}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                  className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
                 >
                   <Plus className="w-3 h-3" />
                   PSQ
@@ -1205,7 +1249,7 @@ export default function WorklistPage() {
                     <tbody>
                       {sortedPsqs.map((p) => {
                         const isPsqOpen = expandedPsqId === p.id;
-                        const psqCounts = psqTaskCounts(p.id);
+                        const psqCounts = psqTaskCounts(p);
                         return (
                           <Fragment key={p.id}>
                             <tr className="border-b border-theme/60 hover:bg-white/[0.02] align-top">
@@ -1257,7 +1301,7 @@ export default function WorklistPage() {
                                   <ChevronRight
                                     className={`w-3.5 h-3.5 transition-transform ${isPsqOpen ? "rotate-90" : ""}`}
                                   />
-                                  {psqCounts ?? "View tasks"}
+                                  {psqCounts}
                                 </button>
                               </td>
                               <td className="px-3 py-2.5">
@@ -1378,6 +1422,7 @@ export default function WorklistPage() {
                                               onChange={(value) => patchPsqTask(p.id, task.id, { priority: value })}
                                             />
                                           </div>
+                                          <TaskDates createdDate={task.createdDate} completedDate={task.completedDate} />
                                         </div>
                                         <button
                                           type="button"

@@ -182,6 +182,7 @@ export interface Psq {
 
 export interface PsqWithTaskCount extends Psq {
   activeTaskCount: number;
+  totalTaskCount: number;
 }
 
 export interface WorklistDashboard {

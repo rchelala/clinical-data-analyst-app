@@ -153,7 +153,8 @@ export function mapPsqRow(row: any): Psq {
 export function mapPsqWithTaskCountRow(row: any): PsqWithTaskCount {
   return {
     ...mapPsqRow(row),
-    activeTaskCount: row.active_task_count,
+    activeTaskCount: Number(row.active_task_count),
+    totalTaskCount: Number(row.total_task_count),
   };
 }
 

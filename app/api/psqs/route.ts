@@ -16,12 +16,15 @@ export async function GET(req: NextRequest) {
 
     const rows = await sql`
       SELECT p.id, p.analyst_id, p.division_id, p.year, p.name, p.status, p.tasks, p.comments, p.notes, p.enterprise_analyst, p.summary, p.created_date, p.last_touched_date, p.dashboard_id,
-             COALESCE(tc.active_task_count, 0) AS active_task_count
+             COALESCE(tc.active_task_count, 0) AS active_task_count,
+             COALESCE(tc.total_task_count, 0) AS total_task_count
       FROM psqs p
       LEFT JOIN (
-        SELECT psq_id, COUNT(*) AS active_task_count
+        SELECT psq_id,
+          COUNT(*) FILTER (WHERE status <> 'done') AS active_task_count,
+          COUNT(*) AS total_task_count
         FROM tasks
-        WHERE owner_analyst_id = ${analystId} AND status <> 'done'
+        WHERE owner_analyst_id = ${analystId} AND psq_id IS NOT NULL
         GROUP BY psq_id
       ) tc ON tc.psq_id = p.id
       WHERE p.analyst_id = ${analystId}

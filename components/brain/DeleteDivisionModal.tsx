@@ -46,7 +46,7 @@ export function DeleteDivisionModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-md mx-4 rounded-lg border border-theme bg-panel shadow-xl">
+      <div className="w-full max-w-md mx-4 rounded-xl border border-theme bg-elevated shadow-panel">
         <div className="flex items-center gap-3 px-5 py-4 border-b border-theme">
           <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-secondary-glass">
             <Trash2 className="w-5 h-5 text-secondary" />
@@ -71,7 +71,7 @@ export function DeleteDivisionModal({
                 <button
                   type="button"
                   onClick={onCancel}
-                  className="px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                  className="px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors"
                 >
                   Close
                 </button>
@@ -84,7 +84,7 @@ export function DeleteDivisionModal({
               </p>
 
               {error && (
-                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+                <p className="text-sm text-red-400">{error}</p>
               )}
 
               <div className="flex items-center justify-end gap-2 pt-2">
@@ -92,7 +92,7 @@ export function DeleteDivisionModal({
                   type="button"
                   onClick={onCancel}
                   disabled={deleting}
-                  className="px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-60"
+                  className="px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors disabled:opacity-60"
                 >
                   Cancel
                 </button>

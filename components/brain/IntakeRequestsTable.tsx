@@ -136,6 +136,7 @@ export function IntakeRequestsTable({
   };
 
   return (
+    <div className="rounded-xl border border-theme bg-panel shadow-panel overflow-hidden">
     <table className="w-full text-xs border-collapse">
       <thead>
         <tr className="border-b border-theme text-left">
@@ -191,7 +192,7 @@ export function IntakeRequestsTable({
           return (
             <tr
               key={r.id}
-              className="border-b border-theme hover:bg-slate-200/40 dark:hover:bg-slate-700/30 transition-colors align-top"
+              className="border-b border-theme hover:bg-panel/80 transition-colors align-top"
             >
               <td className="px-3 py-2 text-primary">
                 <select
@@ -207,7 +208,7 @@ export function IntakeRequestsTable({
                   ))}
                 </select>
                 {priorityError && (
-                  <p className="text-[11px] text-red-600 dark:text-red-400 mt-1">{priorityError}</p>
+                  <p className="text-[11px] text-red-400 mt-1">{priorityError}</p>
                 )}
               </td>
               <td className="px-3 py-2 text-primary whitespace-nowrap">
@@ -228,7 +229,7 @@ export function IntakeRequestsTable({
                   ))}
                 </select>
                 {divisionError && (
-                  <p className="text-[11px] text-red-600 dark:text-red-400 mt-1">{divisionError}</p>
+                  <p className="text-[11px] text-red-400 mt-1">{divisionError}</p>
                 )}
               </td>
               <td className="px-3 py-2 text-primary">{r.topic}</td>
@@ -248,7 +249,7 @@ export function IntakeRequestsTable({
                   ))}
                 </select>
                 {analystError && (
-                  <p className="text-[11px] text-red-600 dark:text-red-400 mt-1">{analystError}</p>
+                  <p className="text-[11px] text-red-400 mt-1">{analystError}</p>
                 )}
               </td>
               <td className="px-3 py-2 text-primary capitalize">{r.requestedKind ?? "—"}</td>
@@ -274,7 +275,7 @@ export function IntakeRequestsTable({
                   </select>
                 )}
                 {statusError && (
-                  <p className="text-[11px] text-red-600 dark:text-red-400 mt-1">{statusError}</p>
+                  <p className="text-[11px] text-red-400 mt-1">{statusError}</p>
                 )}
               </td>
               <td className="px-3 py-2 text-primary">
@@ -308,7 +309,7 @@ export function IntakeRequestsTable({
                   <button
                     type="button"
                     onClick={() => onConvert(r, r.requestedKind!)}
-                    className="px-2 py-1 text-[11px] font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors capitalize"
+                    className="px-2 py-1 text-[11px] font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors capitalize"
                   >
                     Convert to {r.requestedKind}
                   </button>
@@ -317,14 +318,14 @@ export function IntakeRequestsTable({
                     <button
                       type="button"
                       onClick={() => onConvert(r, "dashboard")}
-                      className="px-2 py-1 text-[11px] font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                      className="px-2 py-1 text-[11px] font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors"
                     >
                       Dashboard
                     </button>
                     <button
                       type="button"
                       onClick={() => onConvert(r, "subscription")}
-                      className="px-2 py-1 text-[11px] font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                      className="px-2 py-1 text-[11px] font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors"
                     >
                       Subscription
                     </button>
@@ -336,5 +337,6 @@ export function IntakeRequestsTable({
         })}
       </tbody>
     </table>
+    </div>
   );
 }

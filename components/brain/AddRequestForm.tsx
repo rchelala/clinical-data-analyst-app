@@ -189,7 +189,7 @@ export function AddRequestForm({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-md mx-4 rounded-lg border border-theme bg-panel shadow-xl">
+      <div className="w-full max-w-md mx-4 rounded-xl border border-theme bg-elevated shadow-panel">
         <div className="flex items-center gap-3 px-5 py-4 border-b border-theme">
           <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-secondary-glass">
             <ClipboardPlus className="w-5 h-5 text-secondary" />
@@ -330,8 +330,8 @@ export function AddRequestForm({
                 onDrop={handleDrop}
                 className={`flex items-center justify-center gap-1.5 text-sm rounded-md border border-dashed px-3 py-2 cursor-pointer transition-colors ${
                   dragging
-                    ? "border-brand-500 bg-brand-50 dark:bg-brand-950/20"
-                    : "border-theme text-secondary hover:text-primary hover:bg-panel"
+                    ? "border-brand-500 bg-brand-500/10"
+                    : "border-theme text-secondary hover:text-primary hover:bg-panel/80"
                 }`}
               >
                 <Paperclip className="w-3.5 h-3.5" />
@@ -339,12 +339,12 @@ export function AddRequestForm({
               </div>
             )}
             {parseNote && (
-              <p className="text-xs text-amber-600 dark:text-amber-400">{parseNote}</p>
+              <p className="text-xs text-amber-400">{parseNote}</p>
             )}
           </div>
 
           {error && (
-            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+            <p className="text-sm text-red-400">{error}</p>
           )}
 
           <div className="flex items-center justify-end gap-2 pt-2">
@@ -352,7 +352,7 @@ export function AddRequestForm({
               type="button"
               onClick={onCancel}
               disabled={submitting}
-              className="px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-60"
+              className="px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors disabled:opacity-60"
             >
               Cancel
             </button>

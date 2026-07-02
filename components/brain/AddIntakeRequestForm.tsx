@@ -107,7 +107,7 @@ export function AddIntakeRequestForm({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-md mx-4 rounded-lg border border-theme bg-panel shadow-xl max-h-[90vh] overflow-y-auto">
+      <div className="w-full max-w-md mx-4 rounded-xl border border-theme bg-elevated shadow-panel max-h-[90vh] overflow-y-auto">
         <div className="flex items-center gap-3 px-5 py-4 border-b border-theme">
           <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-secondary-glass">
             <ClipboardList className="w-5 h-5 text-secondary" />
@@ -252,7 +252,7 @@ export function AddIntakeRequestForm({
           </div>
 
           {error && (
-            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+            <p className="text-sm text-red-400">{error}</p>
           )}
 
           <div className="flex items-center justify-end gap-2 pt-2">
@@ -260,7 +260,7 @@ export function AddIntakeRequestForm({
               type="button"
               onClick={onCancel}
               disabled={submitting}
-              className="px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors disabled:opacity-60"
+              className="px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors disabled:opacity-60"
             >
               Cancel
             </button>

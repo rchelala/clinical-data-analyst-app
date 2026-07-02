@@ -217,15 +217,15 @@ export default function UnassignedIntakePage() {
   }, [requests, divisionFilter, analystFilter, priorityFilter]);
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-primary">
-      <div className="fixed inset-0 -z-10 bg-[#0d1117]" />
-      <div className="fixed inset-0 -z-10 bg-[radial-gradient(ellipse_80%_40%_at_50%_0%,#525252,transparent)]" />
+    <div className="flex flex-col h-screen overflow-hidden">
+      <div className="eclipse-glow" />
+      <div className="eclipse-grain" />
 
-      <header className="flex items-center justify-between px-6 py-4 border-b border-theme bg-secondary-glass flex-shrink-0">
+      <header className="flex items-center justify-between px-6 py-4 border-b border-theme bg-secondary-glass hairline-top flex-shrink-0">
         <div className="flex items-center gap-3">
           <Link
             href="/brain"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel hover:bg-panel/80 text-secondary hover:text-primary transition-colors"
           >
             <ArrowLeft className="w-3 h-3" />
             Back to Brain
@@ -243,7 +243,7 @@ export default function UnassignedIntakePage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowAddForm(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+            className="btn-shimmer flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md hover:brightness-110 transition-all duration-200"
           >
             <ClipboardList className="w-3 h-3" />
             Add Request
@@ -374,7 +374,7 @@ export default function UnassignedIntakePage() {
 
           {!loading && error && (
             <div className="flex items-center justify-center h-full">
-              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+              <p className="text-sm text-red-400">{error}</p>
             </div>
           )}
 
@@ -439,7 +439,7 @@ export default function UnassignedIntakePage() {
       )}
       {convertingRequest && convertError && (
         <div className="fixed inset-x-0 bottom-4 flex justify-center z-[60]">
-          <p className="px-4 py-2 text-sm rounded-md bg-red-600 text-white shadow-lg">
+          <p className="px-4 py-2 text-sm rounded-md bg-red-500/10 border border-red-500/30 text-red-400 shadow-lg">
             {convertError}
           </p>
         </div>

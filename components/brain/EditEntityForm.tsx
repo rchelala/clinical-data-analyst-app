@@ -159,7 +159,7 @@ export function EditEntityForm({
 
           <div className="flex flex-col gap-1">
             <label htmlFor="editEntityName" className="text-xs font-medium text-secondary">
-              Name <span className="text-red-500">*</span>
+              Name <span className="text-red-400">*</span>
             </label>
             <input
               id="editEntityName"

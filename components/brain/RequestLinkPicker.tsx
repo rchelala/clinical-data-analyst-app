@@ -210,7 +210,7 @@ export function RequestLinkPicker({
             type="button"
             onClick={() => setLinking(true)}
             aria-label="Link request"
-            className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full border border-theme text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500"
+            className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium rounded-full border border-theme text-secondary hover:text-primary hover:bg-panel/80 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
             <Plus className="w-2.5 h-2.5" />
             link request
@@ -250,7 +250,7 @@ export function RequestLinkPicker({
               <div
                 id="related-request-listbox"
                 role="listbox"
-                className="absolute left-0 top-full mt-1 z-10 min-w-full rounded-md border border-theme bg-panel shadow-lg overflow-hidden"
+                className="absolute left-0 top-full mt-1 z-10 min-w-full rounded-md border border-theme bg-elevated shadow-panel overflow-hidden"
               >
                 {results.map((result, index) => (
                   <button
@@ -261,8 +261,8 @@ export function RequestLinkPicker({
                     aria-selected={index === highlightedIndex}
                     disabled={addPending}
                     onClick={() => handleLink(result.id)}
-                    className={`block w-full text-left px-2 py-1 text-[10px] disabled:opacity-60 whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-brand-500 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors ${
-                      index === highlightedIndex ? "bg-slate-200 dark:bg-slate-700" : ""
+                    className={`block w-full text-left px-2 py-1 text-[10px] disabled:opacity-60 whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-brand-500 hover:bg-panel/80 transition-colors ${
+                      index === highlightedIndex ? "bg-panel/80" : ""
                     }`}
                   >
                     <span className="block text-secondary hover:text-primary truncate">{result.title}</span>
@@ -281,7 +281,7 @@ export function RequestLinkPicker({
         )}
       </div>
 
-      {error && <p className="text-xs text-red-600 dark:text-red-400 mt-1">{error}</p>}
+      {error && <p className="text-xs text-red-400 mt-1">{error}</p>}
     </div>
   );
 }

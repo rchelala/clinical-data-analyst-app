@@ -109,7 +109,7 @@ export function DivisionTasksPanel({ divisionId, divisionName, onClose }: Divisi
       <div className="absolute inset-0 bg-black/60" onClick={onClose} aria-hidden="true" />
 
       {/* Panel */}
-      <div className="relative h-full w-full sm:w-96 bg-panel border-l border-theme shadow-xl flex flex-col">
+      <div className="relative h-full w-full sm:w-96 bg-elevated border-l border-theme shadow-panel flex flex-col">
         <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-theme flex-shrink-0">
           <div>
             <h2 className="text-sm font-semibold text-primary leading-none">{divisionName}</h2>
@@ -118,7 +118,7 @@ export function DivisionTasksPanel({ divisionId, divisionName, onClose }: Divisi
           <button
             onClick={onClose}
             aria-label="Close"
-            className="flex items-center justify-center w-8 h-8 rounded-md border border-theme bg-panel hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex-shrink-0"
+            className="flex items-center justify-center w-8 h-8 rounded-md border border-theme bg-panel hover:bg-panel/80 transition-colors flex-shrink-0"
           >
             <X className="w-4 h-4 text-secondary" />
           </button>

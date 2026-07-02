@@ -9,6 +9,9 @@
      looks correct regardless of next-themes state (theme is forced dark). */
   :root,
   .dark {
+    /* Render native controls (select popups, date pickers, scrollbars) dark
+       so option lists aren't unreadable light-on-white. */
+    color-scheme: dark;
     --bg-primary: #08080c;
     --bg-secondary: rgba(255, 255, 255, 0.045);
     --bg-panel: rgba(255, 255, 255, 0.075);

@@ -476,7 +476,7 @@ export function RequestSidePanel({
       />
 
       {/* Panel */}
-      <div className="relative h-full w-full sm:w-96 bg-panel border-l border-theme shadow-xl flex flex-col">
+      <div className="relative h-full w-full sm:w-96 bg-elevated border-l border-theme shadow-panel flex flex-col">
         <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-theme flex-shrink-0">
           <div>
             <h2 className="text-sm font-semibold text-primary leading-none">
@@ -519,7 +519,7 @@ export function RequestSidePanel({
             {entity.kind === "dashboard" && (
               <button
                 onClick={() => setAttachFieldRequestOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors"
               >
                 <ClipboardList className="w-3 h-3" />
                 Attach Field Request
@@ -530,14 +530,14 @@ export function RequestSidePanel({
                 <button
                   onClick={() => setEntityEditOpen(true)}
                   aria-label={`Edit ${entity.kind}`}
-                  className="flex items-center justify-center w-8 h-8 rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex-shrink-0"
+                  className="flex items-center justify-center w-8 h-8 rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors flex-shrink-0"
                 >
                   <Pencil className="w-3.5 h-3.5" />
                 </button>
                 <button
                   onClick={handleEntityDeleteClick}
                   aria-label={`Delete ${entity.kind}`}
-                  className="flex items-center justify-center w-8 h-8 rounded-md border border-theme bg-panel text-secondary hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex-shrink-0"
+                  className="flex items-center justify-center w-8 h-8 rounded-md border border-theme bg-panel text-secondary hover:text-red-400 hover:bg-panel/80 transition-colors flex-shrink-0"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -546,7 +546,7 @@ export function RequestSidePanel({
             <button
               onClick={onClose}
               aria-label="Close"
-              className="flex items-center justify-center w-8 h-8 rounded-md border border-theme bg-panel hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex-shrink-0"
+              className="flex items-center justify-center w-8 h-8 rounded-md border border-theme bg-panel hover:bg-panel/80 transition-colors flex-shrink-0"
             >
               <X className="w-4 h-4 text-secondary" />
             </button>
@@ -554,7 +554,7 @@ export function RequestSidePanel({
         </div>
 
         {entityConfirmingDelete && (
-          <div className="flex flex-col gap-2 mx-5 mt-3 rounded-md border border-theme bg-slate-100 dark:bg-slate-800 px-3 py-2 flex-shrink-0">
+          <div className="flex flex-col gap-2 mx-5 mt-3 rounded-md border border-theme bg-panel px-3 py-2 flex-shrink-0">
             <div className="flex items-center justify-between gap-2">
               <span className="text-xs text-secondary">
                 Delete &quot;{entity.name}&quot;? This also deletes its requests.
@@ -580,7 +580,7 @@ export function RequestSidePanel({
               </div>
             </div>
             {entityDeleteError && (
-              <p className="text-xs text-red-600 dark:text-red-400">{entityDeleteError}</p>
+              <p className="text-xs text-red-400">{entityDeleteError}</p>
             )}
           </div>
         )}
@@ -603,7 +603,7 @@ export function RequestSidePanel({
               )}
 
               {!tasksLoading && tasksError && (
-                <p className="text-sm text-red-600 dark:text-red-400">{tasksError}</p>
+                <p className="text-sm text-red-400">{tasksError}</p>
               )}
 
               {!tasksLoading && !tasksError && tasks.length === 0 && (
@@ -648,7 +648,7 @@ export function RequestSidePanel({
           )}
 
           {!loading && error && (
-            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+            <p className="text-sm text-red-400">{error}</p>
           )}
 
           {!loading && !error && requests.length === 0 && (
@@ -676,7 +676,7 @@ export function RequestSidePanel({
                         type="button"
                         onClick={() => handleRequestDelete(request.id)}
                         aria-label="Delete request"
-                        className="flex items-center justify-center w-6 h-6 rounded-md text-secondary hover:text-red-600 dark:hover:text-red-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex-shrink-0"
+                        className="flex items-center justify-center w-6 h-6 rounded-md text-secondary hover:text-red-400 hover:bg-panel/80 transition-colors flex-shrink-0"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -684,7 +684,7 @@ export function RequestSidePanel({
                   </div>
 
                   {confirmingDeleteIds.has(request.id) && (
-                    <div className="flex items-center justify-between gap-2 mt-1.5 rounded-md border border-theme bg-slate-100 dark:bg-slate-800 px-2.5 py-1.5">
+                    <div className="flex items-center justify-between gap-2 mt-1.5 rounded-md border border-theme bg-panel px-2.5 py-1.5">
                       <span className="text-xs text-secondary truncate">Delete &quot;{request.title}&quot;?</span>
                       <div className="flex items-center gap-1.5 flex-shrink-0">
                         <button
@@ -711,7 +711,7 @@ export function RequestSidePanel({
                   )}
 
                   {deleteErrors[request.id] && (
-                    <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                    <p className="text-xs text-red-400 mt-1">
                       {deleteErrors[request.id]}
                     </p>
                   )}
@@ -738,7 +738,7 @@ export function RequestSidePanel({
                         {request.attachmentFilename ?? "Attachment"}
                       </button>
                       {downloadErrors[request.id] && (
-                        <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">
+                        <p className="text-xs text-red-400 mt-0.5">
                           {downloadErrors[request.id]}
                         </p>
                       )}
@@ -807,7 +807,7 @@ export function RequestSidePanel({
                   </div>
 
                   {statusErrors[request.id] && (
-                    <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                    <p className="text-xs text-red-400 mt-1">
                       {statusErrors[request.id]}
                     </p>
                   )}

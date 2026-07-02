@@ -146,6 +146,16 @@ export function AddTaskForm({
     }
   }, [lockedPsqId, optionsByType.psq, fetchOptionsFor]);
 
+  // Load the initial (default) target type's options on open when not locked —
+  // otherwise the first-shown "Dashboard" dropdown stays empty until the user
+  // toggles to another target and back.
+  useEffect(() => {
+    if (!isLocked && optionsByType[targetType] === undefined) {
+      fetchOptionsFor(targetType);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const lockedDashboardName = useMemo(() => {
     if (lockedDashboardId === undefined) return null;
     const list = optionsByType.dashboard;

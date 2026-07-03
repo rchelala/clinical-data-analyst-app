@@ -41,8 +41,9 @@ export async function PATCH(
       summary?: string | null;
       divisionId?: number;
       linkedDashboardId?: number | null;
+      analystId?: number | null;
     };
-    const { name, status, divisionId, linkedDashboardId } = body;
+    const { name, status, divisionId, linkedDashboardId, analystId } = body;
     const stakeholder = normalizeNullableString(body.stakeholder);
     const jiraTicketId = normalizeNullableString(body.jiraTicketId);
     const priority = normalizeNullableString(body.priority);
@@ -64,7 +65,8 @@ export async function PATCH(
       worklistStatus === undefined &&
       summary === undefined &&
       divisionId === undefined &&
-      linkedDashboardId === undefined
+      linkedDashboardId === undefined &&
+      analystId === undefined
     ) {
       return NextResponse.json(
         { error: 'At least one field must be provided.' },
@@ -84,7 +86,7 @@ export async function PATCH(
     }
 
     const current = await sql`
-      SELECT id, name, division_id, stakeholder, status, jira_ticket_id, linked_dashboard_id, priority, enterprise_analyst, comments, notes, worklist_status, summary
+      SELECT id, name, division_id, analyst_id, stakeholder, status, jira_ticket_id, linked_dashboard_id, priority, enterprise_analyst, comments, notes, worklist_status, summary
       FROM report_subscriptions
       WHERE id = ${subscriptionId}
     `;
@@ -127,6 +129,7 @@ export async function PATCH(
       summary: summary !== undefined ? summary : current[0].summary,
       divisionId: divisionId !== undefined ? divisionId : current[0].division_id,
       linkedDashboardId: linkedDashboardId !== undefined ? linkedDashboardId : current[0].linked_dashboard_id,
+      analystId: analystId !== undefined ? analystId : current[0].analyst_id,
     };
 
     // last_touched_date intentionally untouched here: it drives the
@@ -138,7 +141,7 @@ export async function PATCH(
       SET name = ${merged.name}, stakeholder = ${merged.stakeholder}, status = ${merged.status}, jira_ticket_id = ${merged.jiraTicketId},
           priority = ${merged.priority}, enterprise_analyst = ${merged.enterpriseAnalyst}, comments = ${merged.comments},
           notes = ${merged.notes}, worklist_status = ${merged.worklistStatus}, summary = ${merged.summary},
-          division_id = ${merged.divisionId}, linked_dashboard_id = ${merged.linkedDashboardId}
+          division_id = ${merged.divisionId}, linked_dashboard_id = ${merged.linkedDashboardId}, analyst_id = ${merged.analystId}
       WHERE id = ${subscriptionId}
       RETURNING id, name, division_id, analyst_id, linked_dashboard_id, stakeholder, status, jira_ticket_id, last_touched_date, created_date,
                 priority, enterprise_analyst, comments, notes, worklist_status, summary
@@ -149,7 +152,7 @@ export async function PATCH(
     console.error('Update report subscription error:', err);
     if (err && typeof err === 'object' && 'code' in err && (err as { code?: string }).code === '23503') {
       return NextResponse.json(
-        { error: 'Referenced divisionId does not exist.' },
+        { error: 'Referenced divisionId or analystId does not exist.' },
         { status: 400 }
       );
     }

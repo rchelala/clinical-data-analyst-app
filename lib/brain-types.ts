@@ -225,3 +225,99 @@ export interface IntakeRequestWithNames extends IntakeRequest {
   divisionName: string | null;
   analystName: string | null;
 }
+
+// Division Overview page: team-wide + per-division rollups used to gauge
+// engagement/activity levels across all divisions at a glance.
+export interface OverviewTotals {
+  divisionsCovered: number;
+  activeDashboards: number;      // status <> 'retired'
+  activeSubscriptions: number;   // status <> 'retired'
+  openRequests: number;          // status = 'open'
+  inProgressRequests: number;    // status = 'in_progress'
+  requestsCompletedRecent: number; // completed in last 90 days
+  tasksCompletedRecent: number;    // completed in last 90 days
+}
+
+export type EngagementTier = 'active' | 'warm' | 'dormant';
+
+export interface DivisionOverview {
+  id: number;
+  name: string;
+  activeDashboards: number;
+  totalDashboards: number;
+  activeSubscriptions: number;
+  totalSubscriptions: number;
+  openRequests: number;
+  inProgressRequests: number;
+  completedRequests: number;      // all-time done
+  openTasks: number;
+  completedTasks: number;         // all-time done/completed_date
+  lastActivityDate: string | null; // ISO date string; MAX across dashboards/subs last_touched_date and requests/tasks completed_date for this division
+  daysSinceActivity: number | null;
+  engagementScore: number;        // 0..100, transparent weighted blend
+  engagementTier: EngagementTier;
+}
+
+export interface OverviewThroughputPoint {
+  month: string;   // 'YYYY-MM'
+  requests: number; // requests completed that month
+  tasks: number;    // tasks completed that month
+}
+
+export interface OverviewResponse {
+  totals: OverviewTotals;
+  divisions: DivisionOverview[];  // sorted by engagementScore desc, then name
+  throughput: OverviewThroughputPoint[]; // last 6 calendar months incl current, chronological
+}
+
+// Division Detail page: one division's dashboards, subscriptions, and the
+// requests/tasks attached underneath them.
+export interface DivisionDetailDashboard {
+  id: number;
+  name: string;
+  status: DashboardStatus;
+  ownerName: string | null;      // analysts.name via dashboards.analyst_id
+  lastTouchedDate: string;
+  openRequestCount: number;      // requests on this dashboard with status <> 'done'
+}
+
+export interface DivisionDetailSubscription {
+  id: number;
+  name: string;
+  status: DashboardStatus;
+  ownerName: string | null;      // via report_subscriptions.analyst_id
+  lastTouchedDate: string;
+  openRequestCount: number;
+}
+
+export interface DivisionDetailRequest {
+  id: number;
+  title: string;
+  requestType: RequestType;
+  status: RequestStatus;
+  ownerName: string | null;      // analysts.name via requests.created_by_id (the logger/owner)
+  parentKind: 'dashboard' | 'subscription';
+  parentName: string;            // the dashboard/subscription it's attached to
+  createdDate: string;
+  completedDate: string | null;
+}
+
+export interface DivisionDetailTask {
+  id: number;
+  title: string;
+  status: string;
+  ownerName: string | null;      // analysts.name via tasks.owner_analyst_id
+  contextKind: 'dashboard' | 'subscription' | 'division';
+  contextName: string;           // dashboard/subscription name, or the division name for division-level tasks
+  createdDate: string;
+  completedDate: string | null;
+}
+
+export interface DivisionDetailResponse {
+  id: number;
+  name: string;
+  dashboards: DivisionDetailDashboard[];       // ordered: active first, then by name
+  subscriptions: DivisionDetailSubscription[]; // ordered: active first, then by name
+  requests: DivisionDetailRequest[];           // all requests on this division's dashboards+subscriptions, newest first
+  tasks: DivisionDetailTask[];                  // all tasks on this division's dashboards+subscriptions plus division-level tasks, newest first
+}

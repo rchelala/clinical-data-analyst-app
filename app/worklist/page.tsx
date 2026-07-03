@@ -13,6 +13,7 @@ import {
   Loader2,
   CalendarDays,
   BrainCircuit,
+  Building2,
 } from "lucide-react";
 import { AnalystSelector } from "@/components/brain/AnalystSelector";
 import { AddTaskForm } from "@/components/worklist/AddTaskForm";
@@ -807,6 +808,13 @@ export default function WorklistPage() {
           >
             <BrainCircuit className="w-3 h-3" />
             Galaxy
+          </Link>
+          <Link
+            href="/overview"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors"
+          >
+            <Building2 className="w-3 h-3" />
+            Overview
           </Link>
           <div>
             <h1 className="text-base font-semibold text-primary leading-none">Analyst Worklist</h1>

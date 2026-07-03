@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Pencil } from "lucide-react";
-import { BrainEntityKind, DashboardStatus, Division } from "@/lib/brain-types";
+import { BrainEntityKind, DashboardStatus, Division, Analyst } from "@/lib/brain-types";
 
 interface EditEntityFormProps {
   kind: BrainEntityKind;
@@ -13,6 +13,7 @@ interface EditEntityFormProps {
   initialJiraTicketId: string | null;
   divisions: Division[];
   initialDivisionId: number;
+  initialAnalystId: number | null;
   dashboardsInDivision: { id: number; name: string }[];
   initialLinkedDashboardId: number | null;
   onSaved: (newIdentity: { kind: BrainEntityKind; id: number }) => void;
@@ -41,6 +42,7 @@ export function EditEntityForm({
   initialJiraTicketId,
   divisions,
   initialDivisionId,
+  initialAnalystId,
   dashboardsInDivision,
   initialLinkedDashboardId,
   onSaved,
@@ -55,6 +57,29 @@ export function EditEntityForm({
   const [linkedDashboardId, setLinkedDashboardId] = useState(
     initialLinkedDashboardId !== null ? String(initialLinkedDashboardId) : ""
   );
+  const [analystId, setAnalystId] = useState(
+    initialAnalystId !== null ? String(initialAnalystId) : ""
+  );
+  const [analysts, setAnalysts] = useState<Analyst[]>([]);
+
+  // Populate the owner dropdown. A failure here is non-fatal — the select
+  // just shows "Unassigned" plus whatever the user leaves selected — so we
+  // don't surface an error for it.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/analysts");
+        const data = await res.json();
+        if (!cancelled && res.ok) setAnalysts(data);
+      } catch {
+        /* non-fatal */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -77,6 +102,15 @@ export function EditEntityForm({
           jiraTicketId: jiraTicketId.trim() ? jiraTicketId.trim() : null,
           divisionId: Number(divisionId),
           linkedDashboardId: linkedDashboardId ? Number(linkedDashboardId) : null,
+          // Only reassign the owner on a straight edit. During a type
+          // conversion the request goes to the /convert endpoint, which does
+          // not handle ownership; `undefined` is dropped by JSON.stringify.
+          analystId:
+            selectedKind === kind
+              ? analystId === ""
+                ? null
+                : Number(analystId)
+              : undefined,
         };
 
         const url =
@@ -106,7 +140,7 @@ export function EditEntityForm({
         setSubmitting(false);
       }
     },
-    [kind, id, selectedKind, name, stakeholder, status, jiraTicketId, divisionId, linkedDashboardId, onSaved]
+    [kind, id, selectedKind, name, stakeholder, status, jiraTicketId, divisionId, linkedDashboardId, analystId, onSaved]
   );
 
   return (
@@ -227,6 +261,32 @@ export function EditEntityForm({
                 </option>
               ))}
             </select>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label htmlFor="editEntityAnalyst" className="text-xs font-medium text-secondary">
+              Analyst (owner)
+            </label>
+            <select
+              id="editEntityAnalyst"
+              value={analystId}
+              onChange={(e) => setAnalystId(e.target.value)}
+              disabled={selectedKind !== kind}
+              className="text-sm rounded-md border border-theme px-3 py-2 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <option value="">— Unassigned —</option>
+              {analysts.map((analyst) => (
+                <option key={analyst.id} value={String(analyst.id)}>
+                  {analyst.name}
+                </option>
+              ))}
+            </select>
+            {selectedKind !== kind && (
+              <p className="text-xs text-secondary">
+                Owner can&apos;t be changed during a type conversion — save the
+                conversion first, then reopen to reassign.
+              </p>
+            )}
           </div>
 
           {selectedKind === "subscription" && (

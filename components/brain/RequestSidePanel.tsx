@@ -16,6 +16,7 @@ export interface RequestSidePanelEntity {
   status: DashboardStatus;
   jiraTicketId: string | null;
   divisionId: number;
+  analystId: number | null;
   linkedDashboard: { id: number; name: string } | null;
   linkedSubscriptions: { id: number; name: string }[];
 }
@@ -838,6 +839,7 @@ export function RequestSidePanel({
           initialJiraTicketId={entity.jiraTicketId}
           divisions={divisions}
           initialDivisionId={entity.divisionId}
+          initialAnalystId={entity.analystId}
           dashboardsInDivision={dashboardsInDivision}
           initialLinkedDashboardId={entity.kind === "subscription" ? entity.linkedDashboard?.id ?? null : null}
           onSaved={(newIdentity) => {

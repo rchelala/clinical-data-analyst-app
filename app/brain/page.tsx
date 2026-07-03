@@ -240,6 +240,7 @@ export default function BrainPage() {
         status: dashboard.status,
         jiraTicketId: dashboard.jiraTicketId,
         divisionId: dashboard.divisionId,
+        analystId: dashboard.analystId,
         linkedDashboard: null,
         linkedSubscriptions: allSubscriptions
           .filter((s) => s.linkedDashboardId === dashboard.id)
@@ -257,6 +258,7 @@ export default function BrainPage() {
       status: subscription.status,
       jiraTicketId: subscription.jiraTicketId,
       divisionId: subscription.divisionId,
+      analystId: subscription.analystId,
       linkedDashboard: findLinkedDashboard(subscription.linkedDashboardId, allDashboards),
       linkedSubscriptions: [],
     };

@@ -21,6 +21,7 @@ import { AddTaskForm } from "@/components/worklist/AddTaskForm";
 import { AddWorklistDashboard } from "@/components/worklist/AddWorklistDashboard";
 import { StatusPrioritySelect } from "@/components/worklist/StatusPrioritySelect";
 import { StatusFilterDropdown } from "@/components/worklist/StatusFilterDropdown";
+import { WorklistItemCard } from "@/components/worklist/WorklistItemCard";
 import { WeeklyUpdateDrawer } from "@/components/worklist/WeeklyUpdateDrawer";
 import { loadAnalystId } from "@/lib/analyst-identity";
 import { Dashboard, Division, PsqWithTaskCount, ReportSubscription, Task, TaskWithContext } from "@/lib/brain-types";
@@ -40,14 +41,14 @@ interface WorklistSubscriptionItem extends ReportSubscription {
   totalTaskCount: number;
 }
 
-type WorklistItemKind = "dashboard" | "subscription";
+export type WorklistItemKind = "dashboard" | "subscription";
 
 // Unified view-model for a row in the "My Dashboards / Report Subscriptions"
 // section. Dashboards and report subscriptions share the same worklist columns
 // (priority, worklistStatus, comments, notes, summary, enterpriseAnalyst), so
 // they render through one shape, discriminated by `kind` for routing PATCH and
 // task-fetch calls to the right endpoint.
-interface WorklistItem {
+export interface WorklistItem {
   kind: WorklistItemKind;
   id: number;
   name: string;
@@ -661,6 +662,96 @@ export default function WorklistPage() {
     return Array.from(set);
   }, [items, tasksByItem, tasksByPsq]);
 
+  // Task-list detail for an expanded PSQ row. Shared between the desktop
+  // table's expansion row and the mobile PSQ card so the two never diverge.
+  const renderPsqTasks = useCallback(
+    (p: PsqWithTaskCount) => (
+      <>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-[11px] uppercase tracking-wide text-secondary font-semibold">
+            Tasks — {p.name}
+          </span>
+        </div>
+
+        {psqTasksLoading[p.id] && (
+          <div className="flex items-center gap-2 text-xs text-secondary py-2">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            Loading tasks…
+          </div>
+        )}
+
+        {!psqTasksLoading[p.id] && (tasksByPsq[p.id]?.length ?? 0) === 0 && (
+          <p className="text-xs text-secondary py-2">No tasks yet.</p>
+        )}
+
+        {!psqTasksLoading[p.id] &&
+          (tasksByPsq[p.id] ?? []).map((task) => (
+            <div
+              key={task.id}
+              className="flex items-start gap-2.5 px-3 py-2.5 mb-2 rounded-md border border-theme bg-secondary"
+            >
+              <button
+                type="button"
+                onClick={() =>
+                  patchPsqTask(p.id, task.id, {
+                    status: task.status === "done" ? "open" : "done",
+                  })
+                }
+                className={`mt-0.5 w-[18px] h-[18px] rounded-[5px] flex-shrink-0 border flex items-center justify-center text-[10px] transition-colors ${
+                  task.status === "done" ? "bg-emerald-500 border-emerald-500 text-black" : "border-secondary"
+                }`}
+              >
+                {task.status === "done" ? "✓" : ""}
+              </button>
+              <div className="flex-1 min-w-0">
+                <div
+                  className={`text-[13px] font-medium ${
+                    task.status === "done" ? "line-through text-secondary" : "text-primary"
+                  }`}
+                >
+                  {task.title}
+                </div>
+                {task.description && <div className="text-xs text-secondary mt-0.5">{task.description}</div>}
+                <div className="flex items-center gap-2 mt-1.5">
+                  <StatusPrioritySelect
+                    kind="status"
+                    value={task.status}
+                    suggestions={statusSuggestions}
+                    onChange={(value) => patchPsqTask(p.id, task.id, { status: value })}
+                  />
+                  <StatusPrioritySelect
+                    kind="priority"
+                    value={task.priority}
+                    suggestions={prioritySuggestions}
+                    onChange={(value) => patchPsqTask(p.id, task.id, { priority: value })}
+                  />
+                </div>
+                <TaskDates createdDate={task.createdDate} completedDate={task.completedDate} />
+              </div>
+              <button
+                type="button"
+                onClick={() => deletePsqTask(p.id, task.id)}
+                title="Delete task"
+                className="mt-0.5 text-secondary hover:text-red-500 transition-colors flex-shrink-0"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+
+        <button
+          type="button"
+          onClick={() => setShowAddTaskForPsq(p.id)}
+          className="flex items-center gap-1.5 text-xs text-secondary hover:text-primary hover:border-brand-500/40 border border-dashed border-theme rounded-md px-3 py-1.5 transition-colors"
+        >
+          <Plus className="w-3 h-3" />
+          Task
+        </button>
+      </>
+    ),
+    [psqTasksLoading, tasksByPsq, patchPsqTask, deletePsqTask, statusSuggestions, prioritySuggestions, setShowAddTaskForPsq]
+  );
+
   // Normalized set of selected statuses for O(1) case-insensitive matching.
   const selectedStatusSet = useMemo(
     () => new Set(selectedStatuses.map((s) => s.trim().toLowerCase())),
@@ -726,6 +817,100 @@ export default function WorklistPage() {
       return `${item.activeTaskCount} open · ${item.totalTaskCount} total`;
     },
     [tasksByItem]
+  );
+
+  // Task-list detail for an expanded dashboard/subscription row. Shared
+  // between the desktop table's expansion row and the mobile card so the
+  // two never diverge.
+  const renderItemTasks = useCallback(
+    (item: WorklistItem) => {
+      const key = itemKey(item.kind, item.id);
+      return (
+        <>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] uppercase tracking-wide text-secondary font-semibold">
+              Tasks — {item.name}
+            </span>
+          </div>
+
+          {tasksLoading[key] && (
+            <div className="flex items-center gap-2 text-xs text-secondary py-2">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              Loading tasks…
+            </div>
+          )}
+
+          {!tasksLoading[key] && (tasksByItem[key]?.length ?? 0) === 0 && (
+            <p className="text-xs text-secondary py-2">No tasks yet.</p>
+          )}
+
+          {!tasksLoading[key] &&
+            (tasksByItem[key] ?? []).map((task) => (
+              <div
+                key={task.id}
+                className="flex items-start gap-2.5 px-3 py-2.5 mb-2 rounded-md border border-theme bg-secondary"
+              >
+                <button
+                  type="button"
+                  onClick={() =>
+                    patchTask(key, task.id, {
+                      status: task.status === "done" ? "open" : "done",
+                    })
+                  }
+                  className={`mt-0.5 w-[18px] h-[18px] rounded-[5px] flex-shrink-0 border flex items-center justify-center text-[10px] transition-colors ${
+                    task.status === "done" ? "bg-emerald-500 border-emerald-500 text-black" : "border-secondary"
+                  }`}
+                >
+                  {task.status === "done" ? "✓" : ""}
+                </button>
+                <div className="flex-1 min-w-0">
+                  <div
+                    className={`text-[13px] font-medium ${
+                      task.status === "done" ? "line-through text-secondary" : "text-primary"
+                    }`}
+                  >
+                    {task.title}
+                  </div>
+                  {task.description && <div className="text-xs text-secondary mt-0.5">{task.description}</div>}
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <StatusPrioritySelect
+                      kind="status"
+                      value={task.status}
+                      suggestions={statusSuggestions}
+                      onChange={(value) => patchTask(key, task.id, { status: value })}
+                    />
+                    <StatusPrioritySelect
+                      kind="priority"
+                      value={task.priority}
+                      suggestions={prioritySuggestions}
+                      onChange={(value) => patchTask(key, task.id, { priority: value })}
+                    />
+                  </div>
+                  <TaskDates createdDate={task.createdDate} completedDate={task.completedDate} />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => deleteItemTask(key, task.id)}
+                  title="Delete task"
+                  className="mt-0.5 text-secondary hover:text-red-500 transition-colors flex-shrink-0"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+
+          <button
+            type="button"
+            onClick={() => setShowAddTaskFor({ kind: item.kind, id: item.id })}
+            className="flex items-center gap-1.5 text-xs text-secondary hover:text-primary hover:border-brand-500/40 border border-dashed border-theme rounded-md px-3 py-1.5 transition-colors"
+          >
+            <Plus className="w-3 h-3" />
+            Task
+          </button>
+        </>
+      );
+    },
+    [tasksLoading, tasksByItem, patchTask, deleteItemTask, statusSuggestions, prioritySuggestions, setShowAddTaskFor]
   );
 
   // Compiles WeeklyUpdateData for the drawer. Fetches tasks for every
@@ -828,7 +1013,7 @@ export default function WorklistPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 gap-y-2 flex-wrap md:flex-nowrap max-w-full">
           <StatusFilterDropdown
             options={statusFilterOptions}
             selected={selectedStatuses}
@@ -951,7 +1136,7 @@ export default function WorklistPage() {
                 )}
 
                 {!dashboardsLoading && !dashboardsError && items.length > 0 && (
-                  <table className="w-full border-collapse">
+                  <table className="w-full border-collapse hidden md:table">
                     <thead>
                       <tr className="bg-secondary-glass border-b border-theme">
                         {["Priority", "Dashboard / Subscription", "Tasks", "Status", "Enterprise Analyst", "Comments", "Notes", "Summary", ""].map(
@@ -1057,92 +1242,7 @@ export default function WorklistPage() {
                             {isOpen && (
                               <tr className="bg-black/25 border-b border-theme/60">
                                 <td colSpan={9} className="px-3 py-3 pl-10">
-                                  <div className="flex items-center justify-between mb-2">
-                                    <span className="text-[11px] uppercase tracking-wide text-secondary font-semibold">
-                                      Tasks — {item.name}
-                                    </span>
-                                  </div>
-
-                                  {tasksLoading[key] && (
-                                    <div className="flex items-center gap-2 text-xs text-secondary py-2">
-                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                      Loading tasks…
-                                    </div>
-                                  )}
-
-                                  {!tasksLoading[key] && (tasksByItem[key]?.length ?? 0) === 0 && (
-                                    <p className="text-xs text-secondary py-2">No tasks yet.</p>
-                                  )}
-
-                                  {!tasksLoading[key] &&
-                                    (tasksByItem[key] ?? []).map((task) => (
-                                      <div
-                                        key={task.id}
-                                        className="flex items-start gap-2.5 px-3 py-2.5 mb-2 rounded-md border border-theme bg-secondary"
-                                      >
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            patchTask(key, task.id, {
-                                              status: task.status === "done" ? "open" : "done",
-                                            })
-                                          }
-                                          className={`mt-0.5 w-[18px] h-[18px] rounded-[5px] flex-shrink-0 border flex items-center justify-center text-[10px] transition-colors ${
-                                            task.status === "done"
-                                              ? "bg-emerald-500 border-emerald-500 text-black"
-                                              : "border-secondary"
-                                          }`}
-                                        >
-                                          {task.status === "done" ? "✓" : ""}
-                                        </button>
-                                        <div className="flex-1 min-w-0">
-                                          <div
-                                            className={`text-[13px] font-medium ${
-                                              task.status === "done"
-                                                ? "line-through text-secondary"
-                                                : "text-primary"
-                                            }`}
-                                          >
-                                            {task.title}
-                                          </div>
-                                          {task.description && (
-                                            <div className="text-xs text-secondary mt-0.5">{task.description}</div>
-                                          )}
-                                          <div className="flex items-center gap-2 mt-1.5">
-                                            <StatusPrioritySelect
-                                              kind="status"
-                                              value={task.status}
-                                              suggestions={statusSuggestions}
-                                              onChange={(value) => patchTask(key, task.id, { status: value })}
-                                            />
-                                            <StatusPrioritySelect
-                                              kind="priority"
-                                              value={task.priority}
-                                              suggestions={prioritySuggestions}
-                                              onChange={(value) => patchTask(key, task.id, { priority: value })}
-                                            />
-                                          </div>
-                                          <TaskDates createdDate={task.createdDate} completedDate={task.completedDate} />
-                                        </div>
-                                        <button
-                                          type="button"
-                                          onClick={() => deleteItemTask(key, task.id)}
-                                          title="Delete task"
-                                          className="mt-0.5 text-secondary hover:text-red-500 transition-colors flex-shrink-0"
-                                        >
-                                          <Trash2 className="w-3.5 h-3.5" />
-                                        </button>
-                                      </div>
-                                    ))}
-
-                                  <button
-                                    type="button"
-                                    onClick={() => setShowAddTaskFor({ kind: item.kind, id: item.id })}
-                                    className="flex items-center gap-1.5 text-xs text-secondary hover:text-primary hover:border-brand-500/40 border border-dashed border-theme rounded-md px-3 py-1.5 transition-colors"
-                                  >
-                                    <Plus className="w-3 h-3" />
-                                    Task
-                                  </button>
+                                  {renderItemTasks(item)}
                                 </td>
                               </tr>
                             )}
@@ -1151,6 +1251,31 @@ export default function WorklistPage() {
                       })}
                     </tbody>
                   </table>
+                )}
+
+                {!dashboardsLoading && !dashboardsError && items.length > 0 && (
+                  <div className="md:hidden p-3">
+                    {sortedItems.map((item) => {
+                      const key = itemKey(item.kind, item.id);
+                      const isOpen = expandedKey === key;
+                      const counts = taskCounts(item);
+                      return (
+                        <WorklistItemCard
+                          key={key}
+                          item={item}
+                          isOpen={isOpen}
+                          counts={counts}
+                          prioritySuggestions={prioritySuggestions}
+                          statusSuggestions={statusSuggestions}
+                          onPatch={patchItem}
+                          onToggle={toggleExpand}
+                          onRemove={handleRemoveFromWorklist}
+                        >
+                          {renderItemTasks(item)}
+                        </WorklistItemCard>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             </section>
@@ -1235,7 +1360,7 @@ export default function WorklistPage() {
                 )}
 
                 {!psqsLoading && psqs.length > 0 && (
-                  <table className="w-full border-collapse">
+                  <table className="w-full border-collapse hidden md:table">
                     <thead>
                       <tr className="bg-secondary-glass border-b border-theme">
                         {[
@@ -1371,92 +1496,7 @@ export default function WorklistPage() {
                             {isPsqOpen && (
                               <tr className="bg-black/25 border-b border-theme/60">
                                 <td colSpan={11} className="px-3 py-3 pl-10">
-                                  <div className="flex items-center justify-between mb-2">
-                                    <span className="text-[11px] uppercase tracking-wide text-secondary font-semibold">
-                                      Tasks — {p.name}
-                                    </span>
-                                  </div>
-
-                                  {psqTasksLoading[p.id] && (
-                                    <div className="flex items-center gap-2 text-xs text-secondary py-2">
-                                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                      Loading tasks…
-                                    </div>
-                                  )}
-
-                                  {!psqTasksLoading[p.id] && (tasksByPsq[p.id]?.length ?? 0) === 0 && (
-                                    <p className="text-xs text-secondary py-2">No tasks yet.</p>
-                                  )}
-
-                                  {!psqTasksLoading[p.id] &&
-                                    (tasksByPsq[p.id] ?? []).map((task) => (
-                                      <div
-                                        key={task.id}
-                                        className="flex items-start gap-2.5 px-3 py-2.5 mb-2 rounded-md border border-theme bg-secondary"
-                                      >
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            patchPsqTask(p.id, task.id, {
-                                              status: task.status === "done" ? "open" : "done",
-                                            })
-                                          }
-                                          className={`mt-0.5 w-[18px] h-[18px] rounded-[5px] flex-shrink-0 border flex items-center justify-center text-[10px] transition-colors ${
-                                            task.status === "done"
-                                              ? "bg-emerald-500 border-emerald-500 text-black"
-                                              : "border-secondary"
-                                          }`}
-                                        >
-                                          {task.status === "done" ? "✓" : ""}
-                                        </button>
-                                        <div className="flex-1 min-w-0">
-                                          <div
-                                            className={`text-[13px] font-medium ${
-                                              task.status === "done"
-                                                ? "line-through text-secondary"
-                                                : "text-primary"
-                                            }`}
-                                          >
-                                            {task.title}
-                                          </div>
-                                          {task.description && (
-                                            <div className="text-xs text-secondary mt-0.5">{task.description}</div>
-                                          )}
-                                          <div className="flex items-center gap-2 mt-1.5">
-                                            <StatusPrioritySelect
-                                              kind="status"
-                                              value={task.status}
-                                              suggestions={statusSuggestions}
-                                              onChange={(value) => patchPsqTask(p.id, task.id, { status: value })}
-                                            />
-                                            <StatusPrioritySelect
-                                              kind="priority"
-                                              value={task.priority}
-                                              suggestions={prioritySuggestions}
-                                              onChange={(value) => patchPsqTask(p.id, task.id, { priority: value })}
-                                            />
-                                          </div>
-                                          <TaskDates createdDate={task.createdDate} completedDate={task.completedDate} />
-                                        </div>
-                                        <button
-                                          type="button"
-                                          onClick={() => deletePsqTask(p.id, task.id)}
-                                          title="Delete task"
-                                          className="mt-0.5 text-secondary hover:text-red-500 transition-colors flex-shrink-0"
-                                        >
-                                          <Trash2 className="w-3.5 h-3.5" />
-                                        </button>
-                                      </div>
-                                    ))}
-
-                                  <button
-                                    type="button"
-                                    onClick={() => setShowAddTaskForPsq(p.id)}
-                                    className="flex items-center gap-1.5 text-xs text-secondary hover:text-primary hover:border-brand-500/40 border border-dashed border-theme rounded-md px-3 py-1.5 transition-colors"
-                                  >
-                                    <Plus className="w-3 h-3" />
-                                    Task
-                                  </button>
+                                  {renderPsqTasks(p)}
                                 </td>
                               </tr>
                             )}
@@ -1465,6 +1505,139 @@ export default function WorklistPage() {
                       })}
                     </tbody>
                   </table>
+                )}
+
+                {/* Mobile-only PSQ cards (below md). PSQs are a different item
+                    shape (PsqWithTaskCount) than the dashboard/subscription
+                    worklist items above, so they get their own bespoke card
+                    markup here rather than reusing WorklistItemCard; the task
+                    detail is still shared with the desktop table via
+                    renderPsqTasks so the two never diverge. */}
+                {!psqsLoading && psqs.length > 0 && (
+                  <div className="md:hidden p-3">
+                    {sortedPsqs.map((p) => {
+                      const isPsqOpen = expandedPsqId === p.id;
+                      const psqCounts = psqTaskCounts(p);
+                      return (
+                        <div key={p.id} className="rounded-xl border border-theme bg-panel p-3 mb-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <EditableCell
+                                value={p.name}
+                                placeholder="PSQ measure…"
+                                onSave={(value) => patchPsq(p.id, { name: value })}
+                              />
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => togglePsqExpand(p.id)}
+                                className="flex items-center gap-1.5 text-xs text-secondary hover:text-primary"
+                              >
+                                <ChevronRight
+                                  className={`w-3.5 h-3.5 transition-transform ${isPsqOpen ? "rotate-90" : ""}`}
+                                />
+                                {psqCounts}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeletePsq(p.id)}
+                                title="Delete PSQ"
+                                className="text-secondary hover:text-red-500 transition-colors"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 mt-3">
+                            <label className="text-[10px] uppercase tracking-wide text-secondary font-semibold">
+                              Status
+                              <div className="mt-1">
+                                <StatusPrioritySelect
+                                  kind="status"
+                                  value={p.status}
+                                  suggestions={statusSuggestions}
+                                  onChange={(value) => patchPsq(p.id, { status: value })}
+                                />
+                              </div>
+                            </label>
+                            <label className="text-[10px] uppercase tracking-wide text-secondary font-semibold">
+                              Year
+                              <EditableCell
+                                value={p.year !== null ? String(p.year) : null}
+                                onSave={(value) => patchPsq(p.id, { year: value ? Number(value) : null })}
+                              />
+                            </label>
+                            <label className="text-[10px] uppercase tracking-wide text-secondary font-semibold">
+                              Division
+                              <select
+                                value={p.divisionId ?? ""}
+                                onChange={(e) =>
+                                  patchPsq(p.id, {
+                                    divisionId: e.target.value ? Number(e.target.value) : null,
+                                  })
+                                }
+                                className="mt-1 w-full text-xs rounded-md border border-theme px-2 py-1 bg-secondary text-primary focus:outline-none focus:ring-1 focus:ring-brand-500 cursor-pointer transition-colors"
+                              >
+                                <option value="">–</option>
+                                {divisions.map((div) => (
+                                  <option key={div.id} value={div.id}>
+                                    {div.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <label className="text-[10px] uppercase tracking-wide text-secondary font-semibold">
+                              Dashboard
+                              <select
+                                value={p.dashboardId ?? ""}
+                                onChange={(e) =>
+                                  patchPsq(p.id, {
+                                    dashboardId: e.target.value ? Number(e.target.value) : null,
+                                  })
+                                }
+                                className="mt-1 w-full text-xs rounded-md border border-theme px-2 py-1 bg-secondary text-primary focus:outline-none focus:ring-1 focus:ring-brand-500 cursor-pointer transition-colors"
+                              >
+                                <option value="">–</option>
+                                {dashboards.map((d) => (
+                                  <option key={d.id} value={d.id}>
+                                    {d.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                          </div>
+
+                          <div className="grid grid-cols-1 gap-2 mt-3">
+                            <label className="text-[10px] uppercase tracking-wide text-secondary font-semibold">
+                              Comments
+                              <EditableCell value={p.comments} onSave={(value) => patchPsq(p.id, { comments: value })} />
+                            </label>
+                            <label className="text-[10px] uppercase tracking-wide text-secondary font-semibold">
+                              Enterprise Analyst
+                              <EditableCell
+                                value={p.enterpriseAnalyst}
+                                onSave={(value) => patchPsq(p.id, { enterpriseAnalyst: value })}
+                              />
+                            </label>
+                            <label className="text-[10px] uppercase tracking-wide text-secondary font-semibold">
+                              Notes
+                              <EditableCell value={p.notes} onSave={(value) => patchPsq(p.id, { notes: value })} />
+                            </label>
+                            <label className="text-[10px] uppercase tracking-wide text-secondary font-semibold">
+                              Summary
+                              <EditableCell value={p.summary} onSave={(value) => patchPsq(p.id, { summary: value })} />
+                            </label>
+                          </div>
+
+                          {isPsqOpen && (
+                            <div className="mt-3 border-t border-theme/60 pt-3">{renderPsqTasks(p)}</div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             </section>
@@ -1562,7 +1735,7 @@ interface EditableCellProps {
 // Inline-editable cell: shows current value as plain text, becomes
 // contentEditable on focus, saves on blur. Matches the mockup's
 // .edit-cell affordance.
-function EditableCell({ value, placeholder, onSave }: EditableCellProps) {
+export function EditableCell({ value, placeholder, onSave }: EditableCellProps) {
   return (
     <div
       contentEditable

@@ -15,6 +15,7 @@ import {
   BrainCircuit,
   Building2,
 } from "lucide-react";
+import { MobileNav } from "@/components/MobileNav";
 import { AnalystSelector } from "@/components/brain/AnalystSelector";
 import { AddTaskForm } from "@/components/worklist/AddTaskForm";
 import { AddWorklistDashboard } from "@/components/worklist/AddWorklistDashboard";
@@ -794,7 +795,12 @@ export default function WorklistPage() {
       <div className="eclipse-grain" />
 
       <header className="flex items-center justify-between px-6 py-4 border-b border-theme bg-secondary-glass hairline-top flex-shrink-0">
-        <div className="flex items-center gap-3">
+        {/* Mobile nav bar (below md) */}
+        <div className="md:hidden flex items-center gap-3 px-4 py-2 border-b border-theme bg-primary-glass flex-shrink-0">
+          <MobileNav active="worklist" />
+          <span className="text-sm font-medium text-primary">Worklist</span>
+        </div>
+        <div className="hidden md:flex items-center gap-3">
           <Link
             href="/"
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors"

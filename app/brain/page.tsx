@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Loader2, ClipboardPlus, ArrowLeft, Home, FolderPlus, ClipboardList, ListTodo, HelpCircle, Trash2, Inbox, Building2 } from "lucide-react";
+import { MobileNav } from "@/components/MobileNav";
 import { AnalystSelector } from "@/components/brain/AnalystSelector";
 import { UrgencyInfoModal } from "@/components/brain/UrgencyInfoModal";
 import { SolarSystemView, DivisionNode } from "@/components/brain/SolarSystemView";
@@ -347,7 +348,12 @@ export default function BrainPage() {
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(ellipse_80%_40%_at_50%_0%,#525252,transparent)]" />
 
       <header className="flex items-center justify-between px-6 py-4 border-b border-theme bg-secondary-glass flex-shrink-0">
-        <div className="flex items-center gap-3">
+        {/* Mobile nav bar (below md) */}
+        <div className="md:hidden flex items-center gap-3 px-4 py-2 border-b border-theme bg-primary-glass flex-shrink-0">
+          <MobileNav active="brain" />
+          <span className="text-sm font-medium text-primary">Brain</span>
+        </div>
+        <div className="hidden md:flex items-center gap-3">
           <Link
             href="/"
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors"

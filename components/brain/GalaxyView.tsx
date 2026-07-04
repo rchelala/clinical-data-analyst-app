@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useFitScale } from "@/hooks/useFitScale";
 import { computeEvenlySpacedPositions } from "@/lib/layout-math";
 import { AnalystSummary } from "@/lib/brain-types";
 import { BrainFilters, isAnalystFocused } from "@/lib/filters";
@@ -27,6 +28,12 @@ const GALAXY_RADIUS = 320; // distance of each analyst star from the galaxy cent
 
 export function GalaxyView({ summaries, viewerAnalystId, filters, onSelectAnalyst }: GalaxyViewProps) {
   const [hoveredId, setHoveredId] = useState<number | null>(null);
+  // Scales the whole galaxy visualization down to fit small (< 760px)
+  // containers, e.g. mobile portrait widths. Capped at 1, so on desktop
+  // (container always >= 760px here) this computes to exactly 1 and
+  // `transform: scale(1)` is a no-op — desktop rendering is unchanged.
+  // 760 = 2 * GALAXY_RADIUS (320) + margin for star/ring size and labels.
+  const { ref: fitRef, scale } = useFitScale(760);
 
   // Analyst star-systems distributed evenly around one ring centered on the
   // galaxy origin — the most spec-aligned reading of "Galaxy" for the small
@@ -56,26 +63,41 @@ export function GalaxyView({ summaries, viewerAnalystId, filters, onSelectAnalys
 
   return (
     <div className="relative w-full h-full flex items-center justify-center">
-      <svg
-        viewBox={`-${VIEWBOX_HALF} -${VIEWBOX_HALF} ${VIEWBOX_HALF * 2} ${VIEWBOX_HALF * 2}`}
-        className="w-full h-full max-w-[900px] max-h-[900px]"
+      <div
+        ref={fitRef}
+        className="w-full h-full max-w-[900px] max-h-[900px] flex items-center justify-center"
       >
-        {positioned.map(({ summary, x, y }) => (
-          <AnalystStar
-            key={summary.id}
-            x={x}
-            y={y}
-            name={summary.name}
-            divisionCount={summary.divisionCount}
-            isViewer={summary.id === viewerAnalystId}
-            isHovered={hoveredId === summary.id}
-            isFaded={!isAnalystFocused(summary.id, filters)}
-            onHover={() => setHoveredId(summary.id)}
-            onLeave={() => setHoveredId((id) => (id === summary.id ? null : id))}
-            onClick={() => onSelectAnalyst(summary.id)}
-          />
-        ))}
-      </svg>
+        {/* Scale wrapper: identity transform (scale(1)) on desktop where the
+            container is >= the 760 design size, so this div is purely
+            structural there and doesn't alter desktop layout. Below that
+            size it uniformly shrinks the galaxy so it fits without
+            overflowing the viewport. */}
+        <div
+          className="w-full h-full"
+          style={{ transform: `scale(${scale})`, transformOrigin: "center center" }}
+        >
+          <svg
+            viewBox={`-${VIEWBOX_HALF} -${VIEWBOX_HALF} ${VIEWBOX_HALF * 2} ${VIEWBOX_HALF * 2}`}
+            className="w-full h-full"
+          >
+            {positioned.map(({ summary, x, y }) => (
+              <AnalystStar
+                key={summary.id}
+                x={x}
+                y={y}
+                name={summary.name}
+                divisionCount={summary.divisionCount}
+                isViewer={summary.id === viewerAnalystId}
+                isHovered={hoveredId === summary.id}
+                isFaded={!isAnalystFocused(summary.id, filters)}
+                onHover={() => setHoveredId(summary.id)}
+                onLeave={() => setHoveredId((id) => (id === summary.id ? null : id))}
+                onClick={() => onSelectAnalyst(summary.id)}
+              />
+            ))}
+          </svg>
+        </div>
+      </div>
 
       {hovered && <DetailPanel title={hovered.summary.name} rows={hoveredRows} />}
 

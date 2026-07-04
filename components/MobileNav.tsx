@@ -72,7 +72,7 @@ export function MobileNav({
           {/* backdrop */}
           <div className="absolute inset-0 bg-black/60" onClick={() => setOpen(false)} />
           {/* drawer */}
-          <nav className="relative w-72 max-w-[80vw] h-full bg-panel border-r border-theme flex flex-col p-4 gap-1 animate-fade-in overflow-y-auto">
+          <nav className="relative w-72 max-w-[80vw] h-full bg-elevated border-r border-theme flex flex-col p-4 gap-1 animate-fade-in overflow-y-auto">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-semibold text-primary">ClinKit</span>
               <button

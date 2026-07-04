@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Menu, X, Home, BrainCircuit, ClipboardList, Building2, Bot } from "lucide-react";
 import { AIProvider, PROVIDER_LABELS } from "@/lib/providers";
@@ -66,8 +67,8 @@ export function MobileNav({
         <Menu className="w-5 h-5" />
       </button>
 
-      {open && (
-        <div className="fixed inset-0 z-50 flex">
+      {open && createPortal(
+        <div className="fixed inset-0 z-[100] flex md:hidden">
           {/* backdrop */}
           <div className="absolute inset-0 bg-black/60" onClick={() => setOpen(false)} />
           {/* drawer */}
@@ -139,7 +140,8 @@ export function MobileNav({
               </div>
             )}
           </nav>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

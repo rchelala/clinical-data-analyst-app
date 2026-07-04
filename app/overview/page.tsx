@@ -22,6 +22,7 @@ import {
   CheckCircle2,
   Search,
 } from "lucide-react";
+import { MobileNav } from "@/components/MobileNav";
 import { OverviewResponse } from "@/lib/brain-types";
 import { KpiCard } from "@/components/overview/KpiCard";
 import { DeliveryChart } from "@/components/overview/DeliveryChart";
@@ -102,12 +103,17 @@ export default function OverviewPage() {
   }, [data, search, sortBy]);
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
+    <div className="flex flex-col h-screen md:overflow-hidden overflow-y-auto">
       <div className="eclipse-glow" />
       <div className="eclipse-grain" />
 
       <header className="flex items-center justify-between px-6 py-4 border-b border-theme bg-secondary-glass hairline-top flex-shrink-0">
-        <div className="flex items-center gap-3">
+        {/* Mobile nav bar (below md) */}
+        <div className="md:hidden flex items-center gap-3 px-4 py-2 border-b border-theme bg-primary-glass flex-shrink-0">
+          <MobileNav active="overview" />
+          <span className="text-sm font-medium text-primary">Overview</span>
+        </div>
+        <div className="hidden md:flex items-center gap-3">
           <Link
             href="/brain"
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel hover:bg-panel/80 text-secondary hover:text-primary transition-colors"

@@ -405,7 +405,7 @@ export default function BrainPage() {
           )}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 gap-y-2 flex-wrap md:flex-nowrap max-w-full">
           <button
             onClick={() => setShowAddRequestForm(true)}
             disabled={viewerAnalystId === null}

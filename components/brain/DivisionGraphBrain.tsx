@@ -442,7 +442,7 @@ export function DivisionGraphBrain({
           />
         )}
         {hoveredNode && (
-          <div className="absolute top-4 left-4 max-w-xs rounded-lg border border-theme bg-panel shadow-lg px-4 py-3 pointer-events-none">
+          <div className="absolute top-4 left-4 right-4 md:right-auto max-w-xs rounded-lg border border-theme bg-panel shadow-lg px-4 py-3 pointer-events-none">
             <p className="text-sm font-semibold text-primary">{hoveredNode.label}</p>
             <p className="text-xs text-secondary mt-1">
               Stakeholder: {hoveredNode.stakeholder ?? "—"}

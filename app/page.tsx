@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { Header } from "@/components/Header";
+import { MobileNav } from "@/components/MobileNav";
 import { CodePanel } from "@/components/CodePanel";
 import { DiffPanel } from "@/components/DiffPanel";
 import { LanguageToggle } from "@/components/LanguageToggle";
@@ -170,14 +171,29 @@ export default function Home() {
   const isWorking = loading || summarizing;
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
+    <div className="flex flex-col h-screen md:overflow-hidden overflow-y-auto">
       {/* Eclipse ambient glow — behind all content, starts at top of page */}
       <div className="eclipse-glow" />
       <div className="eclipse-grain" />
       <Header provider={provider} onProviderChange={handleProviderChange} />
 
+      {/* Mobile nav bar (below md) */}
+      <div className="md:hidden flex items-center gap-3 px-4 py-2 border-b border-theme bg-primary-glass flex-shrink-0">
+        <MobileNav
+          active="home"
+          subTabs={APP_TABS.map(({ id, label, Icon }) => ({ id, label, Icon }))}
+          activeSubTab={activeTab}
+          onSubTabSelect={(id) => setActiveTab(id as AppTab)}
+          provider={provider}
+          onProviderChange={handleProviderChange}
+        />
+        <span className="text-sm font-medium text-primary capitalize">
+          {APP_TABS.find((t) => t.id === activeTab)?.label ?? "Home"}
+        </span>
+      </div>
+
       {/* Tab bar */}
-      <div className="flex items-center gap-1 px-6 border-b border-theme bg-primary-glass flex-shrink-0">
+      <div className="hidden md:flex items-center gap-1 px-6 border-b border-theme bg-primary-glass flex-shrink-0">
         {APP_TABS.map(({ id, label, Icon }) => (
           <button
             key={id}
@@ -297,9 +313,9 @@ export default function Home() {
           )}
 
           {/* Split panels */}
-          <div className="flex flex-1 overflow-hidden">
+          <div className="flex flex-col md:flex-row flex-1 md:overflow-hidden">
             {/* Input panel */}
-            <div className="flex flex-col flex-1 border-r border-theme overflow-hidden">
+            <div className="flex flex-col flex-1 border-b md:border-b-0 md:border-r border-theme overflow-hidden min-h-[40vh] md:min-h-0">
               <div className="flex items-center justify-between px-4 py-2 border-b border-theme bg-secondary-glass hairline-top flex-shrink-0">
                 <div className="flex items-center gap-2">
                   <div className="w-1.5 h-1.5 rounded-full bg-secondary/40" />
@@ -319,7 +335,7 @@ export default function Home() {
             </div>
 
             {/* Output panel */}
-            <div className="flex flex-col flex-1 overflow-hidden">
+            <div className="flex flex-col flex-1 overflow-hidden min-h-[40vh] md:min-h-0">
               <div className="flex items-center justify-between px-4 py-2 border-b border-theme bg-secondary-glass hairline-top flex-shrink-0">
                 <div className="flex items-center gap-2">
                   <div className={`w-1.5 h-1.5 rounded-full transition-colors ${output ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" : "bg-secondary/40"}`} />

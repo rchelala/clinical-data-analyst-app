@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useFitScale } from "@/hooks/useFitScale";
 import {
   computeDivisionWedges,
   computeEvenlySpacedPositions,
@@ -55,12 +54,6 @@ export function SolarSystemView({
   onSelectDivision,
 }: SolarSystemViewProps) {
   const [hoveredId, setHoveredId] = useState<number | null>(null);
-  // Same fit-to-container scaling as GalaxyView (see hooks/useFitScale.ts),
-  // capped at 1 so desktop — where the container is always >= the 860
-  // design size — renders with an identity transform, unchanged. 860 = 2 *
-  // MAX_RADIUS (400, the farthest a division planet can sit) + margin for
-  // the moon ring (30) and labels.
-  const { ref: fitRef, scale } = useFitScale(860);
 
   const divisions = useMemo(() => divisionNodes.map((n) => n.division), [divisionNodes]);
   const wedges = useMemo(() => computeDivisionWedges(divisions), [divisions]);
@@ -215,23 +208,10 @@ export function SolarSystemView({
 
   return (
     <div className="relative w-full h-full flex items-center justify-center">
-      <div
-        ref={fitRef}
-        className="w-full h-full max-w-[900px] max-h-[900px] flex items-center justify-center"
+      <svg
+        viewBox={`-${VIEWBOX_HALF} -${VIEWBOX_HALF} ${VIEWBOX_HALF * 2} ${VIEWBOX_HALF * 2}`}
+        className="w-full h-full max-w-[900px] max-h-[900px]"
       >
-        {/* Scale wrapper: identity transform (scale(1)) on desktop where the
-            container is >= the 860 design size, so this div is purely
-            structural there and doesn't alter desktop layout. Below that
-            size it uniformly shrinks the system so it fits without
-            overflowing the viewport. */}
-        <div
-          className="w-full h-full"
-          style={{ transform: `scale(${scale})`, transformOrigin: "center center" }}
-        >
-          <svg
-            viewBox={`-${VIEWBOX_HALF} -${VIEWBOX_HALF} ${VIEWBOX_HALF * 2} ${VIEWBOX_HALF * 2}`}
-            className="w-full h-full"
-          >
         {/* Spokes connecting the center (the viewed analyst) to each division planet. */}
         {positioned.map(({ node, x, y }) => (
           <line
@@ -314,9 +294,7 @@ export function SolarSystemView({
             </g>
           );
         })}
-          </svg>
-        </div>
-      </div>
+      </svg>
 
       {hovered && <DetailPanel title={hovered.node.division.name} rows={hoveredRows} />}
 

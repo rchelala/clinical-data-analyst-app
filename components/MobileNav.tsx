@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Menu, X, Home, BrainCircuit, ClipboardList, Building2, Bot } from "lucide-react";
 import { AIProvider, PROVIDER_LABELS } from "@/lib/providers";
@@ -34,6 +34,26 @@ export function MobileNav({
   active, subTabs, activeSubTab, onSubTabSelect, provider, onProviderChange,
 }: MobileNavProps) {
   const [open, setOpen] = useState(false);
+
+  // While open: close on Escape.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  // While open: lock body scroll so the page behind the drawer can't scroll.
+  useEffect(() => {
+    document.body.style.overflow = open ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [open]);
 
   return (
     <div className="md:hidden">

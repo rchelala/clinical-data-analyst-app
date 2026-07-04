@@ -22,6 +22,8 @@ import { AddWorklistDashboard } from "@/components/worklist/AddWorklistDashboard
 import { StatusPrioritySelect } from "@/components/worklist/StatusPrioritySelect";
 import { StatusFilterDropdown } from "@/components/worklist/StatusFilterDropdown";
 import { WorklistItemCard } from "@/components/worklist/WorklistItemCard";
+import { EditableCell } from "@/components/worklist/EditableCell";
+import { WorklistItem, WorklistItemKind } from "@/lib/worklist-types";
 import { WeeklyUpdateDrawer } from "@/components/worklist/WeeklyUpdateDrawer";
 import { loadAnalystId } from "@/lib/analyst-identity";
 import { Dashboard, Division, PsqWithTaskCount, ReportSubscription, Task, TaskWithContext } from "@/lib/brain-types";
@@ -35,29 +37,6 @@ interface WorklistDashboardItem extends Dashboard {
 }
 
 interface WorklistSubscriptionItem extends ReportSubscription {
-  ownerName: string | null;
-  isCovering: boolean;
-  activeTaskCount: number;
-  totalTaskCount: number;
-}
-
-export type WorklistItemKind = "dashboard" | "subscription";
-
-// Unified view-model for a row in the "My Dashboards / Report Subscriptions"
-// section. Dashboards and report subscriptions share the same worklist columns
-// (priority, worklistStatus, comments, notes, summary, enterpriseAnalyst), so
-// they render through one shape, discriminated by `kind` for routing PATCH and
-// task-fetch calls to the right endpoint.
-export interface WorklistItem {
-  kind: WorklistItemKind;
-  id: number;
-  name: string;
-  priority: string | null;
-  worklistStatus: string | null;
-  enterpriseAnalyst: string | null;
-  comments: string | null;
-  notes: string | null;
-  summary: string | null;
   ownerName: string | null;
   isCovering: boolean;
   activeTaskCount: number;
@@ -1726,25 +1705,3 @@ export default function WorklistPage() {
   );
 }
 
-interface EditableCellProps {
-  value: string | null;
-  placeholder?: string;
-  onSave: (value: string) => void;
-}
-
-// Inline-editable cell: shows current value as plain text, becomes
-// contentEditable on focus, saves on blur. Matches the mockup's
-// .edit-cell affordance.
-export function EditableCell({ value, placeholder, onSave }: EditableCellProps) {
-  return (
-    <div
-      contentEditable
-      suppressContentEditableWarning
-      onBlur={(e) => onSave(e.currentTarget.innerText.trim())}
-      data-placeholder={placeholder}
-      className="text-xs text-secondary outline-none rounded-md px-1.5 py-1 border border-transparent hover:border-theme hover:bg-panel focus:border-brand-500 focus:bg-panel focus:text-primary transition-colors min-h-[1.4em] min-w-[40px] empty:before:content-[attr(data-placeholder)] empty:before:text-secondary/50"
-    >
-      {value ?? ""}
-    </div>
-  );
-}

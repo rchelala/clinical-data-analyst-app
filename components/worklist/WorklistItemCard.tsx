@@ -2,7 +2,8 @@
 
 import { ChevronRight, X } from "lucide-react";
 import { StatusPrioritySelect } from "@/components/worklist/StatusPrioritySelect";
-import { EditableCell, WorklistItem, WorklistItemKind } from "@/app/worklist/page";
+import { EditableCell } from "@/components/worklist/EditableCell";
+import { WorklistItem, WorklistItemKind } from "@/lib/worklist-types";
 
 interface WorklistItemCardProps {
   item: WorklistItem;

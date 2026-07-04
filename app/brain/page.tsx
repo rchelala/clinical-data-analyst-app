@@ -347,9 +347,9 @@ export default function BrainPage() {
       <div className="fixed inset-0 -z-10 bg-[#0d1117]" />
       <div className="fixed inset-0 -z-10 bg-[radial-gradient(ellipse_80%_40%_at_50%_0%,#525252,transparent)]" />
 
-      <header className="flex items-center justify-between px-6 py-4 border-b border-theme bg-secondary-glass flex-shrink-0">
+      <header className="flex items-center justify-between flex-wrap md:flex-nowrap px-6 py-4 border-b border-theme bg-secondary-glass flex-shrink-0">
         {/* Mobile nav bar (below md) */}
-        <div className="md:hidden flex items-center gap-3 px-4 py-2 border-b border-theme bg-primary-glass flex-shrink-0">
+        <div className="md:hidden flex items-center gap-3 px-4 py-2 border-b border-theme bg-primary-glass flex-shrink-0 w-full">
           <MobileNav active="brain" />
           <span className="text-sm font-medium text-primary">Brain</span>
         </div>

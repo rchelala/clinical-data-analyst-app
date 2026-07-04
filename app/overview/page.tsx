@@ -109,7 +109,7 @@ export default function OverviewPage() {
 
       <header className="flex items-center justify-between px-6 py-4 border-b border-theme bg-secondary-glass hairline-top flex-shrink-0">
         {/* Mobile nav bar (below md) */}
-        <div className="md:hidden flex items-center gap-3 px-4 py-2 border-b border-theme bg-primary-glass flex-shrink-0">
+        <div className="md:hidden flex items-center gap-3 px-4 py-2 border-b border-theme bg-primary-glass flex-shrink-0 w-full">
           <MobileNav active="overview" />
           <span className="text-sm font-medium text-primary">Overview</span>
         </div>

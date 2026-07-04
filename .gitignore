@@ -26,3 +26,6 @@ npm-debug.log*
 
 .vercel
 .worktrees/
+
+# superpowers brainstorm mockups & scratch
+.superpowers/

@@ -1685,7 +1685,12 @@ export default function WorklistPage() {
       )}
 
       {weeklyUpdateData && (
-        <WeeklyUpdateDrawer data={weeklyUpdateData} onClose={() => setWeeklyUpdateData(null)} />
+        <WeeklyUpdateDrawer
+          key={analystId ?? "none"}
+          data={weeklyUpdateData}
+          analystId={analystId}
+          onClose={() => setWeeklyUpdateData(null)}
+        />
       )}
 
       {weeklyUpdateError && (

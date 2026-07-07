@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { fetchSubscriptionRowsWithStaleness } from '@/lib/dashboard-queries';
 import { mapReportSubscriptionRow } from '@/lib/brain-mappers';
-import { computeUrgency, normalizeRadius } from '@/lib/urgency';
-import { ReportSubscriptionWithUrgency } from '@/lib/brain-types';
+import { computeUrgency, normalizeRadius, MANUAL_RADIUS } from '@/lib/urgency';
+import { ReportSubscriptionWithUrgency, UrgencyBucket } from '@/lib/brain-types';
 
 export async function GET(req: NextRequest) {
   try {
@@ -29,7 +29,9 @@ export async function GET(req: NextRequest) {
       openRequestCount: Number(row.open_request_count),
       inProgressRequestCount: Number(row.in_progress_request_count),
       urgency: urgencyScores[i],
-      radius: radii[i],
+      radius: row.manual_urgency
+        ? MANUAL_RADIUS[row.manual_urgency as UrgencyBucket]
+        : radii[i],
     }));
 
     return NextResponse.json(subscriptions);

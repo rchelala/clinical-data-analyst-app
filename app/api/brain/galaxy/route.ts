@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { fetchDashboardRowsWithStaleness, fetchSubscriptionRowsWithStaleness } from '@/lib/dashboard-queries';
 import { mapAnalystRow } from '@/lib/brain-mappers';
-import { computeUrgency, bucketUrgencies } from '@/lib/urgency';
-import { AnalystSummary } from '@/lib/brain-types';
+import { computeUrgency, bucketUrgencies, resolveBucket } from '@/lib/urgency';
+import { AnalystSummary, UrgencyBucket } from '@/lib/brain-types';
 
 // Org-wide rollup for the Galaxy zoom level: one summary row per analyst,
 // with division/dashboard/subscription counts and a high-urgency count
@@ -70,7 +70,11 @@ export async function GET() {
         subscriptionCountByAnalyst.set(analystId, (subscriptionCountByAnalyst.get(analystId) ?? 0) + 1);
       }
 
-      if (buckets[i] === 'high') {
+      const resolvedBucket = resolveBucket(
+        buckets[i],
+        (row.manual_urgency ?? null) as UrgencyBucket | null
+      );
+      if (resolvedBucket === 'high') {
         highUrgencyCountByAnalyst.set(analystId, (highUrgencyCountByAnalyst.get(analystId) ?? 0) + 1);
       }
     });

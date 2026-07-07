@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ClipboardPlus } from "lucide-react";
 import { useTheme } from "next-themes";
 import { buildGraphData, GraphData } from "@/lib/brain-graph";
-import { bucketUrgencies } from "@/lib/urgency";
+import { bucketUrgencies, resolveBucket } from "@/lib/urgency";
 import {
   Division,
   DashboardWithUrgency,
@@ -14,6 +14,7 @@ import {
   BrainEntityKind,
   Task,
   RequestStatus,
+  UrgencyBucket,
 } from "@/lib/brain-types";
 import { BrainFilters, fadeOpacity, isRequestStatusVisible, isStatusVisible, isUrgencyVisible } from "@/lib/filters";
 import { OtherAnalystsPanel } from "@/components/brain/OtherAnalystsPanel";
@@ -183,16 +184,19 @@ export function DivisionGraphBrain({
   const urgencyBucketByNodeId = useMemo(() => {
     const ids: string[] = [];
     const scores: number[] = [];
+    const manuals: (UrgencyBucket | null)[] = [];
     dashboards.forEach((d) => {
       ids.push(`dashboard-${d.id}`);
       scores.push(d.urgency);
+      manuals.push(d.manualUrgency);
     });
     subscriptions.forEach((s) => {
       ids.push(`subscription-${s.id}`);
       scores.push(s.urgency);
+      manuals.push(s.manualUrgency);
     });
     const buckets = bucketUrgencies(scores);
-    return new Map(ids.map((id, i) => [id, buckets[i]]));
+    return new Map(ids.map((id, i) => [id, resolveBucket(buckets[i], manuals[i])]));
   }, [dashboards, subscriptions]);
 
   // Direct id->status map (same `${kind}-${id}` node id scheme as above),

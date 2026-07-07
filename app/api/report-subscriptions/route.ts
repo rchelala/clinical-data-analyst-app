@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
       openRequestCount: Number(row.open_request_count),
       inProgressRequestCount: Number(row.in_progress_request_count),
       urgency: urgencyScores[i],
-      radius: row.manual_urgency
+      radius: row.manual_urgency && row.manual_urgency in MANUAL_RADIUS
         ? MANUAL_RADIUS[row.manual_urgency as UrgencyBucket]
         : radii[i],
     }));

@@ -6,8 +6,8 @@ import {
   computeEvenlySpacedPositions,
   computePositionInWedge,
 } from "@/lib/layout-math";
-import { bucketUrgencies } from "@/lib/urgency";
-import { DashboardWithUrgency, Division, ReportSubscriptionWithUrgency } from "@/lib/brain-types";
+import { bucketUrgencies, resolveBucket } from "@/lib/urgency";
+import { DashboardWithUrgency, Division, ReportSubscriptionWithUrgency, UrgencyBucket } from "@/lib/brain-types";
 import { BrainFilters, isStatusVisible, isUrgencyVisible } from "@/lib/filters";
 import {
   DivisionPlanet,
@@ -76,20 +76,28 @@ export function SolarSystemView({
   // how the Galaxy zoom's highUrgencyCount was computed "globally," scoped
   // here to this analyst's system instead of the whole org.
   const urgencyBucketsById = useMemo(() => {
-    const ids: { kind: "dashboard" | "subscription"; id: number; divisionId: number }[] = [];
+    const ids: {
+      kind: "dashboard" | "subscription";
+      id: number;
+      divisionId: number;
+      manualUrgency: UrgencyBucket | null;
+    }[] = [];
     const scores: number[] = [];
 
     dashboards.forEach((d) => {
-      ids.push({ kind: "dashboard", id: d.id, divisionId: d.divisionId });
+      ids.push({ kind: "dashboard", id: d.id, divisionId: d.divisionId, manualUrgency: d.manualUrgency });
       scores.push(d.urgency);
     });
     subscriptions.forEach((s) => {
-      ids.push({ kind: "subscription", id: s.id, divisionId: s.divisionId });
+      ids.push({ kind: "subscription", id: s.id, divisionId: s.divisionId, manualUrgency: s.manualUrgency });
       scores.push(s.urgency);
     });
 
     const buckets = bucketUrgencies(scores);
-    return ids.map((entry, i) => ({ ...entry, bucket: buckets[i] }));
+    return ids.map((entry, i) => ({
+      ...entry,
+      bucket: resolveBucket(buckets[i], entry.manualUrgency),
+    }));
   }, [dashboards, subscriptions]);
 
   // Moons: one per dashboard/subscription, grouped by divisionId, placed on

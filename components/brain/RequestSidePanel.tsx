@@ -487,6 +487,12 @@ export function RequestSidePanel({
             <p className="text-xs text-secondary mt-0.5">
               Stakeholder: {entity.stakeholder ?? "—"}
             </p>
+            {entity.manualUrgency && (
+              <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium border border-purple-500/40 bg-purple-500/10 text-purple-400">
+                Manual urgency ·{" "}
+                {entity.manualUrgency === "high" ? "High" : entity.manualUrgency === "med" ? "Med" : "Low"}
+              </span>
+            )}
             {entity.kind === "subscription" && entity.linkedDashboard && (
               <p className="text-xs text-secondary mt-0.5">
                 Linked dashboard:{" "}

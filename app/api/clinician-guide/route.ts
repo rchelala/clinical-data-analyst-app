@@ -124,6 +124,33 @@ interface ClinicianGuideData {
   pages: ClinicianPage[];
 }
 
+function normalizeVisual(v: unknown): ClinicianVisual {
+  const raw = (v ?? {}) as Record<string, unknown>;
+  return {
+    label: typeof raw.label === "string" && raw.label.trim() ? raw.label : "Untitled",
+    explains: typeof raw.explains === "string" ? raw.explains : "",
+  };
+}
+
+function normalizePage(p: unknown): ClinicianPage {
+  const raw = (p ?? {}) as Record<string, unknown>;
+  return {
+    name: typeof raw.name === "string" && raw.name.trim() ? raw.name : "Untitled Page",
+    purpose: typeof raw.purpose === "string" ? raw.purpose : "",
+    visuals: Array.isArray(raw.visuals) ? raw.visuals.map(normalizeVisual) : [],
+  };
+}
+
+function normalizeGuideData(raw: unknown, dashboard: PbixDashboard): ClinicianGuideData {
+  const d = (raw ?? {}) as Record<string, unknown>;
+  return {
+    reportTitle:
+      typeof d.reportTitle === "string" && d.reportTitle.trim() ? d.reportTitle : dashboard.reportName,
+    overview: typeof d.overview === "string" ? d.overview : "",
+    pages: Array.isArray(d.pages) ? d.pages.map(normalizePage) : [],
+  };
+}
+
 function sectionHeader(text: string): Paragraph {
   return new Paragraph({
     children: [new TextRun({ text, bold: true, color: BLUE, font: "Arial", size: 24 })],
@@ -281,7 +308,7 @@ export async function POST(req: NextRequest) {
 
     let data: ClinicianGuideData;
     try {
-      data = JSON.parse(jsonText);
+      data = normalizeGuideData(JSON.parse(jsonText), dashboard);
     } catch {
       throw new Error("AI response could not be parsed. The report may be too large — try a smaller .pbix file.");
     }

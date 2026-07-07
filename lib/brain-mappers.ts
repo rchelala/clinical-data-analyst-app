@@ -46,6 +46,7 @@ export function mapDashboardRow(row: any): Dashboard {
     notes: row.notes,
     worklistStatus: row.worklist_status,
     summary: row.summary,
+    manualUrgency: row.manual_urgency ?? null,
   };
 }
 
@@ -67,6 +68,7 @@ export function mapReportSubscriptionRow(row: any): ReportSubscription {
     notes: row.notes,
     worklistStatus: row.worklist_status,
     summary: row.summary,
+    manualUrgency: row.manual_urgency ?? null,
   };
 }
 

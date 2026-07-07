@@ -30,7 +30,9 @@ CREATE TABLE dashboards (
    notes              text,
    -- free-form worklist work-status, separate from the status lifecycle enum above
    worklist_status    text,
-   summary            text
+   summary            text,
+   -- manual urgency override: 'high' | 'med' | 'low'; NULL = Auto (use computed formula)
+   manual_urgency     text
 );
 
 -- status: 'active' | 'maintenance' | 'retired' (not enforced by a DB enum/check constraint, documented only)
@@ -51,7 +53,9 @@ CREATE TABLE report_subscriptions (
    notes                text,
    -- free-form worklist work-status, separate from the status lifecycle enum above
    worklist_status      text,
-   summary              text
+   summary              text,
+   -- manual urgency override: 'high' | 'med' | 'low'; NULL = Auto (use computed formula)
+   manual_urgency       text
 );
 
 -- request_type: 'feature' | 'bug' | 'field_request'; status: 'open' | 'in_progress' | 'done' (not enforced by a DB enum/check constraint, documented only)

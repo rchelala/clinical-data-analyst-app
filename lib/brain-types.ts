@@ -50,6 +50,7 @@ export interface Dashboard {
   notes: string | null;
   worklistStatus: string | null;
   summary: string | null;
+  manualUrgency: UrgencyBucket | null;
 }
 
 export interface DashboardWithUrgency extends Dashboard {
@@ -86,6 +87,7 @@ export interface ReportSubscription {
   notes: string | null;
   worklistStatus: string | null;
   summary: string | null;
+  manualUrgency: UrgencyBucket | null;
 }
 
 export interface ReportSubscriptionWithUrgency extends ReportSubscription {

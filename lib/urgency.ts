@@ -101,3 +101,28 @@ export function bucketUrgencies(scores: number[]): UrgencyBucket[] {
     return 'low';
   });
 }
+
+/**
+ * Overlays a manual urgency override onto a computed bucket. A non-null
+ * `manual` value wins outright (the manual pin); `null` falls through to the
+ * computed bucket. This is the single definition of the override rule, imported
+ * by both server routes and client components so pins behave identically in
+ * every view.
+ */
+export function resolveBucket(
+  computed: UrgencyBucket,
+  manual: UrgencyBucket | null
+): UrgencyBucket {
+  return manual ?? computed;
+}
+
+/**
+ * Representative orbital radius for a pinned entity, by level. Pinned entities
+ * snap to these fixed distances instead of participating in min-max
+ * normalization: High is pulled toward the center, Low sits at the outer edge.
+ */
+export const MANUAL_RADIUS: Record<UrgencyBucket, number> = {
+  high: MIN_RADIUS,
+  med: (MIN_RADIUS + MAX_RADIUS) / 2,
+  low: MAX_RADIUS,
+};

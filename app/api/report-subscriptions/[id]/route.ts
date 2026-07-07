@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { mapReportSubscriptionRow } from '@/lib/brain-mappers';
-import { DashboardStatus } from '@/lib/brain-types';
+import { DashboardStatus, UrgencyBucket } from '@/lib/brain-types';
 
 const VALID_STATUSES: DashboardStatus[] = ['active', 'maintenance', 'retired'];
+const VALID_URGENCY: UrgencyBucket[] = ['high', 'med', 'low'];
 
 // Trims a provided string field to null when empty, matching the
 // null-vs-empty-string normalization EditEntityForm already applies
@@ -42,8 +43,10 @@ export async function PATCH(
       divisionId?: number;
       linkedDashboardId?: number | null;
       analystId?: number | null;
+      manualUrgency?: UrgencyBucket | null;
     };
     const { name, status, divisionId, linkedDashboardId, analystId } = body;
+    const manualUrgency = body.manualUrgency;
     const stakeholder = normalizeNullableString(body.stakeholder);
     const jiraTicketId = normalizeNullableString(body.jiraTicketId);
     const priority = normalizeNullableString(body.priority);
@@ -66,7 +69,8 @@ export async function PATCH(
       summary === undefined &&
       divisionId === undefined &&
       linkedDashboardId === undefined &&
-      analystId === undefined
+      analystId === undefined &&
+      manualUrgency === undefined
     ) {
       return NextResponse.json(
         { error: 'At least one field must be provided.' },
@@ -85,8 +89,19 @@ export async function PATCH(
       );
     }
 
+    if (
+      manualUrgency !== undefined &&
+      manualUrgency !== null &&
+      !VALID_URGENCY.includes(manualUrgency)
+    ) {
+      return NextResponse.json(
+        { error: `manualUrgency must be one of: ${VALID_URGENCY.join(', ')}, or null` },
+        { status: 400 }
+      );
+    }
+
     const current = await sql`
-      SELECT id, name, division_id, analyst_id, stakeholder, status, jira_ticket_id, linked_dashboard_id, priority, enterprise_analyst, comments, notes, worklist_status, summary
+      SELECT id, name, division_id, analyst_id, stakeholder, status, jira_ticket_id, linked_dashboard_id, priority, enterprise_analyst, comments, notes, worklist_status, summary, manual_urgency
       FROM report_subscriptions
       WHERE id = ${subscriptionId}
     `;
@@ -130,6 +145,7 @@ export async function PATCH(
       divisionId: divisionId !== undefined ? divisionId : current[0].division_id,
       linkedDashboardId: linkedDashboardId !== undefined ? linkedDashboardId : current[0].linked_dashboard_id,
       analystId: analystId !== undefined ? analystId : current[0].analyst_id,
+      manualUrgency: manualUrgency !== undefined ? manualUrgency : current[0].manual_urgency,
     };
 
     // last_touched_date intentionally untouched here: it drives the
@@ -141,10 +157,10 @@ export async function PATCH(
       SET name = ${merged.name}, stakeholder = ${merged.stakeholder}, status = ${merged.status}, jira_ticket_id = ${merged.jiraTicketId},
           priority = ${merged.priority}, enterprise_analyst = ${merged.enterpriseAnalyst}, comments = ${merged.comments},
           notes = ${merged.notes}, worklist_status = ${merged.worklistStatus}, summary = ${merged.summary},
-          division_id = ${merged.divisionId}, linked_dashboard_id = ${merged.linkedDashboardId}, analyst_id = ${merged.analystId}
+          division_id = ${merged.divisionId}, linked_dashboard_id = ${merged.linkedDashboardId}, analyst_id = ${merged.analystId}, manual_urgency = ${merged.manualUrgency}
       WHERE id = ${subscriptionId}
       RETURNING id, name, division_id, analyst_id, linked_dashboard_id, stakeholder, status, jira_ticket_id, last_touched_date, created_date,
-                priority, enterprise_analyst, comments, notes, worklist_status, summary
+                priority, enterprise_analyst, comments, notes, worklist_status, summary, manual_urgency
     `;
 
     return NextResponse.json(mapReportSubscriptionRow(rows[0]));

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { X, Loader2, ClipboardList, Paperclip, Trash2, Pencil, ListTodo } from "lucide-react";
-import { Analyst, BrainEntityKind, DashboardStatus, Division, RequestStatus, RequestWithCreator, Tag, Task } from "@/lib/brain-types";
+import { Analyst, BrainEntityKind, DashboardStatus, Division, RequestStatus, RequestWithCreator, Tag, Task, UrgencyBucket } from "@/lib/brain-types";
 import { AttachFieldRequestForm } from "@/components/brain/AttachFieldRequestForm";
 import { EditEntityForm } from "@/components/brain/EditEntityForm";
 import { RequestTagEditor } from "./RequestTagEditor";
@@ -14,6 +14,7 @@ export interface RequestSidePanelEntity {
   name: string;
   stakeholder: string | null;
   status: DashboardStatus;
+  manualUrgency: UrgencyBucket | null;
   jiraTicketId: string | null;
   divisionId: number;
   analystId: number | null;
@@ -836,6 +837,7 @@ export function RequestSidePanel({
           initialName={entity.name}
           initialStakeholder={entity.stakeholder}
           initialStatus={entity.status}
+          initialManualUrgency={entity.manualUrgency}
           initialJiraTicketId={entity.jiraTicketId}
           divisions={divisions}
           initialDivisionId={entity.divisionId}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Pencil } from "lucide-react";
-import { BrainEntityKind, DashboardStatus, Division, Analyst } from "@/lib/brain-types";
+import { BrainEntityKind, DashboardStatus, Division, Analyst, UrgencyBucket } from "@/lib/brain-types";
 
 interface EditEntityFormProps {
   kind: BrainEntityKind;
@@ -10,6 +10,7 @@ interface EditEntityFormProps {
   initialName: string;
   initialStakeholder: string | null;
   initialStatus: DashboardStatus;
+  initialManualUrgency: UrgencyBucket | null;
   initialJiraTicketId: string | null;
   divisions: Division[];
   initialDivisionId: number;
@@ -33,12 +34,20 @@ const STATUS_LABELS: Record<DashboardStatus, string> = {
   retired: "Retired",
 };
 
+const MANUAL_URGENCY_OPTIONS: { value: "" | UrgencyBucket; label: string }[] = [
+  { value: "", label: "Auto (computed)" },
+  { value: "high", label: "High" },
+  { value: "med", label: "Med" },
+  { value: "low", label: "Low" },
+];
+
 export function EditEntityForm({
   kind,
   id,
   initialName,
   initialStakeholder,
   initialStatus,
+  initialManualUrgency,
   initialJiraTicketId,
   divisions,
   initialDivisionId,
@@ -52,6 +61,9 @@ export function EditEntityForm({
   const [name, setName] = useState(initialName);
   const [stakeholder, setStakeholder] = useState(initialStakeholder ?? "");
   const [status, setStatus] = useState<DashboardStatus>(initialStatus);
+  const [manualUrgency, setManualUrgency] = useState<"" | UrgencyBucket>(
+    initialManualUrgency ?? ""
+  );
   const [jiraTicketId, setJiraTicketId] = useState(initialJiraTicketId ?? "");
   const [divisionId, setDivisionId] = useState(initialDivisionId);
   const [linkedDashboardId, setLinkedDashboardId] = useState(
@@ -111,6 +123,11 @@ export function EditEntityForm({
                 ? null
                 : Number(analystId)
               : undefined,
+          // Only set on a straight edit; during a type conversion the /convert
+          // endpoint doesn't handle urgency, and `undefined` is dropped by
+          // JSON.stringify. `""` (Auto) becomes null to clear any override.
+          manualUrgency:
+            selectedKind === kind ? (manualUrgency === "" ? null : manualUrgency) : undefined,
         };
 
         const url =
@@ -140,7 +157,7 @@ export function EditEntityForm({
         setSubmitting(false);
       }
     },
-    [kind, id, selectedKind, name, stakeholder, status, jiraTicketId, divisionId, linkedDashboardId, analystId, onSaved]
+    [kind, id, selectedKind, name, stakeholder, status, jiraTicketId, divisionId, linkedDashboardId, analystId, manualUrgency, onSaved]
   );
 
   return (
@@ -234,6 +251,27 @@ export function EditEntityForm({
                 </option>
               ))}
             </select>
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label htmlFor="editEntityUrgency" className="text-xs font-medium text-secondary">
+              Manual urgency
+            </label>
+            <select
+              id="editEntityUrgency"
+              value={manualUrgency}
+              onChange={(e) => setManualUrgency(e.target.value as "" | UrgencyBucket)}
+              className="text-sm rounded-md border border-theme px-3 py-2 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer"
+            >
+              {MANUAL_URGENCY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-[11px] text-secondary">
+              Auto uses the computed urgency formula. Pinning a level overrides it until set back to Auto.
+            </p>
           </div>
 
           <div className="flex flex-col gap-1">

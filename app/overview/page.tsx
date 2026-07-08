@@ -21,6 +21,7 @@ import {
   AlertCircle,
   CheckCircle2,
   Search,
+  CalendarRange,
 } from "lucide-react";
 import { MobileNav } from "@/components/MobileNav";
 import { OverviewResponse } from "@/lib/brain-types";
@@ -127,6 +128,13 @@ export default function OverviewPage() {
           >
             <ClipboardList className="w-3 h-3" />
             Worklist
+          </Link>
+          <Link
+            href="/overview/monthly"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel hover:bg-panel/80 text-secondary hover:text-primary transition-colors"
+          >
+            <CalendarRange className="w-3 h-3" />
+            Monthly Summary
           </Link>
           <Link
             href="/"

@@ -30,8 +30,7 @@ export interface WeeklyUpdatePsq {
   division: string | null;
   name: string;
   status: string | null;
-  tasks: string | null;
-  comments: string | null;
+  tasks: WeeklyUpdateTask[];
 }
 
 export interface WeeklyUpdateData {
@@ -99,8 +98,24 @@ export function buildStructuredUpdate(data: WeeklyUpdateData): string {
       const label = p.division ? `${p.division} — ${p.name}` : p.name;
       const statusLabel = p.status ?? "—";
       out += `\n- **${label}** (${statusLabel})\n`;
-      const detail = [p.tasks, p.comments].filter(Boolean).join("  —  ");
-      if (detail) out += `  ${detail}\n`;
+
+      // Same rule as Dashboards: active tasks count only if created this
+      // week, completed tasks count only if completed this week.
+      const active = p.tasks.filter((t) => t.status !== "done" && inWeek(t.createdDate));
+      const recentlyCompleted = p.tasks.filter((t) => t.status === "done" && inWeek(t.completedDate));
+
+      active.forEach((t) => {
+        const box = t.status === "in_progress" || t.status === "progress" ? "~" : " ";
+        out += `  - [${box}] ${t.title}\n`;
+      });
+
+      if (recentlyCompleted.length) {
+        out += `  - ✓ Completed: ${recentlyCompleted.map((t) => t.title).join("; ")}\n`;
+      }
+
+      if (active.length === 0 && recentlyCompleted.length === 0) {
+        out += `  - _No activity this week_\n`;
+      }
     });
   }
 

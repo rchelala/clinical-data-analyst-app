@@ -33,10 +33,18 @@ export async function GET(req: NextRequest) {
 }
 
 async function getMonthList(): Promise<NextResponse> {
+  // Count only tasks that resolve to a division (directly, or via their
+  // dashboard/subscription) — the same scope the report itself uses. This
+  // excludes psq-only/unattached tasks so the rail count matches what the
+  // report will actually show for that month, and hides months that have no
+  // in-scope activity.
   const rows = await sql`
-    SELECT to_char(created_date, 'YYYY-MM') AS month, COUNT(*) AS task_count
-    FROM tasks
-    WHERE created_date IS NOT NULL
+    SELECT to_char(t.created_date, 'YYYY-MM') AS month, COUNT(*) AS task_count
+    FROM tasks t
+    LEFT JOIN dashboards d ON d.id = t.dashboard_id
+    LEFT JOIN report_subscriptions s ON s.id = t.subscription_id
+    WHERE t.created_date IS NOT NULL
+      AND (t.division_id IS NOT NULL OR d.division_id IS NOT NULL OR s.division_id IS NOT NULL)
     GROUP BY 1
     ORDER BY 1 DESC
   `;

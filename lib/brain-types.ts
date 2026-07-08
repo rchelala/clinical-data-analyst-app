@@ -323,3 +323,49 @@ export interface DivisionDetailResponse {
   requests: DivisionDetailRequest[];           // all requests on this division's dashboards+subscriptions, newest first
   tasks: DivisionDetailTask[];                  // all tasks on this division's dashboards+subscriptions plus division-level tasks, newest first
 }
+
+// Monthly Summary report: tasks created/completed in a given calendar month,
+// rolled up by division and grouped by the dashboard/subscription they belong to.
+export interface MonthlySummaryTotals {
+  divisions: number;
+  created: number;
+  completed: number;
+  netOpen: number;     // created - completed
+}
+
+export interface MonthlyTaskRow {
+  id: number;
+  title: string;
+  status: string;
+  ownerName: string | null;      // analysts.name via tasks.owner_analyst_id
+  createdDate: string | null;
+  completedDate: string | null;
+}
+
+export interface MonthlyGroup {
+  kind: 'dashboard' | 'subscription' | 'unlinked';
+  name: string;                  // dashboard/subscription name, or a placeholder label when unlinked
+  analystName: string | null;    // owner of the dashboard/subscription, if any
+  tasks: MonthlyTaskRow[];
+}
+
+export interface DivisionMonthlySummary {
+  id: number;
+  name: string;
+  created: number;
+  completed: number;
+  netOpen: number;     // created - completed
+  groups: MonthlyGroup[];
+}
+
+export interface MonthlySummaryResponse {
+  month: string;        // "YYYY-MM"
+  totals: MonthlySummaryTotals;
+  divisions: DivisionMonthlySummary[];
+}
+
+export interface MonthlyMonthListItem {
+  month: string;        // "YYYY-MM"
+  label: string;         // e.g. "July 2026"
+  taskCount: number;
+}

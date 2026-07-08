@@ -928,6 +928,7 @@ export default function WorklistPage() {
           tasks: tasks.map((t) => ({
             title: t.title,
             status: t.status,
+            createdDate: t.createdDate,
             completedDate: t.completedDate,
           })),
         })),
@@ -935,6 +936,8 @@ export default function WorklistPage() {
           title: t.title,
           status: t.status,
           dashboardName: t.contextName,
+          createdDate: t.createdDate,
+          completedDate: t.completedDate,
         })),
         psqs: psqs.map((p) => ({
           division: p.divisionId !== null ? divisionNameById.get(p.divisionId) ?? null : null,

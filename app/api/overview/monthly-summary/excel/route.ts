@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
-import { getMonthlySummaryData } from "@/lib/monthly-summary";
+import { getMonthlySummaryData, formatReportDate } from "@/lib/monthly-summary";
 import type { DivisionMonthlySummary } from "@/lib/brain-types";
 
 const MONTH_PATTERN = /^\d{4}-\d{2}$/;
@@ -92,8 +92,8 @@ function buildDivisionSheet(workbook: ExcelJS.Workbook, division: DivisionMonthl
         analyst: group.analystName ?? "",
         task: task.title,
         status: task.status,
-        created: task.createdDate ?? "",
-        completed: task.completedDate ?? "",
+        created: formatReportDate(task.createdDate),
+        completed: formatReportDate(task.completedDate),
       });
     }
   }

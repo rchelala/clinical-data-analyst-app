@@ -7,7 +7,7 @@ import {
   HeadingLevel,
   BorderStyle,
 } from "docx";
-import { getMonthlySummaryData, monthLabel } from "@/lib/monthly-summary";
+import { getMonthlySummaryData, monthLabel, formatReportDate } from "@/lib/monthly-summary";
 import type { DivisionMonthlySummary, MonthlyGroup, MonthlyTaskRow } from "@/lib/brain-types";
 
 const MONTH_PATTERN = /^\d{4}-\d{2}$/;
@@ -77,8 +77,8 @@ function taskBullet(task: MonthlyTaskRow): Paragraph {
   const parts: string[] = [task.title];
   if (task.ownerName) parts.push(`Owner: ${task.ownerName}`);
   parts.push(`Status: ${task.status}`);
-  if (task.createdDate) parts.push(`Created: ${task.createdDate}`);
-  if (task.completedDate) parts.push(`Completed: ${task.completedDate}`);
+  if (task.createdDate) parts.push(`Created: ${formatReportDate(task.createdDate)}`);
+  if (task.completedDate) parts.push(`Completed: ${formatReportDate(task.completedDate)}`);
 
   return new Paragraph({
     bullet: { level: 0 },

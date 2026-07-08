@@ -8,12 +8,39 @@ import {
   MonthlyTaskRow,
 } from '@/lib/brain-types';
 
-const MONTH_LABEL_FORMATTER = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' });
+// timeZone must be UTC: the date below is built with Date.UTC(), so formatting
+// in a negative-offset local zone (e.g. Phoenix, UTC-7) would roll midnight back
+// to the previous day — and previous month at a month boundary — mislabeling it.
+const MONTH_LABEL_FORMATTER = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 
 export function monthLabel(month: string): string {
   const [year, monthNum] = month.split('-').map(Number);
   // Construct with UTC to avoid any local-timezone skew shifting the month.
   return MONTH_LABEL_FORMATTER.format(new Date(Date.UTC(year, monthNum - 1, 1)));
+}
+
+// timeZone must be UTC (paired with Date.UTC() below) for the same reason as
+// MONTH_LABEL_FORMATTER above: formatting in a negative-offset local zone
+// would roll the date back a day.
+const REPORT_DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  timeZone: 'UTC',
+});
+
+// Timezone-safe date formatter for report exports (Word/Excel). Accepts a
+// Postgres `date` value as it may arrive: a "YYYY-MM-DD" string, a full ISO
+// timestamp string (Neon `date` columns can serialize as local midnight in
+// UTC, e.g. "2026-07-03T07:00:00.000Z"), or a Date object. Only the
+// "YYYY-MM-DD" date part is used — never parsed through `new Date(string)`
+// directly — then rendered as e.g. "Jul 3, 2026".
+export function formatReportDate(value: string | Date | null | undefined): string {
+  if (!value) return '';
+  const datePart = value instanceof Date ? value.toISOString().slice(0, 10) : String(value).slice(0, 10);
+  const [year, monthNum, day] = datePart.split('-').map(Number);
+  if (!year || !monthNum || !day) return '';
+  return REPORT_DATE_FORMATTER.format(new Date(Date.UTC(year, monthNum - 1, day)));
 }
 
 // Monthly Summary report data builder: tasks created in a given calendar

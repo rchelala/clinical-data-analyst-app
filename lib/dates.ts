@@ -38,12 +38,21 @@ export function isoWeekRange(reference: Date = new Date()): { startDate: string;
   };
 }
 
-// Inclusive membership test for a "YYYY-MM-DD" date string within
-// ["YYYY-MM-DD" startDate, "YYYY-MM-DD" endDate], via lexicographic string
-// comparison (no Date parsing, so no UTC/local skew is possible).
-export function isDateWithin(dateStr: string | null, startDate: string, endDate: string): boolean {
+// Inclusive membership test for a date value within ["YYYY-MM-DD" startDate,
+// "YYYY-MM-DD" endDate]. `dateStr` may be a plain "YYYY-MM-DD" string, a full
+// ISO timestamp string (e.g. Neon `date` columns can arrive as
+// "2026-07-12T07:00:00.000Z" — local midnight expressed as UTC), or a Date
+// object. Only the first 10 characters (the "YYYY-MM-DD" date part) are
+// compared lexicographically — no full Date parsing, so no UTC/local skew is
+// possible, and a timestamp on the boundary date is correctly included.
+export function isDateWithin(
+  dateStr: string | Date | null | undefined,
+  startDate: string,
+  endDate: string
+): boolean {
   if (!dateStr) return false;
-  return dateStr >= startDate && dateStr <= endDate;
+  const datePart = dateStr instanceof Date ? dateStr.toISOString().slice(0, 10) : String(dateStr).slice(0, 10);
+  return datePart >= startDate && datePart <= endDate;
 }
 
 // Returns the inclusive start date and exclusive end date of a calendar

@@ -53,6 +53,26 @@ export function computeDivisionWedges(
 }
 
 /**
+ * Smallest inner-ring radius at which `count` items — one per equal angular
+ * wedge around the full circle — sit at least `minSpacing` apart
+ * (center-to-center) when they all collapse onto that inner ring.
+ *
+ * Two angularly adjacent items on a ring of radius `r`, separated by
+ * `360/count` degrees, are `2 * r * sin(180/count)` apart. Solving that for
+ * `r` at the target spacing gives the floor below which planets start
+ * overlapping into a knot near the center. Returns 0 for `count < 2` (a lone
+ * item has no neighbor to collide with).
+ *
+ * The floor grows with `count`: the more divisions crowd the inner ring, the
+ * larger it must be to keep them clear — which a single fixed MIN_RADIUS
+ * constant cannot express.
+ */
+export function minRadiusForCount(count: number, minSpacing: number): number {
+  if (count < 2) return 0;
+  return minSpacing / (2 * Math.sin(Math.PI / count));
+}
+
+/**
  * Computes the SVG-ready (x, y) offset (from the center origin) and the
  * polar angle (in degrees) for a single item within a wedge. Items are
  * distributed evenly across the wedge's angular range, with small padding

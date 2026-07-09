@@ -918,6 +918,21 @@ export default function WorklistPage() {
         })
       );
 
+      const psqResults = await Promise.all(
+        psqs.map(async (p) => {
+          // Reuse already-fetched tasks if this PSQ happens to be expanded.
+          const cached = tasksByPsq[p.id];
+          if (cached) return { psq: p, tasks: cached };
+          try {
+            const res = await fetch(`/api/tasks?psqId=${p.id}&ownerAnalystId=${analystId}`);
+            const data = await res.json();
+            return { psq: p, tasks: res.ok ? (data as Task[]) : [] };
+          } catch {
+            return { psq: p, tasks: [] as Task[] };
+          }
+        })
+      );
+
       const data: WeeklyUpdateData = {
         analystName,
         meetings,
@@ -928,6 +943,7 @@ export default function WorklistPage() {
           tasks: tasks.map((t) => ({
             title: t.title,
             status: t.status,
+            createdDate: t.createdDate,
             completedDate: t.completedDate,
           })),
         })),
@@ -935,13 +951,19 @@ export default function WorklistPage() {
           title: t.title,
           status: t.status,
           dashboardName: t.contextName,
+          createdDate: t.createdDate,
+          completedDate: t.completedDate,
         })),
-        psqs: psqs.map((p) => ({
+        psqs: psqResults.map(({ psq: p, tasks }) => ({
           division: p.divisionId !== null ? divisionNameById.get(p.divisionId) ?? null : null,
           name: p.name,
           status: p.status,
-          tasks: p.tasks,
-          comments: p.comments,
+          tasks: tasks.map((t) => ({
+            title: t.title,
+            status: t.status,
+            createdDate: t.createdDate,
+            completedDate: t.completedDate,
+          })),
         })),
       };
 
@@ -951,7 +973,17 @@ export default function WorklistPage() {
     } finally {
       setWeeklyUpdateLoading(false);
     }
-  }, [analystId, analystName, meetings, items, tasksByItem, assignedTasks, psqs, divisionNameById]);
+  }, [
+    analystId,
+    analystName,
+    meetings,
+    items,
+    tasksByItem,
+    assignedTasks,
+    psqs,
+    tasksByPsq,
+    divisionNameById,
+  ]);
 
   return (
     <div className="flex flex-col min-h-screen">

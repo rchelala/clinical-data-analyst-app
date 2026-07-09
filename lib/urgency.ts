@@ -34,7 +34,8 @@ export function computeUrgency(
   );
 }
 
-export const MIN_RADIUS = 80;
+export const MIN_RADIUS = 180; // inner floor: gives the High-urgency ring room so
+                               // multiple High divisions don't overlap near the center
 export const MAX_RADIUS = 400;
 
 /**

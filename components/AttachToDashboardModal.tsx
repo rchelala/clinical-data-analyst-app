@@ -170,7 +170,7 @@ export function AttachToDashboardModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-md mx-4 rounded-lg border border-theme bg-panel shadow-xl">
+      <div className="w-full max-w-md mx-4 rounded-lg border border-theme bg-elevated shadow-xl">
         <div className="flex items-center gap-3 px-5 py-4 border-b border-theme">
           <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-secondary-glass">
             <LayoutDashboard className="w-5 h-5 text-secondary" />

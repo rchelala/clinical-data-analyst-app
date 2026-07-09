@@ -5,8 +5,9 @@ import {
   computeDivisionWedges,
   computeEvenlySpacedPositions,
   computePositionInWedge,
+  minRadiusForCount,
 } from "@/lib/layout-math";
-import { bucketUrgencies, resolveBucket } from "@/lib/urgency";
+import { bucketUrgencies, resolveBucket, MIN_RADIUS, MAX_RADIUS } from "@/lib/urgency";
 import { DashboardWithUrgency, Division, ReportSubscriptionWithUrgency, UrgencyBucket } from "@/lib/brain-types";
 import { BrainFilters, isStatusVisible, isUrgencyVisible } from "@/lib/filters";
 import {
@@ -41,6 +42,12 @@ interface PositionedDivision {
 
 const VIEWBOX_HALF = 450;
 const MOON_RING_RADIUS = 30; // small ring around each planet — must stay clear of inter-planet spacing, mirroring AnalystStar's DIVISION_RING_RADIUS convention
+
+// Minimum center-to-center distance between two adjacent inner-ring planets so
+// their moon rings (and labels) don't collide. A planet's footprint is roughly
+// MOON_RING_RADIUS plus a moon dot, so two of them need ~2x that plus a little
+// breathing room. Drives the count-aware inner-orbit floor below.
+const MIN_PLANET_SPACING = 96;
 const CENTER_RADIUS = 10;
 const VIEWER_CENTER_RADIUS = 12;
 
@@ -59,12 +66,29 @@ export function SolarSystemView({
   const wedges = useMemo(() => computeDivisionWedges(divisions), [divisions]);
 
   const positioned = useMemo<PositionedDivision[]>(() => {
+    // Divisions with any urgent child all collapse toward MIN_RADIUS (we take
+    // the min child radius per division). At a small inner radius the arc
+    // between adjacent wedges is narrower than a planet plus its moon ring, so
+    // they knot together near the center — worse the more divisions there are.
+    // Raise the inner floor to whatever the current division count needs to stay
+    // clear, then remap every radius from [MIN_RADIUS, MAX_RADIUS] into
+    // [floor, MAX_RADIUS] so urgency ordering is preserved while the inner ring
+    // always has room. Capped below MAX_RADIUS so the band never inverts.
+    const neededFloor = minRadiusForCount(divisionNodes.length, MIN_PLANET_SPACING);
+    const floor = Math.min(Math.max(MIN_RADIUS, neededFloor), MAX_RADIUS - 40);
+    const band = MAX_RADIUS - MIN_RADIUS;
+    const remapRadius = (r: number) => {
+      if (band <= 0) return floor;
+      const t = Math.min(1, Math.max(0, (r - MIN_RADIUS) / band));
+      return floor + t * (MAX_RADIUS - floor);
+    };
+
     const result: PositionedDivision[] = [];
     for (const node of divisionNodes) {
       const wedge = wedges.get(node.division.id);
       if (!wedge) continue; // division not found — skip rather than crash
 
-      const { x, y } = computePositionInWedge(node.radius, wedge, 0, 1);
+      const { x, y } = computePositionInWedge(remapRadius(node.radius), wedge, 0, 1);
       result.push({ node, x, y });
     }
     return result;

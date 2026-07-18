@@ -71,10 +71,10 @@ const QUIPPE_COLUMNS: ColumnDef[] = [
   { key: "template",        label: "Template (Quippe)",     excelHeader: "Template (Quippe)",     formWidth: "1fr",   excelWidth: 20, placeholder: "Template name" },
   { key: "findingName",     label: "FindingName (Quippe)",  excelHeader: "FindingName (Quippe)",  formWidth: "1fr",   excelWidth: 22, placeholder: "Finding name" },
   { key: "medcinId",        label: "MedcinId (Quippe)",     excelHeader: "MedcinId (Quippe)",     formWidth: "10rem", excelWidth: 14, placeholder: "Medcin ID" },
-  { key: "text",            label: "Text (Quippe)",         excelHeader: "Text (Quippe)",         formWidth: "1fr",   excelWidth: 30, placeholder: "Display text" },
-  { key: "logic",           label: "Logic",                 excelHeader: "Logic",                 formWidth: "1fr",   excelWidth: 30, placeholder: "Logic description" },
-  { key: "tooltip",         label: "Tooltip (Description)", excelHeader: "Tooltip (Description)", formWidth: "1fr",   excelWidth: 35, placeholder: "Tooltip text" },
-  { key: "patientExamples", label: "Patient Examples & Notes", excelHeader: "Patient Examples & Notes", formWidth: "1fr", excelWidth: 35, isYellow: true, placeholder: "Patient examples" },
+  { key: "text",            label: "Text (Quippe)",         excelHeader: "Text (Quippe)",         formWidth: "1fr",   excelWidth: 30, placeholder: "Display text", multiline: true },
+  { key: "logic",           label: "Logic",                 excelHeader: "Logic",                 formWidth: "1fr",   excelWidth: 30, placeholder: "Logic description", multiline: true },
+  { key: "tooltip",         label: "Tooltip (Description)", excelHeader: "Tooltip (Description)", formWidth: "1fr",   excelWidth: 35, placeholder: "Tooltip text", multiline: true },
+  { key: "patientExamples", label: "Patient Examples & Notes", excelHeader: "Patient Examples & Notes", formWidth: "1fr", excelWidth: 35, isYellow: true, placeholder: "Patient examples", multiline: true },
 ];
 
 const STRUCTURED_NOTE_COLUMNS: ColumnDef[] = [
@@ -87,9 +87,9 @@ const STRUCTURED_NOTE_COLUMNS: ColumnDef[] = [
   { key: "rightJustifiedLabel", label: "Right Label",      excelHeader: "Right JustifiedLabel NOT used in SQL filtering (SCM/Structured Note)", formWidth: "1fr", excelWidth: 28, placeholder: "Right justified label" },
   { key: "ocmi",                label: "OCMI",             excelHeader: "OCMI (SCM/Structured Note)",                                        formWidth: "7rem",  excelWidth: 18, placeholder: "OCMI value" },
   { key: "dataTypeName",        label: "DataTypeName",     excelHeader: "DataTypeName (SCM/Structured Note)",                                formWidth: "1fr",   excelWidth: 24, placeholder: "Data type" },
-  { key: "logic",               label: "Logic",            excelHeader: "Logic",                                                             formWidth: "1fr",   excelWidth: 28, placeholder: "Logic description" },
-  { key: "tooltip",             label: "Tooltip (Description)", excelHeader: "Tooltip (Description)",                                        formWidth: "1fr",   excelWidth: 35, placeholder: "Tooltip text" },
-  { key: "patientExamples",     label: "Patient Examples & Notes", excelHeader: "Patient Examples & Notes",                                  formWidth: "1fr",   excelWidth: 35, isYellow: true, placeholder: "Patient examples" },
+  { key: "logic",               label: "Logic",            excelHeader: "Logic",                                                             formWidth: "1fr",   excelWidth: 28, placeholder: "Logic description", multiline: true },
+  { key: "tooltip",             label: "Tooltip (Description)", excelHeader: "Tooltip (Description)",                                        formWidth: "1fr",   excelWidth: 35, placeholder: "Tooltip text", multiline: true },
+  { key: "patientExamples",     label: "Patient Examples & Notes", excelHeader: "Patient Examples & Notes",                                  formWidth: "1fr",   excelWidth: 35, isYellow: true, placeholder: "Patient examples", multiline: true },
 ];
 
 function getColumns(type: TemplateType): ColumnDef[] {

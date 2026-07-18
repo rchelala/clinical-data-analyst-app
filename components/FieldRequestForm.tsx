@@ -26,11 +26,19 @@ interface ColumnDef {
   selectOptions?: string[];
   isYellow?: boolean;
   placeholder?: string;
+  /** Render as a wrapping textarea instead of a single-line input. */
+  multiline?: boolean;
 }
 
 interface GenericRow {
   id: number;
   [key: string]: string | number;
+}
+
+function autoGrowTextarea(el: HTMLTextAreaElement | null) {
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = `${el.scrollHeight}px`;
 }
 
 // ─── Column definitions ───────────────────────────────────────────────────────
@@ -52,8 +60,8 @@ const GENERAL_COLUMNS: ColumnDef[] = [
   GRANULARITY_COL,
   { key: "field",    label: "Field Name", excelHeader: "Field",    formWidth: "1fr",  excelWidth: 28, placeholder: "e.g. EduIndividualEducation" },
   { key: "format",   label: "Format",     excelHeader: "Format",   formWidth: "7rem", excelWidth: 12, placeholder: "e.g. text" },
-  { key: "tooltip",  label: "ToolTip",    excelHeader: "ToolTip",  formWidth: "1fr",  excelWidth: 45, placeholder: "Short description for end users" },
-  { key: "comments", label: "Comments",   excelHeader: "Comments", formWidth: "1fr",  excelWidth: 45, isYellow: true, placeholder: "Notes (highlights yellow in Excel)" },
+  { key: "tooltip",  label: "ToolTip",    excelHeader: "ToolTip",  formWidth: "1fr",  excelWidth: 45, placeholder: "Short description for end users", multiline: true },
+  { key: "comments", label: "Comments",   excelHeader: "Comments", formWidth: "1fr",  excelWidth: 45, isYellow: true, placeholder: "Notes (highlights yellow in Excel)", multiline: true },
 ];
 
 const QUIPPE_COLUMNS: ColumnDef[] = [
@@ -586,6 +594,22 @@ export function FieldRequestForm({ provider = "claude" }: { provider?: AIProvide
                               <option key={opt} value={opt}>{opt}</option>
                             ))}
                           </select>
+                        ) : col.multiline ? (
+                          <textarea
+                            ref={autoGrowTextarea}
+                            rows={2}
+                            value={String(row[col.key] ?? "")}
+                            onChange={(e) => {
+                              updateRow(row.id, col.key, e.target.value);
+                              autoGrowTextarea(e.currentTarget);
+                            }}
+                            placeholder={col.placeholder}
+                            className={`px-2.5 py-1.5 rounded-md border text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 placeholder:text-secondary/60 transition-colors resize-y leading-snug ${
+                              col.isYellow && String(row[col.key] ?? "")
+                                ? "border-amber-500/40 bg-amber-400/10 text-primary"
+                                : "border-theme bg-secondary text-primary"
+                            }`}
+                          />
                         ) : (
                           <input
                             type="text"

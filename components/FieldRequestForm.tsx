@@ -596,7 +596,10 @@ export function FieldRequestForm({ provider = "claude" }: { provider?: AIProvide
                           </select>
                         ) : col.multiline ? (
                           <textarea
-                            ref={autoGrowTextarea}
+                            // Inline ref (new identity each render) so the height is
+                            // re-measured after any re-render — not just on mount. This
+                            // keeps rows restored from History sized to their content.
+                            ref={(el) => autoGrowTextarea(el)}
                             rows={2}
                             value={String(row[col.key] ?? "")}
                             onChange={(e) => {

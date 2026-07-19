@@ -1,9 +1,14 @@
 "use client";
 
-import { DiffEditor, type BeforeMount } from "@monaco-editor/react";
+import dynamic from "next/dynamic";
+import type { BeforeMount } from "@monaco-editor/react";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import { Language } from "@/lib/prompts";
+
+const DiffEditor = dynamic(() => import("@monaco-editor/react").then((mod) => mod.DiffEditor), {
+  ssr: false,
+});
 
 const monacoLang: Record<Language, string> = {
   dax: "plaintext",

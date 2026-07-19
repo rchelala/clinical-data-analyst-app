@@ -3,7 +3,7 @@
 // label + icon, big number) but translated into this app's Eclipse
 // Tailwind utilities (bg-panel/border-theme/text-secondary).
 
-import { LucideIcon } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 interface KpiCardProps {
   label: string;

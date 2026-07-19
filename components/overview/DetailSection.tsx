@@ -5,7 +5,7 @@
 // pill, optional tab bar, and a horizontally-scrollable table body so wide
 // tables never blow out the page's horizontal scroll.
 
-import { LucideIcon } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 interface DetailSectionProps {
   icon: LucideIcon;

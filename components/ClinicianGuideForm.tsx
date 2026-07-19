@@ -15,6 +15,7 @@ export function ClinicianGuideForm({ provider: _provider }: ClinicianGuideFormPr
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [fileName, setFileName] = useState("Clinician_Guide.docx");
   const [dragging, setDragging] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const acceptFile = useCallback((f: File) => {
@@ -44,6 +45,7 @@ export function ClinicianGuideForm({ provider: _provider }: ClinicianGuideFormPr
     if (!file) return;
     setLoading(true);
     setError(null);
+    setProgress(null);
     if (downloadUrl) URL.revokeObjectURL(downloadUrl);
     setDownloadUrl(null);
 
@@ -51,23 +53,49 @@ export function ClinicianGuideForm({ provider: _provider }: ClinicianGuideFormPr
       const formData = new FormData();
       formData.append("file", file);
 
-      const res = await fetch("/api/clinician-guide", {
+      const startRes = await fetch("/api/clinician-guide", {
         method: "POST",
         body: formData,
       });
 
-      if (!res.ok) {
-        const data = await res.json();
+      if (!startRes.ok) {
+        const data = await startRes.json();
         setError(data.error ?? "Something went wrong.");
         return;
       }
 
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const disposition = res.headers.get("Content-Disposition") ?? "";
-      const nameMatch = disposition.match(/filename="([^"]+)"/);
-      setFileName(nameMatch ? nameMatch[1] : "Clinician_Guide.docx");
-      setDownloadUrl(url);
+      const { jobId, pagesTotal } = await startRes.json();
+      setProgress({ done: 0, total: pagesTotal });
+
+      // Each step call generates one page and comfortably fits under the
+      // host's short function timeout; the loop drives the job to completion.
+      for (;;) {
+        const stepRes = await fetch("/api/clinician-guide/step", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jobId }),
+        });
+
+        if (!stepRes.ok) {
+          setError("Something went wrong generating the guide.");
+          return;
+        }
+
+        const result = await stepRes.json();
+
+        if (result.status === "failed") {
+          setError(result.error ?? "Something went wrong generating the guide.");
+          return;
+        }
+
+        if (result.status === "done") {
+          setFileName(result.fileName ?? "Clinician_Guide.docx");
+          setDownloadUrl(result.downloadUrl);
+          return;
+        }
+
+        setProgress({ done: result.pagesDone, total: result.pagesTotal });
+      }
     } catch {
       setError("Network error — could not reach the server.");
     } finally {
@@ -128,7 +156,10 @@ export function ClinicianGuideForm({ provider: _provider }: ClinicianGuideFormPr
             className="btn-shimmer flex items-center gap-2 px-5 py-2 text-sm font-semibold rounded-lg disabled:opacity-60 disabled:cursor-not-allowed hover:brightness-110 transition-all duration-200"
           >
             {loading ? (
-              <><Loader2 className="w-4 h-4 animate-spin" />Generating…</>
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                {progress ? `Generating… (${progress.done}/${progress.total})` : "Generating…"}
+              </>
             ) : (
               <><Users className="w-4 h-4" />Generate Guide</>
             )}

@@ -26,11 +26,19 @@ interface ColumnDef {
   selectOptions?: string[];
   isYellow?: boolean;
   placeholder?: string;
+  /** Render as a wrapping textarea instead of a single-line input. */
+  multiline?: boolean;
 }
 
 interface GenericRow {
   id: number;
   [key: string]: string | number;
+}
+
+function autoGrowTextarea(el: HTMLTextAreaElement | null) {
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = `${el.scrollHeight}px`;
 }
 
 // ─── Column definitions ───────────────────────────────────────────────────────
@@ -52,8 +60,8 @@ const GENERAL_COLUMNS: ColumnDef[] = [
   GRANULARITY_COL,
   { key: "field",    label: "Field Name", excelHeader: "Field",    formWidth: "1fr",  excelWidth: 28, placeholder: "e.g. EduIndividualEducation" },
   { key: "format",   label: "Format",     excelHeader: "Format",   formWidth: "7rem", excelWidth: 12, placeholder: "e.g. text" },
-  { key: "tooltip",  label: "ToolTip",    excelHeader: "ToolTip",  formWidth: "1fr",  excelWidth: 45, placeholder: "Short description for end users" },
-  { key: "comments", label: "Comments",   excelHeader: "Comments", formWidth: "1fr",  excelWidth: 45, isYellow: true, placeholder: "Notes (highlights yellow in Excel)" },
+  { key: "tooltip",  label: "ToolTip",    excelHeader: "ToolTip",  formWidth: "1fr",  excelWidth: 45, placeholder: "Short description for end users", multiline: true },
+  { key: "comments", label: "Comments",   excelHeader: "Comments", formWidth: "1fr",  excelWidth: 45, isYellow: true, placeholder: "Notes (highlights yellow in Excel)", multiline: true },
 ];
 
 const QUIPPE_COLUMNS: ColumnDef[] = [
@@ -63,10 +71,10 @@ const QUIPPE_COLUMNS: ColumnDef[] = [
   { key: "template",        label: "Template (Quippe)",     excelHeader: "Template (Quippe)",     formWidth: "1fr",   excelWidth: 20, placeholder: "Template name" },
   { key: "findingName",     label: "FindingName (Quippe)",  excelHeader: "FindingName (Quippe)",  formWidth: "1fr",   excelWidth: 22, placeholder: "Finding name" },
   { key: "medcinId",        label: "MedcinId (Quippe)",     excelHeader: "MedcinId (Quippe)",     formWidth: "10rem", excelWidth: 14, placeholder: "Medcin ID" },
-  { key: "text",            label: "Text (Quippe)",         excelHeader: "Text (Quippe)",         formWidth: "1fr",   excelWidth: 30, placeholder: "Display text" },
-  { key: "logic",           label: "Logic",                 excelHeader: "Logic",                 formWidth: "1fr",   excelWidth: 30, placeholder: "Logic description" },
-  { key: "tooltip",         label: "Tooltip (Description)", excelHeader: "Tooltip (Description)", formWidth: "1fr",   excelWidth: 35, placeholder: "Tooltip text" },
-  { key: "patientExamples", label: "Patient Examples & Notes", excelHeader: "Patient Examples & Notes", formWidth: "1fr", excelWidth: 35, isYellow: true, placeholder: "Patient examples" },
+  { key: "text",            label: "Text (Quippe)",         excelHeader: "Text (Quippe)",         formWidth: "1fr",   excelWidth: 30, placeholder: "Display text", multiline: true },
+  { key: "logic",           label: "Logic",                 excelHeader: "Logic",                 formWidth: "1fr",   excelWidth: 30, placeholder: "Logic description", multiline: true },
+  { key: "tooltip",         label: "Tooltip (Description)", excelHeader: "Tooltip (Description)", formWidth: "1fr",   excelWidth: 35, placeholder: "Tooltip text", multiline: true },
+  { key: "patientExamples", label: "Patient Examples & Notes", excelHeader: "Patient Examples & Notes", formWidth: "1fr", excelWidth: 35, isYellow: true, placeholder: "Patient examples", multiline: true },
 ];
 
 const STRUCTURED_NOTE_COLUMNS: ColumnDef[] = [
@@ -79,9 +87,9 @@ const STRUCTURED_NOTE_COLUMNS: ColumnDef[] = [
   { key: "rightJustifiedLabel", label: "Right Label",      excelHeader: "Right JustifiedLabel NOT used in SQL filtering (SCM/Structured Note)", formWidth: "1fr", excelWidth: 28, placeholder: "Right justified label" },
   { key: "ocmi",                label: "OCMI",             excelHeader: "OCMI (SCM/Structured Note)",                                        formWidth: "7rem",  excelWidth: 18, placeholder: "OCMI value" },
   { key: "dataTypeName",        label: "DataTypeName",     excelHeader: "DataTypeName (SCM/Structured Note)",                                formWidth: "1fr",   excelWidth: 24, placeholder: "Data type" },
-  { key: "logic",               label: "Logic",            excelHeader: "Logic",                                                             formWidth: "1fr",   excelWidth: 28, placeholder: "Logic description" },
-  { key: "tooltip",             label: "Tooltip (Description)", excelHeader: "Tooltip (Description)",                                        formWidth: "1fr",   excelWidth: 35, placeholder: "Tooltip text" },
-  { key: "patientExamples",     label: "Patient Examples & Notes", excelHeader: "Patient Examples & Notes",                                  formWidth: "1fr",   excelWidth: 35, isYellow: true, placeholder: "Patient examples" },
+  { key: "logic",               label: "Logic",            excelHeader: "Logic",                                                             formWidth: "1fr",   excelWidth: 28, placeholder: "Logic description", multiline: true },
+  { key: "tooltip",             label: "Tooltip (Description)", excelHeader: "Tooltip (Description)",                                        formWidth: "1fr",   excelWidth: 35, placeholder: "Tooltip text", multiline: true },
+  { key: "patientExamples",     label: "Patient Examples & Notes", excelHeader: "Patient Examples & Notes",                                  formWidth: "1fr",   excelWidth: 35, isYellow: true, placeholder: "Patient examples", multiline: true },
 ];
 
 function getColumns(type: TemplateType): ColumnDef[] {
@@ -586,6 +594,25 @@ export function FieldRequestForm({ provider = "claude" }: { provider?: AIProvide
                               <option key={opt} value={opt}>{opt}</option>
                             ))}
                           </select>
+                        ) : col.multiline ? (
+                          <textarea
+                            // Inline ref (new identity each render) so the height is
+                            // re-measured after any re-render — not just on mount. This
+                            // keeps rows restored from History sized to their content.
+                            ref={(el) => autoGrowTextarea(el)}
+                            rows={2}
+                            value={String(row[col.key] ?? "")}
+                            onChange={(e) => {
+                              updateRow(row.id, col.key, e.target.value);
+                              autoGrowTextarea(e.currentTarget);
+                            }}
+                            placeholder={col.placeholder}
+                            className={`px-2.5 py-1.5 rounded-md border text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 placeholder:text-secondary/60 transition-colors resize-y leading-snug ${
+                              col.isYellow && String(row[col.key] ?? "")
+                                ? "border-amber-500/40 bg-amber-400/10 text-primary"
+                                : "border-theme bg-secondary text-primary"
+                            }`}
+                          />
                         ) : (
                           <input
                             type="text"

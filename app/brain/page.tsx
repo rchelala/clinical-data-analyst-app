@@ -584,6 +584,7 @@ export default function BrainPage() {
             setSelectedEntity(newIdentity);
             setRefreshKey((k) => k + 1);
           }}
+          onRequestsChanged={() => setRefreshKey((k) => k + 1)}
         />
       )}
 

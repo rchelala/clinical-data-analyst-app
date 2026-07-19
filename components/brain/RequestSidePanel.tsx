@@ -32,6 +32,7 @@ interface RequestSidePanelProps {
   onEntityUpdated: (newIdentity: { kind: BrainEntityKind; id: number }) => void;
   onEntityDeleted: () => void;
   onNavigateToEntity: (kind: BrainEntityKind, id: number) => void;
+  onRequestsChanged?: () => void;
 }
 
 const STATUS_OPTIONS: RequestStatus[] = ["open", "in_progress", "done"];
@@ -103,6 +104,7 @@ export function RequestSidePanel({
   onEntityUpdated,
   onEntityDeleted,
   onNavigateToEntity,
+  onRequestsChanged,
 }: RequestSidePanelProps) {
   const [requests, setRequests] = useState<RequestWithCreator[]>([]);
   const [loading, setLoading] = useState(false);
@@ -260,7 +262,7 @@ export function RequestSidePanel({
     return () => {
       cancelled = true;
     };
-  }, [entity?.kind, entity?.id]);
+  }, [entity?.kind, entity?.id, refreshKey]);
 
   // Fetches the full analyst list once the panel opens, to resolve a task's
   // ownerAnalystId to a display name. Degrades silently like the tags fetch.
@@ -330,6 +332,7 @@ export function RequestSidePanel({
         setRequests((prev) =>
           prev.map((r) => (r.id === requestId ? { ...r, ...data } : r))
         );
+        onRequestsChanged?.();
       } catch {
         setStatusErrors((prev) => ({
           ...prev,
@@ -343,7 +346,7 @@ export function RequestSidePanel({
         });
       }
     },
-    []
+    [onRequestsChanged]
   );
 
   const handleDownloadAttachment = useCallback(
@@ -421,6 +424,7 @@ export function RequestSidePanel({
         next.delete(requestId);
         return next;
       });
+      onRequestsChanged?.();
     } catch {
       setDeleteErrors((prev) => ({
         ...prev,
@@ -433,7 +437,7 @@ export function RequestSidePanel({
         return next;
       });
     }
-  }, []);
+  }, [onRequestsChanged]);
 
   const handleEntityDeleteClick = useCallback(() => {
     setEntityDeleteError(null);

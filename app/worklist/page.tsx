@@ -103,6 +103,7 @@ function comparePriority(a: string | null, b: string | null): number {
 export default function WorklistPage() {
   const [analystId, setAnalystId] = useState<number | null>(null);
   const [analystName, setAnalystName] = useState<string>("");
+  const [notice, setNotice] = useState<string | null>(null);
 
   // Meetings banner
   const [meetings, setMeetings] = useState<string>("");
@@ -143,6 +144,12 @@ export default function WorklistPage() {
   const [tasksByPsq, setTasksByPsq] = useState<Record<number, Task[]>>({});
   const [psqTasksLoading, setPsqTasksLoading] = useState<Record<number, boolean>>({});
   const [showAddTaskForPsq, setShowAddTaskForPsq] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (notice === null) return;
+    const timer = setTimeout(() => setNotice(null), 6000);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
   const handleSelectAnalyst = useCallback((id: number, name: string) => {
     setAnalystId(id);
@@ -1016,6 +1023,19 @@ export default function WorklistPage() {
       </header>
 
       <main className="flex-1 px-6 pb-20">
+        {notice && (
+          <div className="fixed top-20 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 max-w-md px-4 py-2.5 rounded-lg border border-theme bg-elevated shadow-panel">
+            <p className="text-sm text-primary">{notice}</p>
+            <button
+              type="button"
+              onClick={() => setNotice(null)}
+              aria-label="Dismiss"
+              className="text-secondary hover:text-primary transition-colors flex-shrink-0"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
         {analystId === null ? (
           <div className="flex items-center justify-center h-64">
             <p className="text-sm text-secondary">Select an analyst to view your worklist.</p>
@@ -1631,12 +1651,17 @@ export default function WorklistPage() {
           currentAnalystId={analystId}
           statusSuggestions={statusSuggestions}
           prioritySuggestions={prioritySuggestions}
-          onCreated={() => {
+          onCreated={({ ownerAnalystId, ownerName }) => {
             const target = showAddTaskFor;
             setShowAddTaskFor(null);
             fetchTasksForItem(target.kind, target.id);
             refetchDashboards();
             refetchAssigned();
+            if (ownerAnalystId !== analystId) {
+              setNotice(
+                `Task assigned to ${ownerName ?? "another analyst"} — it's on their worklist.`
+              );
+            }
           }}
           onCancel={() => setShowAddTaskFor(null)}
         />
@@ -1648,11 +1673,16 @@ export default function WorklistPage() {
           currentAnalystId={analystId}
           statusSuggestions={statusSuggestions}
           prioritySuggestions={prioritySuggestions}
-          onCreated={() => {
+          onCreated={({ ownerAnalystId, ownerName }) => {
             const psqId = showAddTaskForPsq;
             setShowAddTaskForPsq(null);
             fetchTasksForPsq(psqId);
             refetchPsqs();
+            if (ownerAnalystId !== analystId) {
+              setNotice(
+                `Task assigned to ${ownerName ?? "another analyst"} — it's on their worklist.`
+              );
+            }
           }}
           onCancel={() => setShowAddTaskForPsq(null)}
         />
@@ -1663,8 +1693,21 @@ export default function WorklistPage() {
           currentAnalystId={analystId}
           statusSuggestions={statusSuggestions}
           prioritySuggestions={prioritySuggestions}
-          onCreated={() => {
+          onCreated={({ targetType, targetId, ownerAnalystId, ownerName }) => {
             setShowAddTopLevelTask(false);
+            if (ownerAnalystId !== analystId) {
+              setNotice(
+                `Task assigned to ${ownerName ?? "another analyst"} — it's on their worklist.`
+              );
+            }
+            if (targetType === "psq") {
+              fetchTasksForPsq(targetId);
+              refetchPsqs();
+              return;
+            }
+            if (targetType === "dashboard" || targetType === "subscription") {
+              fetchTasksForItem(targetType, targetId);
+            }
             refetchDashboards();
             refetchAssigned();
           }}

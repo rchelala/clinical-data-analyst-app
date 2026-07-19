@@ -2,14 +2,20 @@
 
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { ClipboardPlus } from "lucide-react";
-import { Analyst } from "@/lib/brain-types";
+import { Analyst, Task } from "@/lib/brain-types";
 import { StatusPrioritySelect } from "@/components/worklist/StatusPrioritySelect";
 
 interface AddTaskFormProps {
   currentAnalystId: number;
   statusSuggestions: string[];
   prioritySuggestions: string[];
-  onCreated: () => void;
+  onCreated: (created: {
+    task: Task;
+    targetType: TargetType;
+    targetId: number;
+    ownerAnalystId: number;
+    ownerName: string | null;
+  }) => void;
   onCancel: () => void;
   lockedDashboardId?: number; // when set, target is locked to this dashboard, picker not interactive
   lockedSubscriptionId?: number; // when set, target is locked to this report subscription, picker not interactive
@@ -233,14 +239,20 @@ export function AddTaskForm({
           return;
         }
 
-        onCreated();
+        onCreated({
+          task: data as Task,
+          targetType,
+          targetId,
+          ownerAnalystId,
+          ownerName: analysts.find((a) => a.id === ownerAnalystId)?.name ?? null,
+        });
       } catch {
         setError("Network error — could not reach the server.");
       } finally {
         setSubmitting(false);
       }
     },
-    [title, description, status, priority, ownerAnalystId, targetType, targetId, currentAnalystId, onCreated]
+    [title, description, status, priority, ownerAnalystId, analysts, targetType, targetId, currentAnalystId, onCreated]
   );
 
   const currentOptions = optionsByType[targetType];

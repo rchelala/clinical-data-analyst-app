@@ -195,10 +195,14 @@ export function AttachToDashboardModal({
               value={analystId}
               onChange={(e) => setAnalystId(e.target.value)}
               required
-              disabled={loading}
+              disabled={analystsLoading}
               className="text-sm rounded-md border border-theme px-3 py-2 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer transition-colors"
             >
-              {analysts.length === 0 && <option value="">No analysts available</option>}
+              {analysts.length === 0 && (
+                <option value="">
+                  {analystsLoading ? "Loading analysts…" : "No analysts available"}
+                </option>
+              )}
               {analysts.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.name}
@@ -216,10 +220,14 @@ export function AttachToDashboardModal({
               value={dashboardId}
               onChange={(e) => setDashboardId(e.target.value)}
               required
-              disabled={loading}
+              disabled={dashboardsLoading}
               className="text-sm rounded-md border border-theme px-3 py-2 bg-panel text-primary focus:outline-none focus:ring-2 focus:ring-brand-500 cursor-pointer transition-colors"
             >
-              {dashboards.length === 0 && <option value="">No dashboards available</option>}
+              {dashboards.length === 0 && (
+                <option value="">
+                  {dashboardsLoading ? "Loading dashboards…" : "No dashboards available"}
+                </option>
+              )}
               {dashboards.map((d) => (
                 <option key={d.id} value={d.id}>
                   {d.name}

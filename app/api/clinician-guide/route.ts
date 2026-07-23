@@ -6,6 +6,10 @@ import { sql } from "@/lib/db";
 import { parsePbixFile, PbixDashboard } from "@/lib/pbix-parser";
 import { buildOverviewPrompt, normalizeOverview } from "@/lib/clinician-guide";
 
+// Parsing a large .pbix plus the overview call can take ~7-8s; give it headroom
+// over the platform's default sync-function limit.
+export const maxDuration = 26;
+
 export async function POST(req: NextRequest) {
   try {
     const { allowed, retryAfterSeconds } = await checkRateLimit(getClientIp(req));

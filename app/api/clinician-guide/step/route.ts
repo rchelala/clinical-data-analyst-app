@@ -6,9 +6,14 @@ import { PbixDashboard } from "@/lib/pbix-parser";
 import {
   buildPagePrompt,
   normalizePage,
+  buildFallbackPage,
+  buildOnePagerPrompt,
+  normalizeOnePager,
+  buildFallbackOnePager,
   packDocument,
   safeFileSlug,
   ClinicianPage,
+  ClinicianOnePager,
 } from "@/lib/clinician-guide";
 
 interface JobRow {
@@ -20,6 +25,7 @@ interface JobRow {
   pages_total: number;
   pages_done: number;
   guide_pages: ClinicianPage[];
+  one_pager: ClinicianOnePager | null;
   error: string | null;
 }
 
@@ -41,25 +47,102 @@ export async function POST(req: NextRequest) {
       return buildStatusResponse(job);
     }
 
+    // ---- Finalize phase: every page has been described ----
+    // Runs as its own short request(s) so each call makes at most one Claude
+    // call and stays within the host's ~10s function timeout.
+    if (job.pages_done >= job.pages_total) {
+      // Step 1 — synthesize the one-pager (page 1 of the guide), once.
+      if (!job.one_pager) {
+        let onePager: ClinicianOnePager;
+        try {
+          const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+          const message = await client.messages.create({
+            model: "claude-sonnet-4-6",
+            max_tokens: 1500,
+            messages: [
+              { role: "user", content: buildOnePagerPrompt(job.report_title, job.overview, job.guide_pages) },
+            ],
+          });
+          const rawText = message.content
+            .filter((b) => b.type === "text")
+            .map((b) => (b as { type: "text"; text: string }).text)
+            .join("");
+          const jsonText = rawText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+          onePager = normalizeOnePager(JSON.parse(jsonText));
+        } catch (err) {
+          // A hiccup here shouldn't waste a fully-described report — fall back
+          // to a non-AI briefing and still finish the guide.
+          console.error("Clinician Guide one-pager fallback:", err);
+          onePager = buildFallbackOnePager(job.report_title, job.overview, job.guide_pages);
+        }
+
+        await sql`
+          UPDATE clinician_guide_jobs
+          SET one_pager = ${JSON.stringify(onePager)}, updated_at = now()
+          WHERE id = ${jobId}
+        `;
+        return NextResponse.json({ status: "processing", pagesDone: job.pages_done, pagesTotal: job.pages_total });
+      }
+
+      // Step 2 — build & upload the .docx (one-pager now included).
+      try {
+        const docBuffer = await packDocument({
+          reportTitle: job.report_title,
+          overview: job.overview,
+          pages: job.guide_pages,
+          onePager: job.one_pager,
+        });
+
+        const safeName = safeFileSlug(job.report_title || job.dashboard.reportName || "Dashboard");
+        const pathname = `clinician-guides/${jobId}.docx`;
+        await put(pathname, docBuffer, { access: "private", contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+
+        await sql`
+          UPDATE clinician_guide_jobs
+          SET status = 'done', blob_pathname = ${pathname}, updated_at = now()
+          WHERE id = ${jobId}
+        `;
+
+        return NextResponse.json({
+          status: "done",
+          pagesDone: job.pages_done,
+          pagesTotal: job.pages_total,
+          downloadUrl: `/api/clinician-guide/download?jobId=${jobId}`,
+          fileName: `Clinician_Guide_${safeName}.docx`,
+        });
+      } catch (err) {
+        console.error("Clinician Guide docx build error:", err);
+        await sql`
+          UPDATE clinician_guide_jobs
+          SET status = 'failed', error = ${"Could not build the Word document. Please try again."}, updated_at = now()
+          WHERE id = ${jobId}
+        `;
+        return NextResponse.json(
+          { status: "failed", error: "Could not build the Word document. Please try again." },
+          { status: 200 }
+        );
+      }
+    }
+
+    // ---- Page phase: describe the next report page ----
     const page = job.dashboard.pages[job.pages_done];
 
     let guidePage: ClinicianPage;
+    let rawText: string;
     try {
       const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
       const message = await client.messages.create({
         model: "claude-sonnet-4-6",
-        max_tokens: 1500,
+        max_tokens: 6000,
         messages: [{ role: "user", content: buildPagePrompt(page) }],
       });
 
-      const rawText = message.content
+      rawText = message.content
         .filter((b) => b.type === "text")
         .map((b) => (b as { type: "text"; text: string }).text)
         .join("");
-
-      const jsonText = rawText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
-      guidePage = normalizePage(page.name, JSON.parse(jsonText));
     } catch (err) {
+      // Genuine API/network failure — surface it so the job can be retried.
       console.error("Clinician Guide step error:", err);
       await sql`
         UPDATE clinician_guide_jobs
@@ -72,54 +155,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    try {
+      const jsonText = rawText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
+      guidePage = normalizePage(page.name, JSON.parse(jsonText));
+    } catch (parseErr) {
+      // Model returned non-JSON / truncated output for this page. Don't fail the
+      // whole job — fall back to a non-AI description so the guide still completes.
+      console.error("Clinician Guide page parse fallback:", parseErr);
+      guidePage = buildFallbackPage(page);
+    }
+
     const updatedPages = [...job.guide_pages, guidePage];
     const pagesDone = job.pages_done + 1;
 
-    if (pagesDone < job.pages_total) {
-      await sql`
-        UPDATE clinician_guide_jobs
-        SET guide_pages = ${JSON.stringify(updatedPages)}, pages_done = ${pagesDone}, updated_at = now()
-        WHERE id = ${jobId}
-      `;
-      return NextResponse.json({ status: "processing", pagesDone, pagesTotal: job.pages_total });
-    }
-
-    try {
-      const docBuffer = await packDocument({
-        reportTitle: job.report_title,
-        overview: job.overview,
-        pages: updatedPages,
-      });
-
-      const safeName = safeFileSlug(job.report_title || job.dashboard.reportName || "Dashboard");
-      const pathname = `clinician-guides/${jobId}.docx`;
-      await put(pathname, docBuffer, { access: "private", contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
-
-      await sql`
-        UPDATE clinician_guide_jobs
-        SET guide_pages = ${JSON.stringify(updatedPages)}, pages_done = ${pagesDone}, status = 'done', blob_pathname = ${pathname}, updated_at = now()
-        WHERE id = ${jobId}
-      `;
-
-      return NextResponse.json({
-        status: "done",
-        pagesDone,
-        pagesTotal: job.pages_total,
-        downloadUrl: `/api/clinician-guide/download?jobId=${jobId}`,
-        fileName: `Clinician_Guide_${safeName}.docx`,
-      });
-    } catch (err) {
-      console.error("Clinician Guide docx build error:", err);
-      await sql`
-        UPDATE clinician_guide_jobs
-        SET status = 'failed', error = ${"Could not build the Word document. Please try again."}, updated_at = now()
-        WHERE id = ${jobId}
-      `;
-      return NextResponse.json(
-        { status: "failed", error: "Could not build the Word document. Please try again." },
-        { status: 200 }
-      );
-    }
+    // Persist progress. When the last page lands, the job stays "processing" and
+    // the next call enters the finalize phase above (one-pager, then docx).
+    await sql`
+      UPDATE clinician_guide_jobs
+      SET guide_pages = ${JSON.stringify(updatedPages)}, pages_done = ${pagesDone}, updated_at = now()
+      WHERE id = ${jobId}
+    `;
+    return NextResponse.json({ status: "processing", pagesDone, pagesTotal: job.pages_total });
   } catch (err) {
     console.error("Clinician Guide step error:", err);
     return NextResponse.json(

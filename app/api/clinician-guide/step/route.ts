@@ -16,6 +16,11 @@ import {
   ClinicianOnePager,
 } from "@/lib/clinician-guide";
 
+// Give each step headroom over the platform's default sync-function limit.
+// Individual steps are designed to finish in well under this (Haiku page calls
+// ~7-13s incl. network); this is a safety margin against cold starts.
+export const maxDuration = 26;
+
 interface JobRow {
   id: string;
   status: string;
@@ -132,8 +137,13 @@ export async function POST(req: NextRequest) {
     try {
       const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
       const message = await client.messages.create({
-        model: "claude-sonnet-4-6",
-        max_tokens: 6000,
+        // Haiku for the hot per-page loop: describing a page's visuals is a
+        // simple, well-structured task, and Haiku returns a dense page in ~7s
+        // vs ~25s on Sonnet — the difference between finishing and hitting the
+        // host's function timeout on visual-heavy pages. The flagship overview
+        // and one-pager stay on Sonnet.
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 4000,
         messages: [{ role: "user", content: buildPagePrompt(page) }],
       });
 

@@ -267,6 +267,7 @@ export function ClinicianGuideForm({ provider: _provider }: ClinicianGuideFormPr
             <h3 className="text-[10.5px] font-semibold text-secondary uppercase tracking-wide mb-3">What gets generated</h3>
             <ul className="space-y-2.5 text-xs">
               {[
+                ["One-Pager Briefing", "A 5-minute summary of how the whole dashboard works — page 1 of the guide"],
                 ["Dashboard Overview", "Plain-language description of what the report does and who uses it"],
                 ["Page-by-Page Guide", "Each report page explained with its purpose in clinical terms"],
                 ["Visual Descriptions", "Every chart, table, and filter explained — no technical jargon"],

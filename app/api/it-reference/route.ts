@@ -19,6 +19,11 @@ import {
   convertInchesToTwip,
 } from "docx";
 
+// Parsing a large stored procedure on Sonnet took ~25-30s and hit the host's
+// sync-function timeout in production (worked in dev, which has no timeout). The
+// extraction now runs on Haiku (~10s); this gives cold-start headroom.
+export const maxDuration = 26;
+
 const BLUE = "2E75B6";
 const PURPLE = "7030A0";
 const GRAY_PLACEHOLDER = "AAAAAA";
@@ -86,6 +91,53 @@ interface ExtractedData {
 function isPlaceholder(val: string | null | undefined): boolean {
   if (!val) return true;
   return val.trim().startsWith("[") && val.trim().endsWith("]");
+}
+
+// Deterministically pull every 3-part table name (db.schema.table) out of
+// FROM / JOIN / APPLY clauses. Table references are syntactic, so a parser
+// catches them completely and reliably — a language model can silently drop a
+// few on large procedures. We union this with the model's tables so the source
+// list is always complete regardless of model.
+function extractTablesFromSql(sql: string): Record<string, string[]> {
+  const result: Record<string, string[]> = {};
+  const seen = new Set<string>();
+  // FROM/JOIN/APPLY followed by an optionally-bracketed 3-part name.
+  const re = /\b(?:FROM|JOIN|APPLY)\s+(\[?[A-Za-z0-9_$#]+\]?\.\[?[A-Za-z0-9_$#]+\]?\.\[?[A-Za-z0-9_$#]+\]?)/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(sql)) !== null) {
+    const full = m[1].replace(/[[\]]/g, "");
+    const parts = full.split(".");
+    if (parts.length !== 3) continue;
+    if (parts.some((p) => p.startsWith("#"))) continue; // temp tables
+    const key = full.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    (result[parts[0]] ??= []).push(full);
+  }
+  return result;
+}
+
+// Merge two {db: tables[]} maps, grouping by the first segment of each fully
+// qualified name and de-duplicating case-insensitively.
+function mergeTables(
+  a: Record<string, string[]> | undefined,
+  b: Record<string, string[]> | undefined
+): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  const seen = new Set<string>();
+  for (const src of [a ?? {}, b ?? {}]) {
+    for (const db of Object.keys(src)) {
+      for (const raw of src[db]) {
+        const full = raw.includes(".") ? raw : `${db}.${raw}`;
+        const key = full.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        const group = full.split(".")[0];
+        (out[group] ??= []).push(full);
+      }
+    }
+  }
+  return out;
 }
 
 function valueRun(val: string): TextRun {
@@ -336,7 +388,10 @@ export async function POST(req: NextRequest) {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
     const message = await client.messages.create({
-      model: "claude-sonnet-4-6",
+      // Haiku keeps the single extraction call well under the host's function
+      // timeout; the regex table union below guarantees the source-table list
+      // stays complete despite the faster model.
+      model: "claude-haiku-4-5-20251001",
       max_tokens: 4096,
       messages: [
         {
@@ -354,6 +409,10 @@ export async function POST(req: NextRequest) {
     // Strip markdown fences if Claude wrapped the JSON
     const jsonText = rawText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
     const data: ExtractedData = JSON.parse(jsonText);
+
+    // Guarantee a complete source-table list by unioning the model's tables with
+    // a deterministic parse of the SQL.
+    data.tables = mergeTables(data.tables, extractTablesFromSql(sql));
 
     const doc = buildDocument(data);
     const buffer = await Packer.toBuffer(doc);

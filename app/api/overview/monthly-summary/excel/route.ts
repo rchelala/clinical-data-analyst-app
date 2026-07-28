@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import ExcelJS from "exceljs";
-import { getMonthlySummaryData, formatReportDate } from "@/lib/monthly-summary";
+import {
+  getMonthlySummaryData,
+  formatReportDate,
+  filterSummaryByDivisionIds,
+} from "@/lib/monthly-summary";
 import type { DivisionMonthlySummary } from "@/lib/brain-types";
 
 const MONTH_PATTERN = /^\d{4}-\d{2}$/;
@@ -109,11 +113,18 @@ export async function GET(req: NextRequest) {
 
     const data = await getMonthlySummaryData(monthParam);
 
+    const divisionsParam = req.nextUrl.searchParams.get("divisions");
+    const { divisions, isFiltered } = filterSummaryByDivisionIds(data, divisionsParam);
+
+    if (divisionsParam && divisions.length === 0) {
+      return NextResponse.json({ error: "No matching divisions selected." }, { status: 400 });
+    }
+
     const workbook = new ExcelJS.Workbook();
-    buildSummarySheet(workbook, data.divisions);
+    buildSummarySheet(workbook, divisions);
 
     const usedNames = new Set<string>(["summary"]);
-    for (const division of data.divisions) {
+    for (const division of divisions) {
       buildDivisionSheet(workbook, division, usedNames);
     }
 
@@ -124,7 +135,7 @@ export async function GET(req: NextRequest) {
       status: 200,
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": `attachment; filename="monthly-summary-${monthParam}.xlsx"`,
+        "Content-Disposition": `attachment; filename="monthly-summary-${monthParam}${isFiltered ? "-partial" : ""}.xlsx"`,
       },
     });
   } catch (err) {

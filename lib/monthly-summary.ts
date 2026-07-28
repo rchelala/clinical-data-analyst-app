@@ -179,3 +179,43 @@ export async function getMonthlySummaryData(month: string): Promise<MonthlySumma
 
   return { month, totals, divisions };
 }
+
+// Filters an already-fetched monthly summary down to a set of division IDs and
+// recomputes totals from the surviving divisions. Shared by the Word/Excel
+// export routes so selection semantics stay identical between formats.
+//
+// `idsParam` is the raw comma-separated `divisions` query value (or null when
+// absent). When null/blank the full report is returned untouched. Non-numeric
+// or unknown IDs are ignored. `isFiltered` is true only when the surviving set
+// is a strict subset of the full report (used to suffix export filenames).
+export function filterSummaryByDivisionIds(
+  data: MonthlySummaryResponse,
+  idsParam: string | null,
+): { divisions: DivisionMonthlySummary[]; totals: MonthlySummaryTotals; isFiltered: boolean } {
+  if (!idsParam || !idsParam.trim()) {
+    return { divisions: data.divisions, totals: data.totals, isFiltered: false };
+  }
+
+  const wanted = new Set<number>(
+    idsParam
+      .split(',')
+      .map((part) => part.trim())
+      .filter((part) => part !== '')
+      .map((part) => Number(part))
+      .filter((n) => Number.isInteger(n)),
+  );
+
+  const divisions = data.divisions.filter((division) => wanted.has(division.id));
+
+  const totals: MonthlySummaryTotals = divisions.reduce(
+    (acc, division) => {
+      acc.created += division.created;
+      acc.completed += division.completed;
+      return acc;
+    },
+    { divisions: divisions.length, created: 0, completed: 0, netOpen: 0 },
+  );
+  totals.netOpen = totals.created - totals.completed;
+
+  return { divisions, totals, isFiltered: divisions.length !== data.divisions.length };
+}

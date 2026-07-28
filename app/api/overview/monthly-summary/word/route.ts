@@ -7,8 +7,18 @@ import {
   HeadingLevel,
   BorderStyle,
 } from "docx";
-import { getMonthlySummaryData, monthLabel, formatReportDate } from "@/lib/monthly-summary";
-import type { DivisionMonthlySummary, MonthlyGroup, MonthlyTaskRow } from "@/lib/brain-types";
+import {
+  getMonthlySummaryData,
+  monthLabel,
+  formatReportDate,
+  filterSummaryByDivisionIds,
+} from "@/lib/monthly-summary";
+import type {
+  DivisionMonthlySummary,
+  MonthlyGroup,
+  MonthlyTaskRow,
+  MonthlySummaryTotals,
+} from "@/lib/brain-types";
 
 const MONTH_PATTERN = /^\d{4}-\d{2}$/;
 
@@ -89,7 +99,11 @@ function taskBullet(task: MonthlyTaskRow): Paragraph {
   });
 }
 
-function buildDocument(month: string, data: Awaited<ReturnType<typeof getMonthlySummaryData>>): Document {
+function buildDocument(
+  month: string,
+  divisions: DivisionMonthlySummary[],
+  totals: MonthlySummaryTotals,
+): Document {
   const children: Paragraph[] = [
     new Paragraph({
       heading: HeadingLevel.TITLE,
@@ -104,10 +118,10 @@ function buildDocument(month: string, data: Awaited<ReturnType<typeof getMonthly
       ],
       spacing: { after: 120 },
     }),
-    totalsParagraph(data.totals.divisions, data.totals.created, data.totals.completed, data.totals.netOpen),
+    totalsParagraph(totals.divisions, totals.created, totals.completed, totals.netOpen),
   ];
 
-  if (data.divisions.length === 0) {
+  if (divisions.length === 0) {
     children.push(
       new Paragraph({
         children: [new TextRun({ text: "No activity this month.", italics: true, font: "Arial", size: 22 })],
@@ -115,7 +129,7 @@ function buildDocument(month: string, data: Awaited<ReturnType<typeof getMonthly
       })
     );
   } else {
-    for (const division of data.divisions) {
+    for (const division of divisions) {
       children.push(divisionHeading(division));
       for (const group of division.groups) {
         children.push(groupHeading(group));
@@ -145,7 +159,15 @@ export async function GET(req: NextRequest) {
     }
 
     const data = await getMonthlySummaryData(monthParam);
-    const doc = buildDocument(monthParam, data);
+
+    const divisionsParam = req.nextUrl.searchParams.get("divisions");
+    const { divisions, totals, isFiltered } = filterSummaryByDivisionIds(data, divisionsParam);
+
+    if (divisionsParam && divisions.length === 0) {
+      return NextResponse.json({ error: "No matching divisions selected." }, { status: 400 });
+    }
+
+    const doc = buildDocument(monthParam, divisions, totals);
     const buffer = await Packer.toBuffer(doc);
     const uint8 = new Uint8Array(buffer);
 
@@ -153,7 +175,7 @@ export async function GET(req: NextRequest) {
       status: 200,
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "Content-Disposition": `attachment; filename="monthly-summary-${monthParam}.docx"`,
+        "Content-Disposition": `attachment; filename="monthly-summary-${monthParam}${isFiltered ? "-partial" : ""}.docx"`,
       },
     });
   } catch (err) {

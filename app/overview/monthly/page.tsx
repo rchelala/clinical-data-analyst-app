@@ -54,13 +54,27 @@ const GROUP_ICON: Record<MonthlyGroup["kind"], typeof LayoutDashboard> = {
 
 interface MonthlyDivisionCardProps {
   division: DivisionMonthlySummary;
+  checked: boolean;
+  onToggle: () => void;
 }
 
-function MonthlyDivisionCard({ division }: MonthlyDivisionCardProps) {
+function MonthlyDivisionCard({ division, checked, onToggle }: MonthlyDivisionCardProps) {
   return (
-    <section className="rounded-lg border border-theme bg-panel shadow-panel overflow-hidden">
+    <section
+      className={`rounded-lg border border-theme bg-panel shadow-panel overflow-hidden transition-opacity ${
+        checked ? "" : "opacity-50"
+      }`}
+    >
       <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-theme">
-        <h3 className="text-sm font-semibold text-primary">{division.name}</h3>
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={checked}
+            onChange={onToggle}
+            className="h-3.5 w-3.5 rounded border-theme accent-brand-500 cursor-pointer"
+          />
+          <h3 className="text-sm font-semibold text-primary">{division.name}</h3>
+        </label>
         <div className="flex items-center gap-2 flex-shrink-0">
           <span className="text-[11px] text-secondary bg-white/5 px-2 py-0.5 rounded-md whitespace-nowrap">
             {division.created} new · {division.completed} done
@@ -141,6 +155,7 @@ export default function MonthlySummaryPage() {
   const [summary, setSummary] = useState<MonthlySummaryResponse | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [selectedDivisionIds, setSelectedDivisionIds] = useState<Set<number>>(new Set());
 
   // Load the month list once, then default-select the newest month.
   useEffect(() => {
@@ -182,6 +197,7 @@ export default function MonthlySummaryPage() {
         if (cancelled) return;
         if (!res.ok) throw new Error(json.error ?? "Could not load this month's summary.");
         setSummary(json);
+        setSelectedDivisionIds(new Set<number>(json.divisions.map((d: DivisionMonthlySummary) => d.id)));
       } catch (err) {
         if (!cancelled) {
           setSummaryError(err instanceof Error ? err.message : "An unexpected error occurred.");
@@ -212,8 +228,45 @@ export default function MonthlySummaryPage() {
     return months.find((m) => m.month === selectedMonth)?.label ?? selectedMonth;
   }, [selectedMonth, months]);
 
-  const excelHref = selectedMonth ? `/api/overview/monthly-summary/excel?month=${selectedMonth}` : undefined;
-  const wordHref = selectedMonth ? `/api/overview/monthly-summary/word?month=${selectedMonth}` : undefined;
+  const filteredTotals = useMemo(() => {
+    if (!summary) return null;
+    const chosen = summary.divisions.filter((d) => selectedDivisionIds.has(d.id));
+    const created = chosen.reduce((sum, d) => sum + d.created, 0);
+    const completed = chosen.reduce((sum, d) => sum + d.completed, 0);
+    return { divisions: chosen.length, created, completed, netOpen: created - completed };
+  }, [summary, selectedDivisionIds]);
+
+  const allSelected = !!summary && selectedDivisionIds.size === summary.divisions.length;
+  const noneSelected = selectedDivisionIds.size === 0;
+
+  function toggleDivision(id: number) {
+    setSelectedDivisionIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    if (!summary) return;
+    setSelectedDivisionIds(allSelected ? new Set<number>() : new Set(summary.divisions.map((d) => d.id)));
+  }
+
+  // Omit the `divisions` param when every division is selected so the "export
+  // everything" URL stays identical to the pre-filter behavior. Disable exports
+  // (undefined href) when nothing is selected.
+  const divisionsQuery =
+    summary && !allSelected && !noneSelected
+      ? `&divisions=${Array.from(selectedDivisionIds).join(",")}`
+      : "";
+  const canExport = !!selectedMonth && !noneSelected;
+  const excelHref = canExport
+    ? `/api/overview/monthly-summary/excel?month=${selectedMonth}${divisionsQuery}`
+    : undefined;
+  const wordHref = canExport
+    ? `/api/overview/monthly-summary/word?month=${selectedMonth}${divisionsQuery}`
+    : undefined;
 
   return (
     <div className="flex flex-col h-screen md:overflow-hidden overflow-y-auto">
@@ -359,14 +412,14 @@ export default function MonthlySummaryPage() {
               {!summaryLoading && !summaryError && summary && (
                 <>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <KpiCard label="Divisions" value={summary.totals.divisions} icon={Building2} />
-                    <KpiCard label="New" value={summary.totals.created} icon={PlusCircle} />
-                    <KpiCard label="Completed" value={summary.totals.completed} icon={CheckCircle2} />
+                    <KpiCard label="Divisions" value={filteredTotals?.divisions ?? 0} icon={Building2} />
+                    <KpiCard label="New" value={filteredTotals?.created ?? 0} icon={PlusCircle} />
+                    <KpiCard label="Completed" value={filteredTotals?.completed ?? 0} icon={CheckCircle2} />
                     <KpiCard
                       label="Net open"
-                      value={summary.totals.netOpen}
+                      value={filteredTotals?.netOpen ?? 0}
                       icon={TrendingUp}
-                      danger={summary.totals.netOpen > 0}
+                      danger={(filteredTotals?.netOpen ?? 0) > 0}
                     />
                   </div>
 
@@ -376,8 +429,25 @@ export default function MonthlySummaryPage() {
                     </div>
                   ) : (
                     <div className="flex flex-col gap-4">
+                      <div className="flex items-center justify-between px-1">
+                        <button
+                          type="button"
+                          onClick={toggleAll}
+                          className="text-xs font-medium text-secondary hover:text-primary transition-colors"
+                        >
+                          {allSelected ? "Deselect all" : "Select all"}
+                        </button>
+                        <span className="text-[11px] text-secondary">
+                          {selectedDivisionIds.size} of {summary.divisions.length} selected
+                        </span>
+                      </div>
                       {summary.divisions.map((division) => (
-                        <MonthlyDivisionCard key={division.id} division={division} />
+                        <MonthlyDivisionCard
+                          key={division.id}
+                          division={division}
+                          checked={selectedDivisionIds.has(division.id)}
+                          onToggle={() => toggleDivision(division.id)}
+                        />
                       ))}
                     </div>
                   )}

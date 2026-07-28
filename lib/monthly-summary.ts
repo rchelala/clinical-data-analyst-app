@@ -199,7 +199,9 @@ export function filterSummaryByDivisionIds(
   const wanted = new Set<number>(
     idsParam
       .split(',')
-      .map((part) => Number(part.trim()))
+      .map((part) => part.trim())
+      .filter((part) => part !== '')
+      .map((part) => Number(part))
       .filter((n) => Number.isInteger(n)),
   );
 

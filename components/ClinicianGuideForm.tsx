@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef } from "react";
 import { Users, Loader2, Download, AlertCircle, RotateCcw, Upload, FileText } from "lucide-react";
 import { AIProvider } from "@/lib/providers";
+import { parsePbixFileClient } from "@/lib/pbix-parser-browser";
 
 interface ClinicianGuideFormProps {
   provider: AIProvider;
@@ -50,16 +51,27 @@ export function ClinicianGuideForm({ provider: _provider }: ClinicianGuideFormPr
     setDownloadUrl(null);
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
+      // Parse the .pbix in the browser and send only the small extracted
+      // structure. A raw multi-MB .pbix exceeds the serverless request-body
+      // limit (~4-6MB) and gets rejected by the platform before our code runs.
+      let dashboard;
+      try {
+        dashboard = await parsePbixFileClient(file);
+        // The guide doesn't use measures; drop them to keep the payload tiny.
+        dashboard = { ...dashboard, measures: [] };
+      } catch {
+        setError("Could not read the .pbix file. Please check the file and try again.");
+        return;
+      }
 
       const startRes = await fetch("/api/clinician-guide", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dashboard }),
       });
 
       if (!startRes.ok) {
-        const data = await startRes.json();
+        const data = await startRes.json().catch(() => ({}));
         setError(data.error ?? "Something went wrong.");
         return;
       }

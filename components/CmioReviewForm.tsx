@@ -379,9 +379,9 @@ export function CmioReviewForm({ provider: _provider }: CmioReviewFormProps) {
 
       {/* Main content — two columns, stacks below md */}
       <div className="flex flex-col md:flex-row flex-1 md:overflow-hidden overflow-y-auto">
-        {/* Left column: config */}
-        <div className="flex flex-col flex-1 md:overflow-y-auto border-b md:border-b-0 md:border-r border-theme">
-          <div className="p-6 space-y-6 max-w-2xl">
+        {/* Left column: config — fixed width so results get the remaining space */}
+        <div className="flex flex-col w-full md:w-[420px] md:flex-shrink-0 md:overflow-y-auto border-b md:border-b-0 md:border-r border-theme">
+          <div className="p-6 space-y-6">
 
             {/* Held tracker card */}
             <div className="rounded-xl border border-theme bg-panel shadow-panel p-4">
@@ -544,8 +544,8 @@ export function CmioReviewForm({ provider: _provider }: CmioReviewFormProps) {
           </div>
         </div>
 
-        {/* Right column: results */}
-        <div className="w-full md:w-[480px] flex-shrink-0 md:overflow-y-auto bg-secondary">
+        {/* Right column: results — flexes to fill the remaining width */}
+        <div className="w-full md:flex-1 md:min-w-0 md:overflow-y-auto bg-secondary">
           {!result ? (
             <div className="flex flex-col items-center justify-center h-full min-h-[16rem] gap-3 p-8 text-center">
               <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-panel border border-theme">

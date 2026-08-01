@@ -11,6 +11,7 @@ import { DensitySelector } from "@/components/DensitySelector";
 import { FieldRequestForm } from "@/components/FieldRequestForm";
 import { ITReferenceForm } from "@/components/ITReferenceForm";
 import { ClinicianGuideForm } from "@/components/ClinicianGuideForm";
+import { CmioReviewForm } from "@/components/CmioReviewForm";
 import { PbixExplorerTab } from "@/components/PbixExplorerTab";
 import { HistoryPanel } from "@/components/HistoryPanel";
 import { Language, Density } from "@/lib/prompts";
@@ -23,6 +24,7 @@ const APP_TABS = [
   { id: "it-reference",     label: "IT Reference",    Icon: FileText        },
   { id: "clinician-guide",  label: "Clinician Guide", Icon: Users           },
   { id: "pbix-explorer",    label: "PBIX Explorer",   Icon: Search          },
+  { id: "cmio-review",      label: "CMIO Review",     Icon: ClipboardList   },
   { id: "commenter",        label: "Commenter",       Icon: Code2           },
 ] as const;
 
@@ -45,7 +47,7 @@ WHERE o.OrderDate >= '2024-01-01'
 GROUP BY c.CustomerName
 ORDER BY TotalSpend DESC;`;
 
-type AppTab = "commenter" | "field-request" | "it-reference" | "clinician-guide" | "pbix-explorer";
+type AppTab = "commenter" | "field-request" | "it-reference" | "clinician-guide" | "pbix-explorer" | "cmio-review";
 
 export default function Home() {
   const [activeTab, setActiveTab]       = useState<AppTab>("field-request");
@@ -242,6 +244,9 @@ export default function Home() {
 
       {/* ── PBIX Explorer tab ── */}
       {activeTab === "pbix-explorer" && <PbixExplorerTab />}
+
+      {/* ── CMIO Review tab ── */}
+      {activeTab === "cmio-review" && <CmioReviewForm provider={provider} />}
 
       {/* ── Commenter tab ── */}
       {activeTab === "commenter" && (

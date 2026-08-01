@@ -13,7 +13,7 @@ CREATE TABLE cmio_tracker (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   blob_pathname TEXT NOT NULL,
   filename TEXT NOT NULL DEFAULT 'CMIO_Weekly_Review.xlsx',
-  version INTEGER NOT NULL DEFAULT 1,
+  version INTEGER NOT NULL UNIQUE DEFAULT 1,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

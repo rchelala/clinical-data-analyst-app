@@ -13,6 +13,11 @@ const XLSX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreads
 const VALID_PRIORITIES: ExtractedRow["priority"][] = ["High", "Medium", "Low"];
 const VALID_STATUSES: ExtractedRow["status"][] = ["Open", "In progress", "Blocked", "Done"];
 
+// A claimed finalize that never completes (crash, timeout mid-run) would
+// otherwise leave the job stuck at 'finalizing' forever — this is how long
+// we wait before letting another request reclaim and retry it.
+const STUCK_FINALIZE_MINUTES = 2;
+
 interface JobRow {
   id: string;
   status: string;
@@ -134,8 +139,16 @@ function buildDoneResponse(job: JobRow) {
   });
 }
 
+function buildProcessingResponse(job: JobRow) {
+  return NextResponse.json({ status: "processing", chunksDone: job.chunks_done, chunksTotal: job.chunks_total });
+}
+
 function buildStatusResponse(job: JobRow) {
   if (job.status === "done") return buildDoneResponse(job);
+  // A 'finalizing' job is still being worked (by whoever won the claim) —
+  // report it to the client as processing so it keeps polling rather than
+  // falling through to either phase itself.
+  if (job.status === "finalizing") return buildProcessingResponse(job);
   return NextResponse.json({
     status: "failed",
     error: job.error ?? "Something went wrong processing this transcript. Please try again.",
@@ -163,14 +176,57 @@ export async function POST(req: NextRequest) {
 
     const job = rows[0] as unknown as JobRow;
 
-    if (job.status !== "processing") {
+    // ---- Decide whether this request should run the finalize phase ----
+    // Finalize is claimed atomically so that only one concurrent request
+    // (racing poll, retry, or a reclaim of a dead finalize) ever proceeds
+    // past this point for a given job.
+    let shouldFinalize = false;
+
+    if (job.status === "processing" && job.chunks_done >= job.chunks_total) {
+      const claimed = await sql`
+        UPDATE cmio_review_jobs
+        SET status = 'finalizing', updated_at = now()
+        WHERE id = ${jobId} AND status = 'processing' AND chunks_done >= chunks_total
+        RETURNING id
+      `;
+      if (claimed.length > 0) {
+        shouldFinalize = true;
+      } else {
+        // Someone else claimed it first (or it already finished) between our
+        // read and our claim attempt — report current state instead.
+        const fresh = (await sql`SELECT * FROM cmio_review_jobs WHERE id = ${jobId}`)[0] as unknown as JobRow;
+        return buildStatusResponse(fresh);
+      }
+    } else if (job.status === "finalizing") {
+      // A claim that died mid-finalize would otherwise leave the job stuck
+      // here forever — allow reclaiming it once it's been stale long enough.
+      const reclaimed = await sql`
+        UPDATE cmio_review_jobs
+        SET status = 'finalizing', updated_at = now()
+        WHERE id = ${jobId} AND status = 'finalizing'
+          AND updated_at < now() - make_interval(mins => ${STUCK_FINALIZE_MINUTES})
+        RETURNING id
+      `;
+      if (reclaimed.length > 0) {
+        shouldFinalize = true;
+      } else {
+        return buildStatusResponse(job);
+      }
+    } else if (job.status !== "processing") {
       return buildStatusResponse(job);
     }
 
     const meetingDate = toDateOnlyString(job.meeting_date);
 
     // ---- Finalize phase: every chunk has been extracted ----
-    if (job.chunks_done >= job.chunks_total) {
+    if (shouldFinalize) {
+      // Belt-and-suspenders for a reclaim after a mostly-complete run: if the
+      // result was already produced, don't rebuild/re-append — just confirm done.
+      if (job.blob_pathname && (job.mode === "standalone" || job.result_version != null)) {
+        await sql`UPDATE cmio_review_jobs SET status = 'done', updated_at = now() WHERE id = ${jobId}`;
+        return buildDoneResponse({ ...job, status: "done" });
+      }
+
       const { deduped, mergedCount } = dedupeRows(job.rows ?? []);
 
       const notes: string[] = [];
@@ -183,11 +239,16 @@ export async function POST(req: NextRequest) {
 
       try {
         let workbookBuffer: Buffer;
-        let resultVersion: number | null = null;
+        let versionedTrackerPath: string | null = null;
+        let heldFilename: string | null = null;
+        let newVersion: number | null = null;
 
         if (job.mode === "standalone") {
           workbookBuffer = await buildStandaloneTracker(deduped);
         } else {
+          // Re-read the held tracker's LATEST version now, inside the claimed
+          // finalize — not from any earlier read — so we append onto whatever
+          // is actually current at the moment we're about to write.
           const heldRows = await sql`
             SELECT blob_pathname, filename, version FROM cmio_tracker ORDER BY version DESC LIMIT 1
           `;
@@ -204,40 +265,66 @@ export async function POST(req: NextRequest) {
 
           workbookBuffer = await appendRowsToTracker(heldBuffer, deduped);
 
-          const newVersion = heldRow.version + 1;
-          const versionedPathname = `cmio-trackers/v${newVersion}.xlsx`;
-          await put(versionedPathname, workbookBuffer, {
+          newVersion = heldRow.version + 1;
+          versionedTrackerPath = `cmio-trackers/v${newVersion}.xlsx`;
+          heldFilename = heldRow.filename;
+          await put(versionedTrackerPath, workbookBuffer, {
             access: "private",
             contentType: XLSX_CONTENT_TYPE,
           });
-          await sql`
-            INSERT INTO cmio_tracker (blob_pathname, filename, version)
-            VALUES (${versionedPathname}, ${heldRow.filename}, ${newVersion})
-          `;
-          resultVersion = newVersion;
         }
 
         const jobPathname = `cmio-reviews/${jobId}.xlsx`;
         await put(jobPathname, workbookBuffer, { access: "private", contentType: XLSX_CONTENT_TYPE });
 
-        await sql`
-          UPDATE cmio_review_jobs
-          SET status = 'done',
-              blob_pathname = ${jobPathname},
-              result_version = ${resultVersion},
-              rows = ${JSON.stringify(deduped)},
-              notes = ${JSON.stringify(notes)},
-              updated_at = now()
-          WHERE id = ${jobId}
-        `;
+        if (job.mode === "standalone") {
+          await sql`
+            UPDATE cmio_review_jobs
+            SET status = 'done',
+                blob_pathname = ${jobPathname},
+                result_version = ${null},
+                rows = ${JSON.stringify(deduped)},
+                notes = ${JSON.stringify(notes)},
+                updated_at = now()
+            WHERE id = ${jobId}
+          `;
+        } else {
+          // The tracker INSERT and the job's done/result_version UPDATE must
+          // agree or not happen at all — run them as one atomic transaction.
+          // cmio_tracker.version is UNIQUE, so if a second finalize somehow
+          // also reaches this point with the same newVersion, its INSERT
+          // throws and the whole transaction (including its job UPDATE)
+          // rolls back rather than silently double-appending rows.
+          try {
+            await sql.transaction([
+              sql`
+                INSERT INTO cmio_tracker (blob_pathname, filename, version)
+                VALUES (${versionedTrackerPath}, ${heldFilename}, ${newVersion})
+              `,
+              sql`
+                UPDATE cmio_review_jobs
+                SET status = 'done',
+                    blob_pathname = ${jobPathname},
+                    result_version = ${newVersion},
+                    rows = ${JSON.stringify(deduped)},
+                    notes = ${JSON.stringify(notes)},
+                    updated_at = now()
+                WHERE id = ${jobId}
+              `,
+            ]);
+          } catch (txnErr) {
+            // If another finalize already won (its transaction committed
+            // first), treat that as success rather than failing this request.
+            const settled = (await sql`SELECT * FROM cmio_review_jobs WHERE id = ${jobId}`)[0] as unknown as JobRow;
+            if (settled.status === "done") {
+              return buildDoneResponse(settled);
+            }
+            throw txnErr;
+          }
+        }
 
-        return buildDoneResponse({
-          ...job,
-          status: "done",
-          rows: deduped,
-          notes,
-          result_version: resultVersion,
-        });
+        const finalJob = (await sql`SELECT * FROM cmio_review_jobs WHERE id = ${jobId}`)[0] as unknown as JobRow;
+        return buildDoneResponse(finalJob);
       } catch (err) {
         console.error("CMIO Review finalize error:", err);
         const errorMessage = "Could not build the tracker file. Please try again.";
@@ -305,13 +392,23 @@ export async function POST(req: NextRequest) {
     }
 
     const updatedRows = [...(job.rows ?? []), ...extractedRows];
-    const chunksDone = job.chunks_done + 1;
+    const chunksDone = chunkIndex + 1;
 
-    await sql`
+    // CAS on chunks_done so a duplicate/racing poll for the same chunk can't
+    // clobber the other's rows with a stale read-modify-write.
+    const advanced = await sql`
       UPDATE cmio_review_jobs
       SET rows = ${JSON.stringify(updatedRows)}, chunks_done = ${chunksDone}, updated_at = now()
-      WHERE id = ${jobId}
+      WHERE id = ${jobId} AND chunks_done = ${chunkIndex}
+      RETURNING id
     `;
+
+    if (advanced.length === 0) {
+      const fresh = (await sql`
+        SELECT chunks_done, chunks_total, status FROM cmio_review_jobs WHERE id = ${jobId}
+      `)[0] as { chunks_done: number; chunks_total: number; status: string };
+      return NextResponse.json({ status: "processing", chunksDone: fresh.chunks_done, chunksTotal: fresh.chunks_total });
+    }
 
     return NextResponse.json({ status: "processing", chunksDone, chunksTotal: job.chunks_total });
   } catch (err) {

@@ -352,6 +352,119 @@ export async function appendRowsToTracker(
   return Buffer.from(await workbook.xlsx.writeBuffer());
 }
 
+// ---------------------------------------------------------------------------
+// Read-only preview of the held tracker's current contents
+// ---------------------------------------------------------------------------
+
+export interface TrackerDisplayRow {
+  date: string; // "YYYY-MM-DD" (empty string if blank/unparseable)
+  analyst: string;
+  presenter: string;
+  topic: string;
+  action: string;
+  priority: string; // raw cell text ("High"/"Medium"/"Low" or "")
+  status: string; // raw cell text
+  cmioComment: string; // the CMIO comment column, READ-ONLY display (may be "")
+}
+
+interface DisplayColumnMap {
+  date?: number;
+  analyst?: number;
+  presentedBy?: number;
+  divisionTopic?: number;
+  actionItem?: number;
+  priority?: number;
+  status?: number;
+  cmioComment?: number;
+}
+
+function mapDisplayColumns(headerRow: ExcelJS.Row): DisplayColumnMap {
+  const map: DisplayColumnMap = {};
+  headerRow.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+    const text = normalizeHeaderText(cell.value);
+    if (text === "date") map.date = colNumber;
+    else if (text === "analyst") map.analyst = colNumber;
+    else if (text === "presented by") map.presentedBy = colNumber;
+    else if (text === "division / topic") map.divisionTopic = colNumber;
+    else if (text.startsWith("action item")) map.actionItem = colNumber;
+    else if (text === "priority") map.priority = colNumber;
+    else if (text === "status") map.status = colNumber;
+    else if (text === "cmio comment" || text.startsWith("cmio comment")) map.cmioComment = colNumber;
+  });
+  return map;
+}
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+// Mirrors the `toDateOnlyString` helper in app/api/cmio-review/step/route.ts —
+// local date parts, never `.toISOString()`, to avoid a UTC-shifted day.
+function formatDisplayDate(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "";
+  if (value instanceof Date) {
+    return `${value.getFullYear()}-${pad2(value.getMonth() + 1)}-${pad2(value.getDate())}`;
+  }
+  const text = String(value).trim();
+  if (!text) return "";
+  if (/^\d{4}-\d{2}-\d{2}/.test(text)) return text.slice(0, 10);
+  return text;
+}
+
+function cellText(row: ExcelJS.Row, colNumber: number | undefined): string {
+  if (!colNumber) return "";
+  return String(row.getCell(colNumber).value ?? "").trim();
+}
+
+/**
+ * Reads the held tracker's current rows for a read-only UI preview. Degrades
+ * gracefully (returns []) rather than throwing when the workbook has no
+ * usable sheet/columns — callers should still surface a real parse failure
+ * (e.g. a non-tracker file) via `findHeaderRow`'s thrown error.
+ */
+export async function readTrackerRows(workbookBuffer: ArrayBuffer | Buffer): Promise<TrackerDisplayRow[]> {
+  const inputBuffer = Buffer.isBuffer(workbookBuffer) ? workbookBuffer : Buffer.from(workbookBuffer);
+  const normalizedBuffer = await normalizeCommentsLayout(inputBuffer);
+
+  const workbook = new ExcelJS.Workbook();
+  const loadableBuffer = normalizedBuffer.buffer.slice(
+    normalizedBuffer.byteOffset,
+    normalizedBuffer.byteOffset + normalizedBuffer.byteLength
+  ) as ArrayBuffer;
+  await workbook.xlsx.load(loadableBuffer);
+
+  const worksheet = workbook.worksheets[0];
+  if (!worksheet) return [];
+
+  const headerRow = findHeaderRow(worksheet);
+  const columns = mapDisplayColumns(headerRow);
+  if (!columns.actionItem) return [];
+
+  const results: TrackerDisplayRow[] = [];
+  for (let r = headerRow.number + 1; r <= worksheet.rowCount; r++) {
+    const row = worksheet.getRow(r);
+    const actionText = cellText(row, columns.actionItem);
+    const dateText = formatDisplayDate(columns.date ? row.getCell(columns.date).value : undefined);
+    const analystText = cellText(row, columns.analyst);
+
+    if (/^example/i.test(actionText)) continue;
+    if (!dateText && !actionText && !analystText) continue;
+
+    results.push({
+      date: dateText,
+      analyst: analystText,
+      presenter: cellText(row, columns.presentedBy),
+      topic: cellText(row, columns.divisionTopic),
+      action: actionText,
+      priority: cellText(row, columns.priority),
+      status: cellText(row, columns.status),
+      cmioComment: cellText(row, columns.cmioComment),
+    });
+  }
+
+  return results;
+}
+
 /** Builds a fresh standalone tracker workbook containing only the given rows. */
 export async function buildStandaloneTracker(rows: ExtractedRow[]): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();

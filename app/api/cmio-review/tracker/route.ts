@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { put } from "@vercel/blob";
+import { put, get } from "@vercel/blob";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/get-client-ip";
 import { sql } from "@/lib/db";
-import { appendRowsToTracker } from "@/lib/cmio-tracker";
+import { appendRowsToTracker, readTrackerRows } from "@/lib/cmio-tracker";
 
 export const maxDuration = 26;
 
@@ -13,17 +13,42 @@ const MAX_DECODED_BYTES = 10 * 1024 * 1024;
 
 export async function GET() {
   try {
-    const rows = await sql`SELECT version, filename, updated_at FROM cmio_tracker ORDER BY version DESC LIMIT 1`;
+    const rows = await sql`
+      SELECT version, filename, updated_at, blob_pathname FROM cmio_tracker ORDER BY version DESC LIMIT 1
+    `;
     if (rows.length === 0) {
       return NextResponse.json({ held: false });
     }
 
-    const row = rows[0] as { version: number; filename: string; updated_at: string | Date };
+    const row = rows[0] as {
+      version: number;
+      filename: string;
+      updated_at: string | Date;
+      blob_pathname: string;
+    };
+
+    let trackerRows: Awaited<ReturnType<typeof readTrackerRows>> = [];
+    let rowsError = false;
+    try {
+      const res = await get(row.blob_pathname, { access: "private" });
+      if (!res || res.statusCode !== 200) {
+        throw new Error("Tracker blob not found.");
+      }
+      const buf = Buffer.from(await new Response(res.stream).arrayBuffer());
+      trackerRows = await readTrackerRows(buf);
+    } catch (err) {
+      console.error("CMIO tracker preview error:", err);
+      rowsError = true;
+    }
+
     return NextResponse.json({
       held: true,
       version: row.version,
       filename: row.filename,
       updatedAt: row.updated_at,
+      rows: trackerRows,
+      rowCount: trackerRows.length,
+      ...(rowsError ? { rowsError: true } : {}),
     });
   } catch (err) {
     console.error("CMIO tracker fetch error:", err);

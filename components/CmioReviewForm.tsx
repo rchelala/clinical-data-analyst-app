@@ -25,11 +25,27 @@ interface CmioReviewFormProps {
 
 type Mode = "append" | "standalone";
 
+// Mirrors lib/cmio-tracker.ts's TrackerDisplayRow — defined locally because
+// that module pulls in exceljs/jszip and must never be imported client-side.
+interface TrackerDisplayRow {
+  date: string;
+  analyst: string;
+  presenter: string;
+  topic: string;
+  action: string;
+  priority: string;
+  status: string;
+  cmioComment: string;
+}
+
 interface TrackerInfo {
   held: boolean;
   version?: number;
   filename?: string;
   updatedAt?: string;
+  rows?: TrackerDisplayRow[];
+  rowCount?: number;
+  rowsError?: boolean;
 }
 
 interface RunResult {
@@ -57,6 +73,55 @@ function PriorityPill({ priority }: { priority: ExtractedRow["priority"] }) {
     >
       {priority}
     </span>
+  );
+}
+
+const KNOWN_PRIORITIES = new Set(["High", "Medium", "Low"]);
+
+// Read-only rows table for the held tracker's current contents. Differs from
+// the just-ran result table by also surfacing the CMIO comment column, and
+// tolerates raw/blank priority + status text since it reflects whatever is
+// actually in the workbook rather than freshly-extracted, validated rows.
+function TrackerRowsTable({ rows }: { rows: TrackerDisplayRow[] }) {
+  return (
+    <div className="rounded-xl border border-theme bg-panel overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="bg-secondary-glass border-b border-theme">
+              <th className="text-left font-semibold text-secondary uppercase tracking-wide px-3 py-2">Date</th>
+              <th className="text-left font-semibold text-secondary uppercase tracking-wide px-3 py-2">Analyst</th>
+              <th className="text-left font-semibold text-secondary uppercase tracking-wide px-3 py-2">Presented by</th>
+              <th className="text-left font-semibold text-secondary uppercase tracking-wide px-3 py-2">Topic</th>
+              <th className="text-left font-semibold text-secondary uppercase tracking-wide px-3 py-2">Action</th>
+              <th className="text-left font-semibold text-secondary uppercase tracking-wide px-3 py-2">Priority</th>
+              <th className="text-left font-semibold text-secondary uppercase tracking-wide px-3 py-2">Status</th>
+              <th className="text-left font-semibold text-secondary uppercase tracking-wide px-3 py-2">CMIO comment</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr key={i} className="border-b border-theme last:border-b-0">
+                <td className="px-3 py-2 text-secondary whitespace-nowrap">{row.date || "—"}</td>
+                <td className="px-3 py-2 text-primary whitespace-nowrap">{row.analyst}</td>
+                <td className="px-3 py-2 text-secondary whitespace-nowrap">{row.presenter || "—"}</td>
+                <td className="px-3 py-2 text-secondary">{row.topic}</td>
+                <td className="px-3 py-2 text-primary max-w-xs whitespace-normal">{row.action}</td>
+                <td className="px-3 py-2">
+                  {KNOWN_PRIORITIES.has(row.priority) ? (
+                    <PriorityPill priority={row.priority as ExtractedRow["priority"]} />
+                  ) : (
+                    row.priority || null
+                  )}
+                </td>
+                <td className="px-3 py-2">{row.status ? <TaskStatusBadge status={row.status} /> : null}</td>
+                <td className="px-3 py-2 text-secondary whitespace-normal">{row.cmioComment || "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
@@ -101,6 +166,7 @@ export function CmioReviewForm({ provider: _provider }: CmioReviewFormProps) {
 
   const [downloading, setDownloading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [downloadingCurrent, setDownloadingCurrent] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const replaceInputRef = useRef<HTMLInputElement>(null);
@@ -314,6 +380,26 @@ export function CmioReviewForm({ provider: _provider }: CmioReviewFormProps) {
       setSaving(false);
     }
   }, [result]);
+
+  const handleDownloadCurrent = useCallback(async () => {
+    if (!tracker?.held || !tracker.filename) return;
+    setDownloadingCurrent(true);
+    try {
+      const res = await fetch("/api/cmio-review/tracker/download");
+      if (!res.ok) throw new Error("Download failed.");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = tracker.filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setError("Could not download the current tracker. Please try again.");
+    } finally {
+      setDownloadingCurrent(false);
+    }
+  }, [tracker]);
 
   const handleReset = useCallback(() => {
     setFile(null);
@@ -546,17 +632,7 @@ export function CmioReviewForm({ provider: _provider }: CmioReviewFormProps) {
 
         {/* Right column: results — flexes to fill the remaining width */}
         <div className="w-full md:flex-1 md:min-w-0 md:overflow-y-auto bg-secondary">
-          {!result ? (
-            <div className="flex flex-col items-center justify-center h-full min-h-[16rem] gap-3 p-8 text-center">
-              <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-panel border border-theme">
-                <ClipboardList className="w-5 h-5 text-secondary" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-secondary">Results will appear here</p>
-                <p className="text-xs text-secondary/70 mt-1">Drop a transcript and click Generate</p>
-              </div>
-            </div>
-          ) : (
+          {result ? (
             <div className="p-4 space-y-4 animate-fade-in">
               {/* Success banner */}
               <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
@@ -652,6 +728,59 @@ export function CmioReviewForm({ provider: _provider }: CmioReviewFormProps) {
                   ))}
                 </ul>
               )}
+            </div>
+          ) : tracker?.held ? (
+            <div className="p-4 space-y-4 animate-fade-in">
+              {/* Current tracker header */}
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="min-w-0">
+                  <h3 className="text-sm font-semibold text-primary truncate">
+                    {tracker.filename} <span className="text-secondary font-normal">v{tracker.version}</span>
+                  </h3>
+                  <p className="text-xs text-secondary">updated {formatUpdatedAt(tracker.updatedAt)}</p>
+                </div>
+                <button
+                  onClick={handleDownloadCurrent}
+                  disabled={downloadingCurrent}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-theme bg-panel hover:bg-panel/80 text-secondary hover:text-primary disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+                >
+                  <FolderOpen className="w-4 h-4" />
+                  {downloadingCurrent ? "Downloading…" : "Download current tracker"}
+                </button>
+              </div>
+
+              {tracker.rowsError && (
+                <div className="flex items-start gap-2 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                  <Info className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-300 leading-relaxed">
+                    Couldn&rsquo;t load the preview — the file is still downloadable.
+                  </p>
+                </div>
+              )}
+
+              <p className="text-xs text-secondary">
+                {tracker.rowCount ?? 0} row{tracker.rowCount === 1 ? "" : "s"} logged
+              </p>
+
+              {(tracker.rows?.length ?? 0) === 0 ? (
+                !tracker.rowsError && (
+                  <p className="text-sm text-secondary">No rows logged in this tracker yet.</p>
+                )
+              ) : (
+                <TrackerRowsTable rows={tracker.rows ?? []} />
+              )}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center h-full min-h-[16rem] gap-3 p-8 text-center">
+              <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-panel border border-theme">
+                <ClipboardList className="w-5 h-5 text-secondary" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-secondary">Results will appear here</p>
+                <p className="text-xs text-secondary/70 mt-1">
+                  Drop a transcript and click Generate — or hold a tracker to see its contents here.
+                </p>
+              </div>
             </div>
           )}
         </div>

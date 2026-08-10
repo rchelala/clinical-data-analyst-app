@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { Header } from "@/components/Header";
 import { MobileNav } from "@/components/MobileNav";
+import { AiInfoButton } from "@/components/AiInfoButton";
 import { CodePanel } from "@/components/CodePanel";
 import { DiffPanel } from "@/components/DiffPanel";
 import { LanguageToggle } from "@/components/LanguageToggle";
@@ -192,6 +193,9 @@ export default function Home() {
         <span className="text-sm font-medium text-primary capitalize">
           {APP_TABS.find((t) => t.id === activeTab)?.label ?? "Home"}
         </span>
+        <div className="ml-auto">
+          <AiInfoButton />
+        </div>
       </div>
 
       {/* Tab bar */}

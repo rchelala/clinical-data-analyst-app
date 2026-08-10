@@ -2,6 +2,7 @@
 
 import { Bot } from "lucide-react";
 import { AIProvider, PROVIDER_LABELS } from "@/lib/providers";
+import { AiInfoButton } from "@/components/AiInfoButton";
 
 interface HeaderProps {
   provider: AIProvider;
@@ -31,6 +32,9 @@ export function Header({ provider, onProviderChange }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-3">
+        {/* How ClinKit uses AI */}
+        <AiInfoButton />
+
         {/* AI provider selector */}
         <div className="flex items-center gap-2">
           <Bot className="w-3.5 h-3.5 text-secondary flex-shrink-0" />

@@ -47,10 +47,13 @@ export function buildWeeklyUpdatePrompt(structuredMarkdown: string, analystName:
 
 Rewrite the structured worklist data below into a concise, professional weekly status update in prose, suitable for sharing with your manager and team.
 
+The data has two kinds of items: work COMPLETED in the past week (marked "✓ Completed") and work that is still OUTSTANDING (open or in-progress tasks, marked "[ ]" or "[~]"). Your update must cover both — first what you accomplished this week, then what remains open or in progress.
+
 Guidance:
 - Group related work by theme rather than listing every dashboard mechanically
-- Lead with the most important progress first
-- Mention what was completed and what's coming next
+- Lead with the most important completed progress first, then cover outstanding/in-progress work
+- Always account for the outstanding items — do not drop open or in-progress tasks
+- If there is genuinely no completed work and no outstanding work, say so plainly; otherwise never describe the week as "quiet" or without activity
 - Keep it tight — a few short paragraphs, not a wall of text
 - No preamble (e.g. "Here is your update") and no sign-off — just the update itself
 - Plain, professional tone — no markdown fences, no headers, no bullet lists; write in flowing paragraphs

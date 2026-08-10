@@ -2,7 +2,7 @@
 // weekly status update. No React, no fetch — callers gather the data and
 // pass it in. Mirrors mockup/worklist-mockup.html's buildStructured().
 
-import { isoWeekRange, isDateWithin } from "@/lib/dates";
+import { trailingDayRange, isDateWithin } from "@/lib/dates";
 
 export interface WeeklyUpdateTask {
   title: string;
@@ -51,12 +51,14 @@ function formatTitleDate(date: Date): string {
 export function buildStructuredUpdate(data: WeeklyUpdateData): string {
   const { analystName, meetings, dashboards, assignedTasks, psqs } = data;
 
-  // "This week" = current ISO week (Monday-Sunday, inclusive), computed from
-  // local calendar date parts. Membership is a plain string comparison — see
+  // "This week" for completions = the trailing 7 days ending today (today plus
+  // the prior six), so a report written on any day — including a Monday —
+  // captures the week of work that just happened rather than an ISO week that
+  // has barely started. Membership is a plain string comparison — see
   // lib/dates.ts for why that sidesteps the classic `new Date("YYYY-MM-DD")`
   // (UTC) vs. `new Date()` (local) timezone skew.
-  const { startDate, endDate } = isoWeekRange();
-  const inWeek = (dateStr: string | null) => isDateWithin(dateStr, startDate, endDate);
+  const { startDate, endDate } = trailingDayRange(7);
+  const completedThisWeek = (dateStr: string | null) => isDateWithin(dateStr, startDate, endDate);
 
   let out = `# Weekly Update — ${analystName}\n_${formatTitleDate(new Date())}_\n\n`;
 
@@ -70,11 +72,11 @@ export function buildStructuredUpdate(data: WeeklyUpdateData): string {
     const statusLabel = dash.worklistStatus ?? "—";
     out += `\n**${dash.name}** — ${statusLabel}${priorityLabel}\n`;
 
-    // Open/in-progress tasks only count as "this week's activity" if they
-    // were created this week — otherwise they're stale open work that
-    // predates the window and no longer belongs in a weekly update.
-    const active = dash.tasks.filter((t) => t.status !== "done" && inWeek(t.createdDate));
-    const recentlyCompleted = dash.tasks.filter((t) => t.status === "done" && inWeek(t.completedDate));
+    // Open/in-progress tasks are outstanding work regardless of when they were
+    // created, so they all belong in the update. Completed tasks only count if
+    // they were finished within the trailing-7-day window.
+    const active = dash.tasks.filter((t) => t.status !== "done");
+    const recentlyCompleted = dash.tasks.filter((t) => t.status === "done" && completedThisWeek(t.completedDate));
 
     active.forEach((t) => {
       const box = t.status === "in_progress" || t.status === "progress" ? "~" : " ";
@@ -99,10 +101,10 @@ export function buildStructuredUpdate(data: WeeklyUpdateData): string {
       const statusLabel = p.status ?? "—";
       out += `\n- **${label}** (${statusLabel})\n`;
 
-      // Same rule as Dashboards: active tasks count only if created this
-      // week, completed tasks count only if completed this week.
-      const active = p.tasks.filter((t) => t.status !== "done" && inWeek(t.createdDate));
-      const recentlyCompleted = p.tasks.filter((t) => t.status === "done" && inWeek(t.completedDate));
+      // Same rule as Dashboards: all open tasks are outstanding work, completed
+      // tasks count only if finished within the trailing-7-day window.
+      const active = p.tasks.filter((t) => t.status !== "done");
+      const recentlyCompleted = p.tasks.filter((t) => t.status === "done" && completedThisWeek(t.completedDate));
 
       active.forEach((t) => {
         const box = t.status === "in_progress" || t.status === "progress" ? "~" : " ";
@@ -119,10 +121,10 @@ export function buildStructuredUpdate(data: WeeklyUpdateData): string {
     });
   }
 
-  // Same created-this-week / completed-this-week rule applies here: an
-  // assigned task only surfaces if there was activity on it this week.
+  // Same rule as above: open assigned tasks always surface as outstanding
+  // work, completed ones only if finished within the trailing-7-day window.
   const weekAssignedTasks = assignedTasks.filter((t) =>
-    t.status === "done" ? inWeek(t.completedDate) : inWeek(t.createdDate)
+    t.status === "done" ? completedThisWeek(t.completedDate) : true
   );
 
   if (weekAssignedTasks.length > 0) {

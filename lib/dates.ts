@@ -55,6 +55,25 @@ export function isDateWithin(
   return datePart >= startDate && datePart <= endDate;
 }
 
+// Returns the inclusive "YYYY-MM-DD" window covering the last `days` calendar
+// days ending today (default: now), computed from local date parts. `days = 7`
+// yields today plus the prior six days. Used by the Weekly Update so that a
+// report written on any day — including a Monday — captures the work actually
+// done over the preceding week, rather than an ISO week that resets to ~nothing
+// early in the week.
+export function trailingDayRange(
+  days: number,
+  reference: Date = new Date()
+): { startDate: string; endDate: string } {
+  const end = new Date(reference);
+  const start = new Date(end);
+  start.setDate(start.getDate() - (days - 1));
+  return {
+    startDate: toLocalDateString(start),
+    endDate: toLocalDateString(end),
+  };
+}
+
 // Returns the inclusive start date and exclusive end date of a calendar
 // month given as "YYYY-MM". Handy for reports that window by month rather
 // than by ISO week (e.g. an upcoming Monthly Summary feature).

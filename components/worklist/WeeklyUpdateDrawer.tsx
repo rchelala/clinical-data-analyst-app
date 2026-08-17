@@ -181,8 +181,9 @@ export function WeeklyUpdateDrawer({ data, analystId, onClose }: WeeklyUpdateDra
                 {copied ? "Copied" : "Copy to clipboard"}
               </button>
               <p className="text-[11px] text-secondary mt-2.5">
-                Built automatically from this analyst&apos;s dashboards, open/in-progress tasks, tasks
-                completed in the last 7 days, PSQ status, and meetings.
+                Built automatically from this analyst&apos;s dashboards, report subscriptions,
+                open/in-progress tasks, tasks completed in the last 7 days, PSQ status, and
+                meetings.
               </p>
             </>
           )}

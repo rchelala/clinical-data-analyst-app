@@ -45,7 +45,10 @@ export async function POST(req: NextRequest) {
 
     const message = await anthropic.messages.create({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 1500,
+      // Sectioned output runs one line per worklist item, so it is longer than
+      // the few paragraphs this used to produce. Headroom here avoids silently
+      // truncating the tail sections of a busy week.
+      max_tokens: 2500,
       messages: [{ role: "user", content: prompt }],
     });
 

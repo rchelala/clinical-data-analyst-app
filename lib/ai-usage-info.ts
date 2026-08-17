@@ -99,7 +99,7 @@ export const AI_FEATURES: AiFeatureInfo[] = [
     Icon: CalendarDays,
     usesAI: true,
     whatItDoes:
-      "Turns your worklist data into a written weekly status update.",
+      "Turns your worklist data into a sectioned weekly status update.",
     model: "Claude Haiku 4.5 (or Gemini 2.5 Flash Lite)",
     dataSent: "Your worklist text and the analyst name.",
     goesTo: "Anthropic (or Google, if Gemini is selected)",

@@ -18,6 +18,10 @@ export interface WeeklyUpdateDashboard {
   tasks: WeeklyUpdateTask[];
 }
 
+// Report subscriptions carry the same fields as dashboards; they are kept in a
+// separate list only so the update can render them under their own heading.
+export type WeeklyUpdateSubscription = WeeklyUpdateDashboard;
+
 export interface WeeklyUpdateAssignedTask {
   title: string;
   status: string;
@@ -37,6 +41,7 @@ export interface WeeklyUpdateData {
   analystName: string;
   meetings: string;
   dashboards: WeeklyUpdateDashboard[];
+  subscriptions: WeeklyUpdateSubscription[];
   assignedTasks: WeeklyUpdateAssignedTask[];
   psqs: WeeklyUpdatePsq[];
 }
@@ -49,7 +54,7 @@ function formatTitleDate(date: Date): string {
 // data. Pure/deterministic aside from reading "now" for the title date and
 // the recent-completion window — no network calls, no AI cost.
 export function buildStructuredUpdate(data: WeeklyUpdateData): string {
-  const { analystName, meetings, dashboards, assignedTasks, psqs } = data;
+  const { analystName, meetings, dashboards, subscriptions, assignedTasks, psqs } = data;
 
   // "This week" for completions = the trailing 7 days ending today (today plus
   // the prior six), so a report written on any day — including a Monday —
@@ -60,37 +65,92 @@ export function buildStructuredUpdate(data: WeeklyUpdateData): string {
   const { startDate, endDate } = trailingDayRange(7);
   const completedThisWeek = (dateStr: string | null) => isDateWithin(dateStr, startDate, endDate);
 
-  let out = `# Weekly Update — ${analystName}\n_${formatTitleDate(new Date())}_\n\n`;
-
-  if (meetings.trim()) {
-    out += `**Meetings this week:** ${meetings.trim()}\n\n`;
-  }
-
-  out += `## Dashboards\n`;
-  dashboards.forEach((dash) => {
-    const priorityLabel = dash.priority ? `  ·  Priority ${dash.priority}` : "";
-    const statusLabel = dash.worklistStatus ?? "—";
-    out += `\n**${dash.name}** — ${statusLabel}${priorityLabel}\n`;
+  // One entry — a dashboard, a report subscription, or a PSQ — rendered as a
+  // bolded heading line plus its task lines. All three used to inline the same
+  // logic; they share it here so the open/completed rules can only drift in one
+  // place.
+  const renderEntry = (heading: string, tasks: WeeklyUpdateTask[]): string => {
+    let block = `\n${heading}\n`;
 
     // Open/in-progress tasks are outstanding work regardless of when they were
     // created, so they all belong in the update. Completed tasks only count if
     // they were finished within the trailing-7-day window.
-    const active = dash.tasks.filter((t) => t.status !== "done");
-    const recentlyCompleted = dash.tasks.filter((t) => t.status === "done" && completedThisWeek(t.completedDate));
+    const active = tasks.filter((t) => t.status !== "done");
+    const recentlyCompleted = tasks.filter((t) => t.status === "done" && completedThisWeek(t.completedDate));
 
     active.forEach((t) => {
       const box = t.status === "in_progress" || t.status === "progress" ? "~" : " ";
-      out += `  - [${box}] ${t.title}\n`;
+      block += `  - [${box}] ${t.title}\n`;
     });
 
     if (recentlyCompleted.length) {
-      out += `  - ✓ Completed: ${recentlyCompleted.map((t) => t.title).join("; ")}\n`;
+      block += `  - ✓ Completed: ${recentlyCompleted.map((t) => t.title).join("; ")}\n`;
     }
 
     if (active.length === 0 && recentlyCompleted.length === 0) {
-      out += `  - _No activity this week_\n`;
+      block += `  - _No activity this week_\n`;
     }
-  });
+
+    return block;
+  };
+
+  const entryHeading = (name: string, status: string | null, priority: string | null): string => {
+    const priorityLabel = priority ? `  ·  Priority ${priority}` : "";
+    return `**${name}** — ${status ?? "—"}${priorityLabel}`;
+  };
+
+  let out = `# Weekly Update — ${analystName}\n_${formatTitleDate(new Date())}_\n\n`;
+
+  // Every section below prints its heading unconditionally, even when empty.
+  // The AI rewrite mirrors this structure verbatim, and a fixed set of headings
+  // in a fixed order is what makes the update scannable week over week.
+  out += `## Meetings this week\n${meetings.trim() || "_None recorded._"}\n`;
+
+  out += `\n## Dashboards\n`;
+  if (dashboards.length === 0) {
+    out += `_No dashboards on the worklist._\n`;
+  } else {
+    dashboards.forEach((dash) => {
+      out += renderEntry(entryHeading(dash.name, dash.worklistStatus, dash.priority), dash.tasks);
+    });
+  }
+
+  out += `\n## Report Subscriptions\n`;
+  if (subscriptions.length === 0) {
+    out += `_No report subscriptions on the worklist._\n`;
+  } else {
+    subscriptions.forEach((sub) => {
+      out += renderEntry(entryHeading(sub.name, sub.worklistStatus, sub.priority), sub.tasks);
+    });
+  }
+
+  // Same rule as the entries above: open assigned tasks always surface as
+  // outstanding work, completed ones only if finished within the trailing-7-day
+  // window. Grouped by parent name (dashboard, subscription, or division) so the
+  // update reads "USNWR:" followed by that project's tickets.
+  const weekAssignedTasks = assignedTasks.filter((t) =>
+    t.status === "done" ? completedThisWeek(t.completedDate) : true
+  );
+
+  out += `\n## Tasks assigned to me\n`;
+  if (weekAssignedTasks.length === 0) {
+    out += `_No assigned tasks this week._\n`;
+  } else {
+    const byParent = new Map<string, WeeklyUpdateAssignedTask[]>();
+    weekAssignedTasks.forEach((t) => {
+      const parent = t.dashboardName?.trim() || "Other";
+      const group = byParent.get(parent);
+      if (group) group.push(t);
+      else byParent.set(parent, [t]);
+    });
+
+    byParent.forEach((tasks, parent) => {
+      out += `\n**${parent}**\n`;
+      tasks.forEach((t) => {
+        out += `  - [${t.status === "done" ? "x" : " "}] ${t.title}\n`;
+      });
+    });
+  }
 
   out += `\n## PSQs\n`;
   if (psqs.length === 0) {
@@ -98,39 +158,7 @@ export function buildStructuredUpdate(data: WeeklyUpdateData): string {
   } else {
     psqs.forEach((p) => {
       const label = p.division ? `${p.division} — ${p.name}` : p.name;
-      const statusLabel = p.status ?? "—";
-      out += `\n- **${label}** (${statusLabel})\n`;
-
-      // Same rule as Dashboards: all open tasks are outstanding work, completed
-      // tasks count only if finished within the trailing-7-day window.
-      const active = p.tasks.filter((t) => t.status !== "done");
-      const recentlyCompleted = p.tasks.filter((t) => t.status === "done" && completedThisWeek(t.completedDate));
-
-      active.forEach((t) => {
-        const box = t.status === "in_progress" || t.status === "progress" ? "~" : " ";
-        out += `  - [${box}] ${t.title}\n`;
-      });
-
-      if (recentlyCompleted.length) {
-        out += `  - ✓ Completed: ${recentlyCompleted.map((t) => t.title).join("; ")}\n`;
-      }
-
-      if (active.length === 0 && recentlyCompleted.length === 0) {
-        out += `  - _No activity this week_\n`;
-      }
-    });
-  }
-
-  // Same rule as above: open assigned tasks always surface as outstanding
-  // work, completed ones only if finished within the trailing-7-day window.
-  const weekAssignedTasks = assignedTasks.filter((t) =>
-    t.status === "done" ? completedThisWeek(t.completedDate) : true
-  );
-
-  if (weekAssignedTasks.length > 0) {
-    out += `\n## Assigned to me\n`;
-    weekAssignedTasks.forEach((t) => {
-      out += `- [${t.status === "done" ? "x" : " "}] ${t.title} _(${t.dashboardName})_\n`;
+      out += renderEntry(entryHeading(label, p.status, null), p.tasks);
     });
   }
 

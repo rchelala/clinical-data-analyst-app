@@ -116,9 +116,11 @@ export default function WorklistPage() {
   const [dashboardsLoading, setDashboardsLoading] = useState(true);
   const [dashboardsError, setDashboardsError] = useState<string | null>(null);
   const [sortByPriority, setSortByPriority] = useState(true);
-  // Single global status filter applied across all sections. Default to
-  // "active"; an empty selection means "show all".
-  const [selectedStatuses, setSelectedStatuses] = useState<string[]>(["active"]);
+  // Single global status filter applied across all sections. Defaults to
+  // "active" + "open" so in-flight work of both flavours shows on load —
+  // dashboards/subscriptions carry "active", tasks carry "open". An empty
+  // selection means "show all".
+  const [selectedStatuses, setSelectedStatuses] = useState<string[]>(["active", "open"]);
   const [dashboardsExpanded, setDashboardsExpanded] = useState(true);
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [tasksByItem, setTasksByItem] = useState<Record<string, Task[]>>({});
@@ -767,8 +769,10 @@ export default function WorklistPage() {
     items.forEach((i) => add(i.worklistStatus));
     psqs.forEach((p) => add(p.status));
     assignedTasks.forEach((t) => add(t.status));
-    // Ensure the default "active" is always offered even if nothing uses it yet.
+    // Ensure the defaults are always offered even if nothing uses them yet,
+    // so a default-selected status can still be toggled off.
     if (!seen.has("active")) seen.set("active", "active");
+    if (!seen.has("open")) seen.set("open", "open");
     return Array.from(seen.values());
   }, [items, psqs, assignedTasks]);
 
@@ -940,20 +944,26 @@ export default function WorklistPage() {
         })
       );
 
+      // Dashboards and report subscriptions render under separate headings in
+      // the update, so they are split apart here rather than being flattened
+      // into one list with a "(subscription)" name suffix.
+      const toEntry = ({ item, tasks }: (typeof results)[number]) => ({
+        name: item.name,
+        priority: item.priority,
+        worklistStatus: item.worklistStatus,
+        tasks: tasks.map((t) => ({
+          title: t.title,
+          status: t.status,
+          createdDate: t.createdDate,
+          completedDate: t.completedDate,
+        })),
+      });
+
       const data: WeeklyUpdateData = {
         analystName,
         meetings,
-        dashboards: results.map(({ item, tasks }) => ({
-          name: item.kind === "subscription" ? `${item.name} (subscription)` : item.name,
-          priority: item.priority,
-          worklistStatus: item.worklistStatus,
-          tasks: tasks.map((t) => ({
-            title: t.title,
-            status: t.status,
-            createdDate: t.createdDate,
-            completedDate: t.completedDate,
-          })),
-        })),
+        dashboards: results.filter(({ item }) => item.kind !== "subscription").map(toEntry),
+        subscriptions: results.filter(({ item }) => item.kind === "subscription").map(toEntry),
         assignedTasks: assignedTasks.map((t) => ({
           title: t.title,
           status: t.status,

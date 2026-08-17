@@ -45,18 +45,48 @@ ${code}`;
 export function buildWeeklyUpdatePrompt(structuredMarkdown: string, analystName: string): string {
   return `You are an analytics manager's trusted analyst, ${analystName}, writing your own weekly status update.
 
-Rewrite the structured worklist data below into a concise, professional weekly status update in prose, suitable for sharing with your manager and team.
+Rewrite the structured worklist data below into a scannable, sectioned weekly status update suitable for sharing with your manager and team.
 
-The data has two kinds of items: work COMPLETED in the past week (marked "✓ Completed") and work that is still OUTSTANDING (open or in-progress tasks, marked "[ ]" or "[~]"). Your update must cover both — first what you accomplished this week, then what remains open or in progress.
+The data has two kinds of items: work COMPLETED in the past week (marked "✓ Completed") and work that is still OUTSTANDING (open or in-progress tasks, marked "[ ]" or "[~]"). Every item must be accounted for — fold both into the one-line narrative you write for it.
 
-Guidance:
-- Group related work by theme rather than listing every dashboard mechanically
-- Lead with the most important completed progress first, then cover outstanding/in-progress work
-- Always account for the outstanding items — do not drop open or in-progress tasks
-- If there is genuinely no completed work and no outstanding work, say so plainly; otherwise never describe the week as "quiet" or without activity
-- Keep it tight — a few short paragraphs, not a wall of text
-- No preamble (e.g. "Here is your update") and no sign-off — just the update itself
-- Plain, professional tone — no markdown fences, no headers, no bullet lists; write in flowing paragraphs
+OUTPUT FORMAT — the block between the >>> markers below shows the SHAPE to follow. Its
+content is fictional filler used only to illustrate spacing and line structure. Never copy
+any name, date, ticket identifier, or phrase out of it — every word you output must come
+from the worklist data at the end of this message.
+
+>>>
+Meetings this week:
+6/02 - Example meeting with a stakeholder group
+6/04 - Example working session
+
+Dashboard:
+Example Dashboard One - Short narrative of what happened, in one or two sentences
+Example Dashboard Two - Short narrative of what happened
+
+Report Subscriptions:
+Example Subscription - Short narrative of what happened
+
+Tasks:
+Example Parent Project:
+X11 first task narrative
+X12 & X13: second task narrative
+
+PSQ:
+Example PSQ - Short narrative of what happened
+>>>
+
+Rules:
+- Use exactly these five section headings, in this order, each alone on its own line ending with a colon: "Meetings this week:", "Dashboard:", "Report Subscriptions:", "Tasks:", "PSQ:"
+- ALWAYS print every heading, even when there is nothing to report under it. Print the heading and move on to the next section — leave it blank. Never write "None", "N/A", or "No activity".
+- One item per line in the form "Name - short narrative". Keep each line to one or two sentences.
+- Under "Tasks:", group by the parent project name from the source data (the bolded name in the "Tasks assigned to me" section). Put that parent name on its own line ending with a colon, then one line per task beneath it.
+- Preserve ticket identifiers exactly as written in the source (e.g. J23, J30 & J31, i14). Never invent an identifier and never drop one.
+- Include EVERY entry and EVERY task group from the source data. Do not merge two groups into one, and do not omit a group because it is short.
+- Report only what the worklist data states. Never add a dashboard, meeting, subscription, PSQ, person, or ticket that does not appear in it.
+- Map the source sections onto the output sections: Dashboards → "Dashboard:", Report Subscriptions → "Report Subscriptions:", Tasks assigned to me → "Tasks:", PSQs → "PSQ:".
+- Skip source entries marked "_No activity this week_" rather than writing a line saying nothing happened.
+- Plain text only — no markdown, no bold, no bullets or leading dashes, no code fences, no numbering.
+- One blank line between sections. No preamble (e.g. "Here is your update") and no sign-off.
 
 Structured worklist data:
 ${structuredMarkdown}`;

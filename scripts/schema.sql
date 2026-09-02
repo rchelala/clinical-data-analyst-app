@@ -129,6 +129,7 @@ CREATE TABLE tasks (
    priority         text,
    created_date     date NOT NULL DEFAULT CURRENT_DATE,
    completed_date   date,
+   resolution_comment text, -- optional free-text note captured when the task is completed
    CHECK (num_nonnulls(dashboard_id, subscription_id, division_id, psq_id) = 1)
 );
 

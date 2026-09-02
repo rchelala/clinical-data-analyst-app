@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { mapTaskRow } from '@/lib/brain-mappers';
+import { normalizeNullableString } from '@/lib/normalize';
 
 export async function PATCH(
   req: NextRequest,
@@ -20,11 +21,13 @@ export async function PATCH(
       priority?: string | null;
       ownerAnalystId?: number | null;
       completedDate?: string | null;
+      resolutionComment?: string | null;
     };
     const { title, status, completedDate } = body;
     const description = body.description;
     const priority = body.priority;
     const ownerAnalystId = body.ownerAnalystId;
+    const resolutionComment = body.resolutionComment;
 
     if (
       title === undefined &&
@@ -32,7 +35,8 @@ export async function PATCH(
       status === undefined &&
       priority === undefined &&
       ownerAnalystId === undefined &&
-      completedDate === undefined
+      completedDate === undefined &&
+      resolutionComment === undefined
     ) {
       return NextResponse.json(
         { error: 'At least one field must be provided.' },
@@ -45,7 +49,7 @@ export async function PATCH(
     }
 
     const current = await sql`
-      SELECT id, dashboard_id, subscription_id, division_id, psq_id, owner_analyst_id, created_by_id, title, description, status, priority, created_date, completed_date
+      SELECT id, dashboard_id, subscription_id, division_id, psq_id, owner_analyst_id, created_by_id, title, description, status, priority, created_date, completed_date, resolution_comment
       FROM tasks
       WHERE id = ${taskId}
     `;
@@ -76,6 +80,15 @@ export async function PATCH(
       priority: priority !== undefined ? priority : current[0].priority,
       ownerAnalystId: ownerAnalystId !== undefined ? ownerAnalystId : current[0].owner_analyst_id,
       completedDate: mergedCompletedDate,
+      // An explicitly provided resolutionComment always wins. Otherwise,
+      // re-opening a completed task clears its resolution note, mirroring
+      // how completedDate is cleared above.
+      resolutionComment:
+        resolutionComment !== undefined
+          ? normalizeNullableString(resolutionComment)
+          : leavingDone
+            ? null
+            : current[0].resolution_comment,
     };
 
     const rows = shouldStampToday
@@ -83,17 +96,17 @@ export async function PATCH(
           UPDATE tasks
           SET title = ${merged.title}, description = ${merged.description}, status = ${merged.status},
               priority = ${merged.priority}, owner_analyst_id = ${merged.ownerAnalystId},
-              completed_date = CURRENT_DATE
+              completed_date = CURRENT_DATE, resolution_comment = ${merged.resolutionComment}
           WHERE id = ${taskId}
-          RETURNING id, dashboard_id, subscription_id, division_id, psq_id, owner_analyst_id, created_by_id, title, description, status, priority, created_date, completed_date
+          RETURNING id, dashboard_id, subscription_id, division_id, psq_id, owner_analyst_id, created_by_id, title, description, status, priority, created_date, completed_date, resolution_comment
         `
       : await sql`
           UPDATE tasks
           SET title = ${merged.title}, description = ${merged.description}, status = ${merged.status},
               priority = ${merged.priority}, owner_analyst_id = ${merged.ownerAnalystId},
-              completed_date = ${merged.completedDate}
+              completed_date = ${merged.completedDate}, resolution_comment = ${merged.resolutionComment}
           WHERE id = ${taskId}
-          RETURNING id, dashboard_id, subscription_id, division_id, psq_id, owner_analyst_id, created_by_id, title, description, status, priority, created_date, completed_date
+          RETURNING id, dashboard_id, subscription_id, division_id, psq_id, owner_analyst_id, created_by_id, title, description, status, priority, created_date, completed_date, resolution_comment
         `;
 
     return NextResponse.json(mapTaskRow(rows[0]));

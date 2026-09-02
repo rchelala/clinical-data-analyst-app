@@ -23,6 +23,7 @@ import { StatusPrioritySelect } from "@/components/worklist/StatusPrioritySelect
 import { StatusFilterDropdown } from "@/components/worklist/StatusFilterDropdown";
 import { WorklistItemCard } from "@/components/worklist/WorklistItemCard";
 import { EditableCell } from "@/components/worklist/EditableCell";
+import { TaskResolutionNote } from "@/components/worklist/TaskResolutionNote";
 import { WorklistItem, WorklistItemKind } from "@/lib/worklist-types";
 import { WeeklyUpdateDrawer } from "@/components/worklist/WeeklyUpdateDrawer";
 import { loadAnalystId } from "@/lib/analyst-identity";
@@ -146,6 +147,9 @@ export default function WorklistPage() {
   const [tasksByPsq, setTasksByPsq] = useState<Record<number, Task[]>>({});
   const [psqTasksLoading, setPsqTasksLoading] = useState<Record<number, boolean>>({});
   const [showAddTaskForPsq, setShowAddTaskForPsq] = useState<number | null>(null);
+  // Which task (if any) has its resolution-note input open. Global (not
+  // per-list) so at most one note editor is ever open at a time.
+  const [noteEditingTaskId, setNoteEditingTaskId] = useState<number | null>(null);
 
   useEffect(() => {
     if (notice === null) return;
@@ -676,15 +680,20 @@ export default function WorklistPage() {
           (tasksByPsq[p.id] ?? []).map((task) => (
             <div
               key={task.id}
-              className="flex items-start gap-2.5 px-3 py-2.5 mb-2 rounded-md border border-theme bg-secondary"
+              className="group flex items-start gap-2.5 px-3 py-2.5 mb-2 rounded-md border border-theme bg-secondary"
             >
               <button
                 type="button"
-                onClick={() =>
-                  patchPsqTask(p.id, task.id, {
-                    status: task.status === "done" ? "open" : "done",
-                  })
-                }
+                onClick={async () => {
+                  // Awaited (not fire-and-forget): the checkmark already only
+                  // ticks once this resolves, and awaiting here guarantees
+                  // this status PATCH lands before any note PATCH the note
+                  // editor issues next, so a fast note save can't be
+                  // clobbered by a slower in-flight status response.
+                  const completing = task.status !== "done";
+                  await patchPsqTask(p.id, task.id, { status: completing ? "done" : "open" });
+                  setNoteEditingTaskId(completing ? task.id : null);
+                }}
                 className={`mt-0.5 w-[18px] h-[18px] rounded-[5px] flex-shrink-0 border flex items-center justify-center text-[10px] transition-colors ${
                   task.status === "done" ? "bg-emerald-500 border-emerald-500 text-black" : "border-secondary"
                 }`}
@@ -715,6 +724,14 @@ export default function WorklistPage() {
                   />
                 </div>
                 <TaskDates createdDate={task.createdDate} completedDate={task.completedDate} />
+                <TaskResolutionNote
+                  value={task.resolutionComment}
+                  editing={noteEditingTaskId === task.id}
+                  visible={task.status === "done"}
+                  onRequestEdit={() => setNoteEditingTaskId(task.id)}
+                  onSave={(v) => patchPsqTask(p.id, task.id, { resolutionComment: v })}
+                  onDismiss={() => setNoteEditingTaskId(null)}
+                />
               </div>
               <button
                 type="button"
@@ -737,7 +754,16 @@ export default function WorklistPage() {
         </button>
       </>
     ),
-    [psqTasksLoading, tasksByPsq, patchPsqTask, deletePsqTask, statusSuggestions, prioritySuggestions, setShowAddTaskForPsq]
+    [
+      psqTasksLoading,
+      tasksByPsq,
+      patchPsqTask,
+      deletePsqTask,
+      statusSuggestions,
+      prioritySuggestions,
+      setShowAddTaskForPsq,
+      noteEditingTaskId,
+    ]
   );
 
   // Normalized set of selected statuses for O(1) case-insensitive matching.
@@ -838,15 +864,20 @@ export default function WorklistPage() {
             (tasksByItem[key] ?? []).map((task) => (
               <div
                 key={task.id}
-                className="flex items-start gap-2.5 px-3 py-2.5 mb-2 rounded-md border border-theme bg-secondary"
+                className="group flex items-start gap-2.5 px-3 py-2.5 mb-2 rounded-md border border-theme bg-secondary"
               >
                 <button
                   type="button"
-                  onClick={() =>
-                    patchTask(key, task.id, {
-                      status: task.status === "done" ? "open" : "done",
-                    })
-                  }
+                  onClick={async () => {
+                    // Awaited (not fire-and-forget): the checkmark already only
+                    // ticks once this resolves, and awaiting here guarantees
+                    // this status PATCH lands before any note PATCH the note
+                    // editor issues next, so a fast note save can't be
+                    // clobbered by a slower in-flight status response.
+                    const completing = task.status !== "done";
+                    await patchTask(key, task.id, { status: completing ? "done" : "open" });
+                    setNoteEditingTaskId(completing ? task.id : null);
+                  }}
                   className={`mt-0.5 w-[18px] h-[18px] rounded-[5px] flex-shrink-0 border flex items-center justify-center text-[10px] transition-colors ${
                     task.status === "done" ? "bg-emerald-500 border-emerald-500 text-black" : "border-secondary"
                   }`}
@@ -877,6 +908,14 @@ export default function WorklistPage() {
                     />
                   </div>
                   <TaskDates createdDate={task.createdDate} completedDate={task.completedDate} />
+                  <TaskResolutionNote
+                    value={task.resolutionComment}
+                    editing={noteEditingTaskId === task.id}
+                    visible={task.status === "done"}
+                    onRequestEdit={() => setNoteEditingTaskId(task.id)}
+                    onSave={(v) => patchTask(key, task.id, { resolutionComment: v })}
+                    onDismiss={() => setNoteEditingTaskId(null)}
+                  />
                 </div>
                 <button
                   type="button"
@@ -900,7 +939,16 @@ export default function WorklistPage() {
         </>
       );
     },
-    [tasksLoading, tasksByItem, patchTask, deleteItemTask, statusSuggestions, prioritySuggestions, setShowAddTaskFor]
+    [
+      tasksLoading,
+      tasksByItem,
+      patchTask,
+      deleteItemTask,
+      statusSuggestions,
+      prioritySuggestions,
+      setShowAddTaskFor,
+      noteEditingTaskId,
+    ]
   );
 
   // Compiles WeeklyUpdateData for the drawer. Fetches tasks for every
@@ -1348,6 +1396,15 @@ export default function WorklistPage() {
                             {task.contextOwnerName ? ` · owned by ${task.contextOwnerName}` : ""}
                           </div>
                           <TaskDates createdDate={task.createdDate} completedDate={task.completedDate} />
+                          <TaskResolutionNote
+                            value={task.resolutionComment}
+                            editing={false}
+                            visible={task.status === "done"}
+                            readOnly
+                            onRequestEdit={() => {}}
+                            onSave={() => {}}
+                            onDismiss={() => {}}
+                          />
                         </div>
                         <StatusPrioritySelect
                           kind="status"

@@ -2,21 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { mapDashboardRow } from '@/lib/brain-mappers';
 import { DashboardStatus, UrgencyBucket } from '@/lib/brain-types';
+import { normalizeNullableString } from '@/lib/normalize';
 
 const VALID_STATUSES: DashboardStatus[] = ['active', 'maintenance', 'retired'];
 const VALID_URGENCY: UrgencyBucket[] = ['high', 'med', 'low'];
-
-// Trims a provided string field to null when empty, matching the
-// null-vs-empty-string normalization EditEntityForm already applies
-// client-side. `undefined` (not provided) and `null` (explicit clear)
-// pass through unchanged.
-function normalizeNullableString(value: string | null | undefined): string | null | undefined {
-  if (typeof value !== 'string') {
-    return value;
-  }
-  const trimmed = value.trim();
-  return trimmed === '' ? null : trimmed;
-}
 
 export async function PATCH(
   req: NextRequest,

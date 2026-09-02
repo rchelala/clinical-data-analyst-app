@@ -31,14 +31,14 @@ export async function GET(req: NextRequest) {
     if (hasDashboardId) {
       const rows = hasOwnerAnalystId
         ? await sql`
-            SELECT t.id, t.dashboard_id, t.subscription_id, t.division_id, t.psq_id, t.owner_analyst_id, t.created_by_id, t.title, t.description, t.status, t.priority, t.created_date, t.completed_date, owner.name AS owner_name
+            SELECT t.id, t.dashboard_id, t.subscription_id, t.division_id, t.psq_id, t.owner_analyst_id, t.created_by_id, t.title, t.description, t.status, t.priority, t.created_date, t.completed_date, t.resolution_comment, owner.name AS owner_name
             FROM tasks t
             LEFT JOIN analysts owner ON owner.id = t.owner_analyst_id
             WHERE t.dashboard_id = ${dashboardId} AND t.owner_analyst_id = ${ownerAnalystId}
             ORDER BY t.created_date DESC
           `
         : await sql`
-            SELECT t.id, t.dashboard_id, t.subscription_id, t.division_id, t.psq_id, t.owner_analyst_id, t.created_by_id, t.title, t.description, t.status, t.priority, t.created_date, t.completed_date, owner.name AS owner_name
+            SELECT t.id, t.dashboard_id, t.subscription_id, t.division_id, t.psq_id, t.owner_analyst_id, t.created_by_id, t.title, t.description, t.status, t.priority, t.created_date, t.completed_date, t.resolution_comment, owner.name AS owner_name
             FROM tasks t
             LEFT JOIN analysts owner ON owner.id = t.owner_analyst_id
             WHERE t.dashboard_id = ${dashboardId}
@@ -51,14 +51,14 @@ export async function GET(req: NextRequest) {
     if (hasSubscriptionId) {
       const rows = hasOwnerAnalystId
         ? await sql`
-            SELECT t.id, t.dashboard_id, t.subscription_id, t.division_id, t.psq_id, t.owner_analyst_id, t.created_by_id, t.title, t.description, t.status, t.priority, t.created_date, t.completed_date, owner.name AS owner_name
+            SELECT t.id, t.dashboard_id, t.subscription_id, t.division_id, t.psq_id, t.owner_analyst_id, t.created_by_id, t.title, t.description, t.status, t.priority, t.created_date, t.completed_date, t.resolution_comment, owner.name AS owner_name
             FROM tasks t
             LEFT JOIN analysts owner ON owner.id = t.owner_analyst_id
             WHERE t.subscription_id = ${subscriptionId} AND t.owner_analyst_id = ${ownerAnalystId}
             ORDER BY t.created_date DESC
           `
         : await sql`
-            SELECT t.id, t.dashboard_id, t.subscription_id, t.division_id, t.psq_id, t.owner_analyst_id, t.created_by_id, t.title, t.description, t.status, t.priority, t.created_date, t.completed_date, owner.name AS owner_name
+            SELECT t.id, t.dashboard_id, t.subscription_id, t.division_id, t.psq_id, t.owner_analyst_id, t.created_by_id, t.title, t.description, t.status, t.priority, t.created_date, t.completed_date, t.resolution_comment, owner.name AS owner_name
             FROM tasks t
             LEFT JOIN analysts owner ON owner.id = t.owner_analyst_id
             WHERE t.subscription_id = ${subscriptionId}
@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
 
     if (hasDivisionId) {
       const rows = await sql`
-        SELECT t.id, t.dashboard_id, t.subscription_id, t.division_id, t.psq_id, t.owner_analyst_id, t.created_by_id, t.title, t.description, t.status, t.priority, t.created_date, t.completed_date, owner.name AS owner_name
+        SELECT t.id, t.dashboard_id, t.subscription_id, t.division_id, t.psq_id, t.owner_analyst_id, t.created_by_id, t.title, t.description, t.status, t.priority, t.created_date, t.completed_date, t.resolution_comment, owner.name AS owner_name
         FROM tasks t
         LEFT JOIN analysts owner ON owner.id = t.owner_analyst_id
         WHERE t.division_id = ${divisionId}
@@ -83,13 +83,13 @@ export async function GET(req: NextRequest) {
     if (hasPsqId) {
       const rows = hasOwnerAnalystId
         ? await sql`
-            SELECT id, dashboard_id, subscription_id, division_id, psq_id, owner_analyst_id, created_by_id, title, description, status, priority, created_date, completed_date
+            SELECT id, dashboard_id, subscription_id, division_id, psq_id, owner_analyst_id, created_by_id, title, description, status, priority, created_date, completed_date, resolution_comment
             FROM tasks
             WHERE psq_id = ${psqId} AND owner_analyst_id = ${ownerAnalystId}
             ORDER BY created_date DESC
           `
         : await sql`
-            SELECT id, dashboard_id, subscription_id, division_id, psq_id, owner_analyst_id, created_by_id, title, description, status, priority, created_date, completed_date
+            SELECT id, dashboard_id, subscription_id, division_id, psq_id, owner_analyst_id, created_by_id, title, description, status, priority, created_date, completed_date, resolution_comment
             FROM tasks
             WHERE psq_id = ${psqId}
             ORDER BY created_date DESC
@@ -102,7 +102,7 @@ export async function GET(req: NextRequest) {
       const rows = await sql`
         SELECT
           t.id, t.dashboard_id, t.subscription_id, t.division_id, t.psq_id, t.owner_analyst_id, t.created_by_id, t.title, t.description,
-          t.status, t.priority, t.created_date, t.completed_date,
+          t.status, t.priority, t.created_date, t.completed_date, t.resolution_comment,
           CASE
             WHEN t.dashboard_id IS NOT NULL THEN 'dashboard'
             WHEN t.subscription_id IS NOT NULL THEN 'subscription'
@@ -215,7 +215,7 @@ export async function POST(req: NextRequest) {
     const rows = await sql`
       INSERT INTO tasks (dashboard_id, subscription_id, division_id, psq_id, owner_analyst_id, created_by_id, title, description, status, priority)
       VALUES (${dashboardId ?? null}, ${subscriptionId ?? null}, ${divisionId ?? null}, ${psqId ?? null}, ${ownerAnalystId ?? createdById}, ${createdById}, ${title}, ${description ?? null}, ${status ?? 'open'}, ${priority ?? null})
-      RETURNING id, dashboard_id, subscription_id, division_id, psq_id, owner_analyst_id, created_by_id, title, description, status, priority, created_date, completed_date
+      RETURNING id, dashboard_id, subscription_id, division_id, psq_id, owner_analyst_id, created_by_id, title, description, status, priority, created_date, completed_date, resolution_comment
     `;
 
     return NextResponse.json(mapTaskRow(rows[0]), { status: 201 });

@@ -118,6 +118,7 @@ export function mapTaskRow(row: any): Task {
     priority: row.priority,
     createdDate: row.created_date,
     completedDate: row.completed_date,
+    resolutionComment: row.resolution_comment ?? null,
     // Present only when the query joins the owner analyst; otherwise undefined.
     ownerName: row.owner_name ?? null,
   };

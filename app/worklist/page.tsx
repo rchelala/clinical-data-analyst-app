@@ -1381,9 +1381,31 @@ export default function WorklistPage() {
                 <div className="rounded-xl border border-theme bg-panel shadow-panel overflow-hidden">
                   <ul className="divide-y divide-theme/60">
                     {filteredAssignedTasks.map((task) => (
-                      <li key={task.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02] transition-colors">
+                      <li key={task.id} className="group flex items-start gap-3 px-4 py-2.5 hover:bg-white/[0.02] transition-colors">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            // Awaited for the same reason as the other task
+                            // lists: the status PATCH must land before any
+                            // note PATCH the editor issues next.
+                            const completing = task.status !== "done";
+                            await patchAssignedTask(task.id, { status: completing ? "done" : "open" });
+                            setNoteEditingTaskId(completing ? task.id : null);
+                          }}
+                          className={`mt-0.5 w-[18px] h-[18px] rounded-[5px] flex-shrink-0 border flex items-center justify-center text-[10px] transition-colors ${
+                            task.status === "done" ? "bg-emerald-500 border-emerald-500 text-black" : "border-secondary"
+                          }`}
+                        >
+                          {task.status === "done" ? "✓" : ""}
+                        </button>
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm text-primary font-medium">{task.title}</div>
+                          <div
+                            className={`text-sm font-medium ${
+                              task.status === "done" ? "line-through text-secondary" : "text-primary"
+                            }`}
+                          >
+                            {task.title}
+                          </div>
                           {task.description && (
                             <div className="text-xs text-secondary mt-0.5 whitespace-pre-wrap">
                               {task.description}
@@ -1398,12 +1420,11 @@ export default function WorklistPage() {
                           <TaskDates createdDate={task.createdDate} completedDate={task.completedDate} />
                           <TaskResolutionNote
                             value={task.resolutionComment}
-                            editing={false}
+                            editing={noteEditingTaskId === task.id}
                             visible={task.status === "done"}
-                            readOnly
-                            onRequestEdit={() => {}}
-                            onSave={() => {}}
-                            onDismiss={() => {}}
+                            onRequestEdit={() => setNoteEditingTaskId(task.id)}
+                            onSave={(v) => patchAssignedTask(task.id, { resolutionComment: v })}
+                            onDismiss={() => setNoteEditingTaskId(null)}
                           />
                         </div>
                         <StatusPrioritySelect

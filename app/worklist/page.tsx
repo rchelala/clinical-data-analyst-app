@@ -12,6 +12,7 @@ import {
   Trash2,
   Loader2,
   CalendarDays,
+  StickyNote,
   BrainCircuit,
   Building2,
 } from "lucide-react";
@@ -111,6 +112,10 @@ export default function WorklistPage() {
   const [meetingsLoaded, setMeetingsLoaded] = useState(false);
   const weekStart = useMemo(() => getIsoMonday(new Date()), []);
 
+  // Reminders: persistent private note, not week-scoped, not in the weekly update
+  const [reminders, setReminders] = useState<string>("");
+  const [remindersLoaded, setRemindersLoaded] = useState(false);
+
   // Dashboards + report subscriptions (rendered together in one section)
   const [dashboards, setDashboards] = useState<WorklistDashboardItem[]>([]);
   const [subscriptions, setSubscriptions] = useState<WorklistSubscriptionItem[]>([]);
@@ -204,6 +209,43 @@ export default function WorklistPage() {
       }
     },
     [analystId, weekStart]
+  );
+
+  // Fetch reminders
+  const refetchReminders = useCallback(async () => {
+    if (analystId === null) return;
+    setRemindersLoaded(false);
+    try {
+      const res = await fetch(`/api/reminders?analystId=${analystId}`);
+      const data = await res.json();
+      if (res.ok) {
+        setReminders(data?.reminders ?? "");
+      }
+    } catch {
+      // Non-critical
+    } finally {
+      setRemindersLoaded(true);
+    }
+  }, [analystId]);
+
+  useEffect(() => {
+    refetchReminders();
+  }, [refetchReminders]);
+
+  const handleRemindersBlur = useCallback(
+    async (value: string) => {
+      if (analystId === null) return;
+      try {
+        await fetch("/api/reminders", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ analystId, reminders: value.trim() ? value.trim() : null }),
+        });
+      } catch {
+        // Non-critical
+      }
+    },
+    [analystId]
   );
 
   // Fetch the analyst's worklist dashboards AND owned report subscriptions in
@@ -1132,8 +1174,9 @@ export default function WorklistPage() {
           </div>
         ) : (
           <>
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Meetings banner */}
-            <div className="mt-4 rounded-lg border border-theme bg-panel shadow-panel px-4 py-3.5">
+            <div className="min-w-0 rounded-lg border border-theme bg-panel shadow-panel px-4 py-3.5">
               <label className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-secondary font-medium">
                 <CalendarDays className="w-3 h-3" />
                 Meetings this week
@@ -1147,7 +1190,7 @@ export default function WorklistPage() {
                     setMeetings(value);
                     handleMeetingsBlur(value);
                   }}
-                  className="mt-1.5 text-sm text-primary outline-none rounded-md px-2 py-1.5 border border-transparent hover:border-theme hover:bg-secondary-glass focus:border-brand-500 focus:bg-secondary-glass transition-colors min-h-[1.5em]"
+                  className="mt-1.5 text-sm text-primary whitespace-pre-wrap break-words outline-none rounded-md px-2 py-1.5 border border-transparent hover:border-theme hover:bg-secondary-glass focus:border-brand-500 focus:bg-secondary-glass transition-colors min-h-[1.5em]"
                 >
                   {meetings}
                 </div>
@@ -1156,6 +1199,34 @@ export default function WorklistPage() {
                   <Loader2 className="w-3.5 h-3.5 text-secondary animate-spin" />
                 </div>
               )}
+            </div>
+
+            {/* Reminders — private, persists across weeks */}
+            <div className="min-w-0 rounded-lg border border-theme bg-panel shadow-panel px-4 py-3.5">
+              <label className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-secondary font-medium">
+                <StickyNote className="w-3 h-3" />
+                Reminders
+              </label>
+              {remindersLoaded ? (
+                <div
+                  contentEditable
+                  suppressContentEditableWarning
+                  data-placeholder="Quick notes to self…"
+                  onBlur={(e) => {
+                    const value = e.currentTarget.innerText;
+                    setReminders(value);
+                    handleRemindersBlur(value);
+                  }}
+                  className="mt-1.5 text-sm text-primary whitespace-pre-wrap break-words outline-none rounded-md px-2 py-1.5 border border-transparent hover:border-theme hover:bg-secondary-glass focus:border-brand-500 focus:bg-secondary-glass transition-colors min-h-[1.5em] empty:before:content-[attr(data-placeholder)] empty:before:text-secondary"
+                >
+                  {reminders}
+                </div>
+              ) : (
+                <div className="mt-1.5 h-6 flex items-center">
+                  <Loader2 className="w-3.5 h-3.5 text-secondary animate-spin" />
+                </div>
+              )}
+            </div>
             </div>
 
             {/* My Dashboards / Report Subscriptions */}

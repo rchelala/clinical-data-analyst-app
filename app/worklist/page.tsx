@@ -28,6 +28,8 @@ import { TaskResolutionNote } from "@/components/worklist/TaskResolutionNote";
 import { WorklistItem, WorklistItemKind } from "@/lib/worklist-types";
 import { WeeklyUpdateDrawer } from "@/components/worklist/WeeklyUpdateDrawer";
 import { loadAnalystId } from "@/lib/analyst-identity";
+import { loadReminders, saveReminders } from "@/lib/reminders-cache";
+import { formatSavedAt } from "@/lib/weekly-summary-cache";
 import { Dashboard, Division, PsqWithTaskCount, ReportSubscription, Task, TaskWithContext } from "@/lib/brain-types";
 import { WeeklyUpdateData } from "@/lib/weekly-update";
 
@@ -115,6 +117,8 @@ export default function WorklistPage() {
   // Reminders: persistent private note, not week-scoped, not in the weekly update
   const [reminders, setReminders] = useState<string>("");
   const [remindersLoaded, setRemindersLoaded] = useState(false);
+  const [remindersSavedAt, setRemindersSavedAt] = useState<number | null>(null);
+  const [remindersSaveFailed, setRemindersSaveFailed] = useState(false);
 
   // Dashboards + report subscriptions (rendered together in one section)
   const [dashboards, setDashboards] = useState<WorklistDashboardItem[]>([]);
@@ -211,39 +215,25 @@ export default function WorklistPage() {
     [analystId, weekStart]
   );
 
-  // Fetch reminders
-  const refetchReminders = useCallback(async () => {
+  // Load reminders from browser storage (per analyst)
+  useEffect(() => {
     if (analystId === null) return;
-    setRemindersLoaded(false);
-    try {
-      const res = await fetch(`/api/reminders?analystId=${analystId}`);
-      const data = await res.json();
-      if (res.ok) {
-        setReminders(data?.reminders ?? "");
-      }
-    } catch {
-      // Non-critical
-    } finally {
-      setRemindersLoaded(true);
-    }
+    const entry = loadReminders(analystId);
+    setReminders(entry?.text ?? "");
+    setRemindersSavedAt(entry?.updatedAt ?? null);
+    setRemindersSaveFailed(false);
+    setRemindersLoaded(true);
   }, [analystId]);
 
-  useEffect(() => {
-    refetchReminders();
-  }, [refetchReminders]);
-
-  const handleRemindersBlur = useCallback(
-    async (value: string) => {
+  // Saves on every keystroke (localStorage is synchronous and cheap), so a
+  // refresh mid-typing can't lose anything. The DOM is left uncontrolled while
+  // typing to avoid caret jumps; `key={analystId}` remounts it on analyst switch.
+  const handleRemindersInput = useCallback(
+    (value: string) => {
       if (analystId === null) return;
-      try {
-        await fetch("/api/reminders", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ analystId, reminders: value.trim() ? value.trim() : null }),
-        });
-      } catch {
-        // Non-critical
-      }
+      const ok = saveReminders(analystId, value);
+      setRemindersSaveFailed(!ok);
+      if (ok) setRemindersSavedAt(value.trim() ? Date.now() : null);
     },
     [analystId]
   );
@@ -1203,20 +1193,24 @@ export default function WorklistPage() {
 
             {/* Reminders — private, persists across weeks */}
             <div className="min-w-0 rounded-lg border border-theme bg-panel shadow-panel px-4 py-3.5">
-              <label className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-secondary font-medium">
-                <StickyNote className="w-3 h-3" />
-                Reminders
-              </label>
+              <div className="flex items-center justify-between gap-2">
+                <label className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-secondary font-medium">
+                  <StickyNote className="w-3 h-3" />
+                  Reminders
+                </label>
+                {remindersSaveFailed ? (
+                  <span className="text-[11px] text-red-400">Not saved — browser storage unavailable</span>
+                ) : remindersSavedAt !== null ? (
+                  <span className="text-[11px] text-secondary">Saved {formatSavedAt(remindersSavedAt)}</span>
+                ) : null}
+              </div>
               {remindersLoaded ? (
                 <div
+                  key={analystId}
                   contentEditable
                   suppressContentEditableWarning
                   data-placeholder="Quick notes to self…"
-                  onBlur={(e) => {
-                    const value = e.currentTarget.innerText;
-                    setReminders(value);
-                    handleRemindersBlur(value);
-                  }}
+                  onInput={(e) => handleRemindersInput(e.currentTarget.innerText)}
                   className="mt-1.5 text-sm text-primary whitespace-pre-wrap break-words outline-none rounded-md px-2 py-1.5 border border-transparent hover:border-theme hover:bg-secondary-glass focus:border-brand-500 focus:bg-secondary-glass transition-colors min-h-[1.5em] empty:before:content-[attr(data-placeholder)] empty:before:text-secondary"
                 >
                   {reminders}

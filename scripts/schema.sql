@@ -148,14 +148,6 @@ CREATE TABLE weekly_notes (
    UNIQUE (analyst_id, week_start)
 );
 
--- Persistent per-analyst "Reminders" note (Worklist page). Not week-scoped and
--- not included in the weekly update.
-CREATE TABLE analyst_reminders (
-   analyst_id int  PRIMARY KEY REFERENCES analysts(id) ON DELETE CASCADE,
-   reminders  text,
-   updated_at timestamptz NOT NULL DEFAULT now()
-);
-
 -- intake_requests: "Unassigned" backlog of dashboard/subscription requests with no
 -- owning analyst yet. Unlike the status/type columns above, priority/requested_kind/
 -- status/fulfilled_entity_kind ARE enforced via DB CHECK constraints here -- see

@@ -19,6 +19,15 @@ export function summarizeFieldRequest(entry: FieldRequestEntry): string {
   return `${templateLabel(entry.templateType)} template · ${fieldCount} ${fieldLabel}${tableSegment}`;
 }
 
+// Pulls the field name out of each row the same way the SQL generator does
+// (components/FieldRequestForm.tsx), so the persisted list matches what the
+// analyst actually saw in the form.
+export function extractFieldNames(entry: FieldRequestEntry): string[] {
+  return entry.rows
+    .map((row) => String(row.field || row.cubeObjectName || "").trim())
+    .filter((name) => name.length > 0);
+}
+
 export async function attachFieldRequestToDashboard(
   entry: FieldRequestEntry,
   dashboardId: number,
@@ -37,6 +46,7 @@ export async function attachFieldRequestToDashboard(
         : "Field request",
       description: summarizeFieldRequest(entry),
       requestType: "field_request",
+      fieldNames: extractFieldNames(entry),
     }),
   });
   const data = await res.json();

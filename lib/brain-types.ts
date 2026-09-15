@@ -128,6 +128,7 @@ export interface Request {
   completedDate: string | null;
   attachmentUrl: string | null;
   attachmentFilename: string | null;
+  fieldNames: string[] | null;
   tags: Tag[];
   relatedRequests: RelatedRequestSummary[];
 }

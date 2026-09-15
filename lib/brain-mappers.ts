@@ -91,6 +91,7 @@ export function mapRequestRow(row: any): Request {
     completedDate: row.completed_date,
     attachmentUrl: row.attachment_url,
     attachmentFilename: row.attachment_filename,
+    fieldNames: row.field_names ?? null,
     tags: row.tags ?? [],
     relatedRequests: row.related_requests ?? [],
   };

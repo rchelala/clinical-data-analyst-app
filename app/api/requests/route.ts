@@ -5,6 +5,20 @@ import { RequestType } from '@/lib/brain-types';
 
 const VALID_REQUEST_TYPES = ['feature', 'bug', 'field_request'] as const;
 
+// Keeps only non-empty string items, trims them, caps each to 200 chars and
+// the list to 200 items. Returns null when the input isn't a usable array or
+// ends up empty, so we can store NULL instead of an empty jsonb array.
+function sanitizeFieldNames(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null;
+  const names = value
+    .filter((item): item is string => typeof item === 'string')
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0)
+    .slice(0, 200)
+    .map((item) => item.slice(0, 200));
+  return names.length > 0 ? names : null;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const dashboardIdParam = req.nextUrl.searchParams.get('dashboardId');
@@ -39,6 +53,7 @@ export async function GET(req: NextRequest) {
             r.completed_date,
             r.attachment_url,
             r.attachment_filename,
+            r.field_names,
             a.name AS created_by_name,
             COALESCE(
               (SELECT json_agg(json_build_object('id', t.id, 'name', t.name) ORDER BY t.name)
@@ -76,6 +91,7 @@ export async function GET(req: NextRequest) {
             r.completed_date,
             r.attachment_url,
             r.attachment_filename,
+            r.field_names,
             a.name AS created_by_name,
             COALESCE(
               (SELECT json_agg(json_build_object('id', t.id, 'name', t.name) ORDER BY t.name)
@@ -135,6 +151,7 @@ export async function POST(req: NextRequest) {
       jiraTicketId?: string;
       attachmentUrl?: string;
       attachmentFilename?: string;
+      fieldNames?: unknown;
     };
 
     const {
@@ -146,7 +163,10 @@ export async function POST(req: NextRequest) {
       jiraTicketId,
       attachmentUrl,
       attachmentFilename,
+      fieldNames,
     } = body;
+
+    const sanitizedFieldNames = sanitizeFieldNames(fieldNames);
 
     const hasDashboardId = dashboardId !== undefined && dashboardId !== null;
     const hasSubscriptionId = subscriptionId !== undefined && subscriptionId !== null;
@@ -173,9 +193,9 @@ export async function POST(req: NextRequest) {
     }
 
     const rows = await sql`
-      INSERT INTO requests (dashboard_id, subscription_id, created_by_id, title, description, request_type, jira_ticket_id, attachment_url, attachment_filename)
-      VALUES (${dashboardId ?? null}, ${subscriptionId ?? null}, ${createdById}, ${title}, ${description ?? null}, ${requestType ?? 'feature'}, ${jiraTicketId ?? null}, ${attachmentUrl ?? null}, ${attachmentFilename ?? null})
-      RETURNING id, dashboard_id, subscription_id, created_by_id, title, description, request_type, status, jira_ticket_id, created_date, completed_date, attachment_url, attachment_filename
+      INSERT INTO requests (dashboard_id, subscription_id, created_by_id, title, description, request_type, jira_ticket_id, attachment_url, attachment_filename, field_names)
+      VALUES (${dashboardId ?? null}, ${subscriptionId ?? null}, ${createdById}, ${title}, ${description ?? null}, ${requestType ?? 'feature'}, ${jiraTicketId ?? null}, ${attachmentUrl ?? null}, ${attachmentFilename ?? null}, ${sanitizedFieldNames ? JSON.stringify(sanitizedFieldNames) : null}::jsonb)
+      RETURNING id, dashboard_id, subscription_id, created_by_id, title, description, request_type, status, jira_ticket_id, created_date, completed_date, attachment_url, attachment_filename, field_names
     `;
 
     return NextResponse.json(mapRequestRow(rows[0]), { status: 201 });

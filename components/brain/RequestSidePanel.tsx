@@ -137,6 +137,9 @@ export function RequestSidePanel({
   // Tracks which request ids are showing the inline "are you sure?" confirm
   // step (clicked the trash icon but haven't confirmed or cancelled yet).
   const [confirmingDeleteIds, setConfirmingDeleteIds] = useState<Set<number>>(new Set());
+  // Tracks which request ids have their full "Fields (N)" chip list expanded
+  // past the first 8 (see the "+N more" toggle below).
+  const [expandedFieldNameIds, setExpandedFieldNameIds] = useState<Set<number>>(new Set());
   const [attachFieldRequestOpen, setAttachFieldRequestOpen] = useState(false);
   // Bumping this re-runs the request-list fetch effect below, letting us
   // refresh the list after a field request is attached from this panel.
@@ -394,6 +397,18 @@ export function RequestSidePanel({
     setDeleteErrors((prev) => {
       const next = { ...prev };
       delete next[requestId];
+      return next;
+    });
+  }, []);
+
+  const toggleFieldNamesExpanded = useCallback((requestId: number) => {
+    setExpandedFieldNameIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(requestId)) {
+        next.delete(requestId);
+      } else {
+        next.add(requestId);
+      }
       return next;
     });
   }, []);
@@ -730,6 +745,39 @@ export function RequestSidePanel({
 
                   {request.description && (
                     <p className="text-xs text-secondary mt-1">{request.description}</p>
+                  )}
+
+                  {request.fieldNames && request.fieldNames.length > 0 && (
+                    <div>
+                      <p className="text-[10px] font-semibold text-secondary uppercase tracking-wide mt-2 mb-1">
+                        Fields ({request.fieldNames.length})
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {(expandedFieldNameIds.has(request.id)
+                          ? request.fieldNames
+                          : request.fieldNames.slice(0, 8)
+                        ).map((name, idx) => (
+                          <span
+                            key={`${request.id}-field-${idx}`}
+                            title={name}
+                            className="max-w-full truncate rounded border border-theme bg-panel px-1.5 py-0.5 text-xs font-mono text-primary select-text"
+                          >
+                            {name}
+                          </span>
+                        ))}
+                        {request.fieldNames.length > 8 && (
+                          <button
+                            type="button"
+                            onClick={() => toggleFieldNamesExpanded(request.id)}
+                            className="text-xs text-brand-600 dark:text-brand-400 hover:underline"
+                          >
+                            {expandedFieldNameIds.has(request.id)
+                              ? "Show less"
+                              : `+${request.fieldNames.length - 8} more`}
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   )}
 
                   {request.attachmentUrl && (

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Home,
@@ -159,6 +159,17 @@ export default function WorklistPage() {
   // Which task (if any) has its resolution-note input open. Global (not
   // per-list) so at most one note editor is ever open at a time.
   const [noteEditingTaskId, setNoteEditingTaskId] = useState<number | null>(null);
+  // Assigned tasks just checked "done" from this page: kept visible in the
+  // Assigned list even when the status filter would otherwise hide them, so
+  // the resolution-note editor that opens right after has something to
+  // render into. Cleared on analyst switch and status-filter change.
+  const [recentlyCompletedAssignedIds, setRecentlyCompletedAssignedIds] = useState<Set<number>>(new Set());
+
+  // Tracks the analyst currently being viewed so in-flight fetches started
+  // for a previous analyst can detect they're stale and drop their response
+  // instead of overwriting the new analyst's state.
+  const currentAnalystIdRef = useRef<number | null>(null);
+  const isStaleAnalyst = useCallback((requestAnalystId: number) => currentAnalystIdRef.current !== requestAnalystId, []);
 
   useEffect(() => {
     if (notice === null) return;
@@ -178,22 +189,51 @@ export default function WorklistPage() {
     if (stored !== null) setAnalystId((prev) => prev ?? stored);
   }, []);
 
+  // Keep the "current analyst" ref in sync, and on an actual analyst SWITCH
+  // (not the initial null -> id load) wipe every per-analyst cache/UI state
+  // so the previous analyst's tasks, expansions, and edits can't leak into
+  // the new analyst's view (they're keyed by item/psq id only, so a stale
+  // entry would otherwise just be reused as-is).
+  const prevAnalystIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    currentAnalystIdRef.current = analystId;
+    const prev = prevAnalystIdRef.current;
+    prevAnalystIdRef.current = analystId;
+    if (prev === null || prev === analystId) return;
+
+    setTasksByItem({});
+    setTasksLoading({});
+    setTasksByPsq({});
+    setPsqTasksLoading({});
+    setExpandedKey(null);
+    setExpandedPsqId(null);
+    setNoteEditingTaskId(null);
+    setShowAddTaskFor(null);
+    setShowAddTaskForPsq(null);
+    setRecentlyCompletedAssignedIds(new Set());
+  }, [analystId]);
+
   // Fetch meetings banner
   const refetchMeetings = useCallback(async () => {
     if (analystId === null) return;
+    const requestAnalystId = analystId;
     setMeetingsLoaded(false);
+    // Clear immediately so a new analyst never briefly shows the previous
+    // analyst's meetings banner, even if this fetch fails or is superseded.
+    setMeetings("");
     try {
       const res = await fetch(`/api/weekly-notes?analystId=${analystId}&weekStart=${weekStart}`);
       const data = await res.json();
+      if (isStaleAnalyst(requestAnalystId)) return;
       if (res.ok) {
         setMeetings(data?.meetings ?? "");
       }
     } catch {
       // Non-critical
     } finally {
-      setMeetingsLoaded(true);
+      if (!isStaleAnalyst(requestAnalystId)) setMeetingsLoaded(true);
     }
-  }, [analystId, weekStart]);
+  }, [analystId, weekStart, isStaleAnalyst]);
 
   useEffect(() => {
     refetchMeetings();
@@ -242,6 +282,7 @@ export default function WorklistPage() {
   // parallel — both render in the unified section below.
   const refetchDashboards = useCallback(async () => {
     if (analystId === null) return;
+    const requestAnalystId = analystId;
     setDashboardsLoading(true);
     setDashboardsError(null);
     try {
@@ -250,6 +291,7 @@ export default function WorklistPage() {
         fetch(`/api/worklist-subscriptions?analystId=${analystId}`),
       ]);
       const dashData = await dashRes.json();
+      if (isStaleAnalyst(requestAnalystId)) return;
       if (!dashRes.ok) {
         setDashboardsError(dashData.error ?? "Could not load dashboards.");
         return;
@@ -258,14 +300,15 @@ export default function WorklistPage() {
       // Subscriptions are supplementary — degrade gracefully rather than
       // blocking the whole section if that fetch fails.
       if (subRes.ok) {
-        setSubscriptions(await subRes.json());
+        const subData = await subRes.json();
+        if (!isStaleAnalyst(requestAnalystId)) setSubscriptions(subData);
       }
     } catch {
-      setDashboardsError("Network error — could not reach the server.");
+      if (!isStaleAnalyst(requestAnalystId)) setDashboardsError("Network error — could not reach the server.");
     } finally {
-      setDashboardsLoading(false);
+      if (!isStaleAnalyst(requestAnalystId)) setDashboardsLoading(false);
     }
-  }, [analystId]);
+  }, [analystId, isStaleAnalyst]);
 
   useEffect(() => {
     refetchDashboards();
@@ -274,17 +317,19 @@ export default function WorklistPage() {
   // Fetch assigned-to-me tasks
   const refetchAssigned = useCallback(async () => {
     if (analystId === null) return;
+    const requestAnalystId = analystId;
     setAssignedLoading(true);
     try {
       const res = await fetch(`/api/tasks?assignedTo=${analystId}&excludeWorklistOf=${analystId}`);
       const data = await res.json();
+      if (isStaleAnalyst(requestAnalystId)) return;
       if (res.ok) setAssignedTasks(data);
     } catch {
       // Non-critical
     } finally {
-      setAssignedLoading(false);
+      if (!isStaleAnalyst(requestAnalystId)) setAssignedLoading(false);
     }
-  }, [analystId]);
+  }, [analystId, isStaleAnalyst]);
 
   useEffect(() => {
     refetchAssigned();
@@ -293,17 +338,19 @@ export default function WorklistPage() {
   // Fetch PSQs
   const refetchPsqs = useCallback(async () => {
     if (analystId === null) return;
+    const requestAnalystId = analystId;
     setPsqsLoading(true);
     try {
       const res = await fetch(`/api/psqs?analystId=${analystId}`);
       const data = await res.json();
+      if (isStaleAnalyst(requestAnalystId)) return;
       if (res.ok) setPsqs(data);
     } catch {
       // Non-critical
     } finally {
-      setPsqsLoading(false);
+      if (!isStaleAnalyst(requestAnalystId)) setPsqsLoading(false);
     }
-  }, [analystId]);
+  }, [analystId, isStaleAnalyst]);
 
   useEffect(() => {
     refetchPsqs();
@@ -335,22 +382,24 @@ export default function WorklistPage() {
   const fetchTasksForItem = useCallback(
     async (kind: WorklistItemKind, id: number) => {
       if (analystId === null) return;
+      const requestAnalystId = analystId;
       const key = itemKey(kind, id);
       setTasksLoading((prev) => ({ ...prev, [key]: true }));
       try {
         const param = kind === "dashboard" ? `dashboardId=${id}` : `subscriptionId=${id}`;
         const res = await fetch(`/api/tasks?${param}&ownerAnalystId=${analystId}`);
         const data = await res.json();
+        if (isStaleAnalyst(requestAnalystId)) return;
         if (res.ok) {
           setTasksByItem((prev) => ({ ...prev, [key]: data }));
         }
       } catch {
         // Non-critical
       } finally {
-        setTasksLoading((prev) => ({ ...prev, [key]: false }));
+        if (!isStaleAnalyst(requestAnalystId)) setTasksLoading((prev) => ({ ...prev, [key]: false }));
       }
     },
-    [analystId]
+    [analystId, isStaleAnalyst]
   );
 
   const toggleExpand = useCallback(
@@ -489,20 +538,22 @@ export default function WorklistPage() {
   const fetchTasksForPsq = useCallback(
     async (psqId: number) => {
       if (analystId === null) return;
+      const requestAnalystId = analystId;
       setPsqTasksLoading((prev) => ({ ...prev, [psqId]: true }));
       try {
         const res = await fetch(`/api/tasks?psqId=${psqId}&ownerAnalystId=${analystId}`);
         const data = await res.json();
+        if (isStaleAnalyst(requestAnalystId)) return;
         if (res.ok) {
           setTasksByPsq((prev) => ({ ...prev, [psqId]: data }));
         }
       } catch {
         // Non-critical
       } finally {
-        setPsqTasksLoading((prev) => ({ ...prev, [psqId]: false }));
+        if (!isStaleAnalyst(requestAnalystId)) setPsqTasksLoading((prev) => ({ ...prev, [psqId]: false }));
       }
     },
-    [analystId]
+    [analystId, isStaleAnalyst]
   );
 
   const togglePsqExpand = useCallback(
@@ -844,10 +895,19 @@ export default function WorklistPage() {
     return psqs.filter((p) => statusMatches(p.status));
   }, [psqs, statusMatches]);
 
+  // Also keep any task just checked "done" from this list (see
+  // recentlyCompletedAssignedIds above) so it doesn't vanish out from under
+  // an open resolution-note editor when the status filter excludes "done".
   const filteredAssignedTasks = useMemo(
-    () => assignedTasks.filter((t) => statusMatches(t.status)),
-    [assignedTasks, statusMatches]
+    () => assignedTasks.filter((t) => statusMatches(t.status) || recentlyCompletedAssignedIds.has(t.id)),
+    [assignedTasks, statusMatches, recentlyCompletedAssignedIds]
   );
+
+  // The status filter changed, so the "keep visible" exception above no
+  // longer applies — let the new filter take over cleanly.
+  useEffect(() => {
+    setRecentlyCompletedAssignedIds(new Set());
+  }, [selectedStatuses]);
 
   const existingWorklistDashboardIds = useMemo(() => dashboards.map((d) => d.id), [dashboards]);
 
@@ -1456,6 +1516,16 @@ export default function WorklistPage() {
                             const completing = task.status !== "done";
                             await patchAssignedTask(task.id, { status: completing ? "done" : "open" });
                             setNoteEditingTaskId(completing ? task.id : null);
+                            // Keep it visible in this list (see
+                            // recentlyCompletedAssignedIds) so the note
+                            // editor that just opened has a row to render
+                            // into, even under a filter that hides "done".
+                            setRecentlyCompletedAssignedIds((prev) => {
+                              const next = new Set(prev);
+                              if (completing) next.add(task.id);
+                              else next.delete(task.id);
+                              return next;
+                            });
                           }}
                           className={`mt-0.5 w-[18px] h-[18px] rounded-[5px] flex-shrink-0 border flex items-center justify-center text-[10px] transition-colors ${
                             task.status === "done" ? "bg-emerald-500 border-emerald-500 text-black" : "border-secondary"

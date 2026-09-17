@@ -14,38 +14,50 @@ interface TokenResponse {
 }
 
 export async function POST(req: NextRequest) {
-  const { deviceCode } = (await req.json()) as PollBody;
+  try {
+    const { deviceCode } = (await req.json()) as PollBody;
 
-  const res = await fetch(
-    "https://login.microsoftonline.com/common/oauth2/v2.0/token",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "urn:ietf:params:oauth:grant-type:device_code",
-        client_id: CLIENT_ID,
-        device_code: deviceCode,
-      }),
+    const res = await fetch(
+      "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+          client_id: CLIENT_ID,
+          device_code: deviceCode,
+        }),
+      }
+    );
+
+    const data = (await res.json()) as TokenResponse;
+
+    if (res.ok && data.access_token) {
+      const expiresOn = new Date(Date.now() + (data.expires_in ?? 3600) * 1000).toISOString();
+      return NextResponse.json({ status: "success", accessToken: data.access_token, expiresOn });
     }
-  );
 
-  const data = (await res.json()) as TokenResponse;
-
-  if (res.ok && data.access_token) {
-    const expiresOn = new Date(Date.now() + (data.expires_in ?? 3600) * 1000).toISOString();
-    return NextResponse.json({ status: "success", accessToken: data.access_token, expiresOn });
-  }
-
-  switch (data.error) {
-    case "authorization_pending":
-      return NextResponse.json({ status: "pending" });
-    case "slow_down":
-      return NextResponse.json({ status: "pending" });
-    case "expired_token":
-      return NextResponse.json({ status: "expired" });
-    case "authorization_declined":
-      return NextResponse.json({ status: "declined" });
-    default:
-      return NextResponse.json({ status: "error", detail: data.error_description ?? data.error });
+    switch (data.error) {
+      case "authorization_pending":
+        return NextResponse.json({ status: "pending" });
+      case "slow_down":
+        return NextResponse.json({ status: "pending" });
+      case "expired_token":
+        return NextResponse.json({ status: "expired" });
+      case "authorization_declined":
+        return NextResponse.json({ status: "declined" });
+      default:
+        console.error("Power BI token poll error:", data.error, data.error_description);
+        return NextResponse.json({
+          status: "error",
+          detail: "Power BI sign-in failed. Please try again.",
+        });
+    }
+  } catch (err) {
+    console.error("Power BI token poll request error:", err);
+    return NextResponse.json(
+      { status: "error", detail: "Power BI sign-in failed. Please try again." },
+      { status: 500 }
+    );
   }
 }

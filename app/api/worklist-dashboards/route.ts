@@ -44,8 +44,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(result);
   } catch (err: unknown) {
     console.error('List worklist dashboards error:', err);
-    const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Something went wrong processing your request. Please try again.' },
+      { status: 500 }
+    );
   }
 }
 
@@ -89,8 +91,10 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-    const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Something went wrong processing your request. Please try again.' },
+      { status: 500 }
+    );
   }
 }
 
@@ -125,7 +129,9 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ ok: true }, { status: 200 });
   } catch (err: unknown) {
     console.error('Delete worklist dashboard error:', err);
-    const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Something went wrong processing your request. Please try again.' },
+      { status: 500 }
+    );
   }
 }

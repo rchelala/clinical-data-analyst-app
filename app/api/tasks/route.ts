@@ -157,8 +157,10 @@ export async function GET(req: NextRequest) {
     );
   } catch (err: unknown) {
     console.error('List tasks error:', err);
-    const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Something went wrong processing your request. Please try again.' },
+      { status: 500 }
+    );
   }
 }
 
@@ -236,7 +238,9 @@ export async function POST(req: NextRequest) {
         );
       }
     }
-    const message = err instanceof Error ? err.message : 'An unexpected error occurred.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Something went wrong processing your request. Please try again.' },
+      { status: 500 }
+    );
   }
 }

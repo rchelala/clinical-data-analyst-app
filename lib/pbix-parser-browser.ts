@@ -1,4 +1,4 @@
-import JSZip from "jszip";
+import type JSZip from "jszip";
 import type { PbixVisual, PbixPage, PbixDashboard, MeasureRow } from "./pbix-parser";
 
 interface VisualConfig {
@@ -122,6 +122,7 @@ async function attemptModelMeasures(zip: JSZip): Promise<ModelMeasureResult> {
 
   try {
     const bytes = await dataModelEntry.async("uint8array");
+    const JSZip = (await import("jszip")).default;
     const innerZip = await JSZip.loadAsync(bytes);
 
     const candidates = ["model.bim", "definition.bim", "schema.json", "DataModelSchema"];
@@ -151,6 +152,7 @@ async function attemptModelMeasures(zip: JSZip): Promise<ModelMeasureResult> {
 }
 
 export async function parsePbixFileClient(file: File): Promise<PbixDashboard> {
+  const JSZip = (await import("jszip")).default;
   const arrayBuffer = await file.arrayBuffer();
   const zip = await JSZip.loadAsync(arrayBuffer);
 

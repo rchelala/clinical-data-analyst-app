@@ -1,5 +1,3 @@
-import JSZip from "jszip";
-
 const NUMERIC_ENTITY_RE = /&#(\d+);/g;
 const HEX_ENTITY_RE = /&#x([0-9a-fA-F]+);/g;
 
@@ -67,6 +65,7 @@ function docxXmlToText(xml: string): string {
 }
 
 async function parseDocx(file: File): Promise<string> {
+  const JSZip = (await import("jszip")).default;
   const zip = await JSZip.loadAsync(await file.arrayBuffer());
   const documentXmlFile = zip.file("word/document.xml");
   if (!documentXmlFile) {

@@ -1,24 +1,59 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, memo } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { Header } from "@/components/Header";
 import { MobileNav } from "@/components/MobileNav";
 import { AiInfoButton } from "@/components/AiInfoButton";
 import { CodePanel } from "@/components/CodePanel";
 import { DiffPanel } from "@/components/DiffPanel";
+import { CommenterInputPanel } from "@/components/CommenterInputPanel";
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { DensitySelector } from "@/components/DensitySelector";
-import { FieldRequestForm } from "@/components/FieldRequestForm";
-import { ITReferenceForm } from "@/components/ITReferenceForm";
-import { ClinicianGuideForm } from "@/components/ClinicianGuideForm";
-import { CmioReviewForm } from "@/components/CmioReviewForm";
-import { PbixExplorerTab } from "@/components/PbixExplorerTab";
-import { HistoryPanel } from "@/components/HistoryPanel";
 import { Language, Density } from "@/lib/prompts";
 import { HistoryEntry, loadHistory, addHistoryEntry, removeHistoryEntry } from "@/lib/history";
 import { AIProvider, loadProvider, saveProvider, PROVIDER_LABELS } from "@/lib/providers";
 import { Sparkles, Copy, Check, RotateCcw, AlertCircle, Loader2, FileText, ChevronDown, ChevronUp, Code2, TableProperties, Download, GitCompare, History, Bot, Users, Search, BrainCircuit, ClipboardList, Building2 } from "lucide-react";
+
+// Each of these tabs is a large, self-contained tool (300-800 lines) and only
+// one is visible at a time, so they're code-split with next/dynamic instead
+// of being pulled into the initial page bundle. ssr:false matches how
+// CodePanel/DiffPanel lazy-load Monaco — these are client-only tools with no
+// SSR value. Wrapped in React.memo because, per requirement 3 below, visited
+// tabs stay mounted (hidden, not unmounted) so their internal state survives
+// switching — without memo, every keystroke in the Commenter tab (input state
+// lives in this file) would re-render all other mounted-but-hidden tabs too.
+const TabLoadingFallback = () => (
+  <div className="flex flex-col flex-1 items-center justify-center gap-3 text-secondary">
+    <Loader2 className="w-5 h-5 animate-spin text-brand-400" />
+    <span className="text-sm">Loading…</span>
+  </div>
+);
+
+const FieldRequestForm = memo(dynamic(() => import("@/components/FieldRequestForm").then((m) => m.FieldRequestForm), {
+  ssr: false,
+  loading: TabLoadingFallback,
+}));
+const ITReferenceForm = memo(dynamic(() => import("@/components/ITReferenceForm").then((m) => m.ITReferenceForm), {
+  ssr: false,
+  loading: TabLoadingFallback,
+}));
+const ClinicianGuideForm = memo(dynamic(() => import("@/components/ClinicianGuideForm").then((m) => m.ClinicianGuideForm), {
+  ssr: false,
+  loading: TabLoadingFallback,
+}));
+const PbixExplorerTab = memo(dynamic(() => import("@/components/PbixExplorerTab").then((m) => m.PbixExplorerTab), {
+  ssr: false,
+  loading: TabLoadingFallback,
+}));
+const CmioReviewForm = memo(dynamic(() => import("@/components/CmioReviewForm").then((m) => m.CmioReviewForm), {
+  ssr: false,
+  loading: TabLoadingFallback,
+}));
+const HistoryPanel = dynamic(() => import("@/components/HistoryPanel").then((m) => m.HistoryPanel), {
+  ssr: false,
+});
 
 const APP_TABS = [
   { id: "field-request",    label: "Field Request",   Icon: TableProperties },
@@ -173,6 +208,20 @@ export default function Home() {
   const placeholder = language === "dax" ? DAX_PLACEHOLDER : SQL_PLACEHOLDER;
   const isWorking = loading || summarizing;
 
+  // Tabs stay mounted once visited instead of being unmounted on switch, so
+  // uploaded files / results / in-progress work inside them survive tab
+  // switches (M5). They're only ever rendered once first opened, so an
+  // unvisited tab's dynamic() import never fires and never downloads its
+  // chunk. Hidden tabs use inline `display: none` (not a className toggle)
+  // so it can't lose to a `.flex{display:flex}` utility class on the same
+  // element — see components in APP_TABS below.
+  const [visitedTabs, setVisitedTabs] = useState<Set<AppTab>>(() => new Set([activeTab]));
+
+  const selectTab = useCallback((tab: AppTab) => {
+    setActiveTab(tab);
+    setVisitedTabs((prev) => (prev.has(tab) ? prev : new Set(prev).add(tab)));
+  }, []);
+
   return (
     <div className="flex flex-col h-screen md:overflow-hidden overflow-y-auto">
       {/* Eclipse ambient glow — behind all content, starts at top of page */}
@@ -186,7 +235,7 @@ export default function Home() {
           active="home"
           subTabs={APP_TABS.map(({ id, label, Icon }) => ({ id, label, Icon }))}
           activeSubTab={activeTab}
-          onSubTabSelect={(id) => setActiveTab(id as AppTab)}
+          onSubTabSelect={(id) => selectTab(id as AppTab)}
           provider={provider}
           onProviderChange={handleProviderChange}
         />
@@ -203,7 +252,7 @@ export default function Home() {
         {APP_TABS.map(({ id, label, Icon }) => (
           <button
             key={id}
-            onClick={() => setActiveTab(id)}
+            onClick={() => selectTab(id)}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
               activeTab === id
                 ? "border-brand-500 text-primary"
@@ -237,24 +286,45 @@ export default function Home() {
         </Link>
       </div>
 
-      {/* ── Field Request tab ── */}
-      {activeTab === "field-request" && <FieldRequestForm provider={provider} />}
+      {/* ── Field Request tab (stays mounted once visited; hidden via inline
+           display so uploads/results survive switching away) ── */}
+      {visitedTabs.has("field-request") && (
+        <div className="flex flex-col flex-1 overflow-hidden" style={{ display: activeTab === "field-request" ? "flex" : "none" }}>
+          <FieldRequestForm provider={provider} />
+        </div>
+      )}
 
       {/* ── IT Reference tab ── */}
-      {activeTab === "it-reference" && <ITReferenceForm provider={provider} />}
+      {visitedTabs.has("it-reference") && (
+        <div className="flex flex-col flex-1 overflow-hidden" style={{ display: activeTab === "it-reference" ? "flex" : "none" }}>
+          <ITReferenceForm provider={provider} />
+        </div>
+      )}
 
       {/* ── Clinician Guide tab ── */}
-      {activeTab === "clinician-guide" && <ClinicianGuideForm provider={provider} />}
+      {visitedTabs.has("clinician-guide") && (
+        <div className="flex flex-col flex-1 overflow-hidden" style={{ display: activeTab === "clinician-guide" ? "flex" : "none" }}>
+          <ClinicianGuideForm provider={provider} />
+        </div>
+      )}
 
       {/* ── PBIX Explorer tab ── */}
-      {activeTab === "pbix-explorer" && <PbixExplorerTab />}
+      {visitedTabs.has("pbix-explorer") && (
+        <div className="flex flex-col flex-1 overflow-hidden" style={{ display: activeTab === "pbix-explorer" ? "flex" : "none" }}>
+          <PbixExplorerTab />
+        </div>
+      )}
 
       {/* ── CMIO Review tab ── */}
-      {activeTab === "cmio-review" && <CmioReviewForm provider={provider} />}
+      {visitedTabs.has("cmio-review") && (
+        <div className="flex flex-col flex-1 overflow-hidden" style={{ display: activeTab === "cmio-review" ? "flex" : "none" }}>
+          <CmioReviewForm provider={provider} />
+        </div>
+      )}
 
       {/* ── Commenter tab ── */}
-      {activeTab === "commenter" && (
-        <>
+      {visitedTabs.has("commenter") && (
+        <div className="flex flex-col flex-1 overflow-hidden" style={{ display: activeTab === "commenter" ? "flex" : "none" }}>
           {/* Toolbar */}
           <div className="flex items-center justify-between gap-4 px-6 py-3 border-b border-theme bg-secondary-glass hairline-top flex-shrink-0">
             <div className="flex items-center gap-4 flex-wrap">
@@ -323,25 +393,9 @@ export default function Home() {
 
           {/* Split panels */}
           <div className="flex flex-col md:flex-row flex-1 md:overflow-hidden">
-            {/* Input panel */}
-            <div className="flex flex-col flex-1 border-b md:border-b-0 md:border-r border-theme overflow-hidden min-h-[40vh] md:min-h-0">
-              <div className="flex items-center justify-between px-4 py-2 border-b border-theme bg-secondary-glass hairline-top flex-shrink-0">
-                <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-secondary/40" />
-                  <span className="text-xs font-semibold text-secondary uppercase tracking-wide">
-                    Input · {language.toUpperCase()}
-                  </span>
-                </div>
-                {input && (
-                  <span className="text-xs text-secondary">
-                    {input.split("\n").length} lines
-                  </span>
-                )}
-              </div>
-              <div className="flex-1 overflow-hidden bg-panel">
-                <CodePanel value={input} onChange={setInput} language={language} placeholder={placeholder} />
-              </div>
-            </div>
+            {/* Input panel — extracted so Monaco's per-keystroke onChange
+                only re-renders this leaf, not the toolbar/output/other tabs */}
+            <CommenterInputPanel value={input} onChange={setInput} language={language} placeholder={placeholder} />
 
             {/* Output panel */}
             <div className="flex flex-col flex-1 overflow-hidden min-h-[40vh] md:min-h-0">
@@ -476,7 +530,7 @@ export default function Home() {
               )}
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );

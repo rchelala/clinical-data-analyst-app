@@ -4,12 +4,27 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/get-client-ip";
 import { sql } from "@/lib/db";
 import { appendRowsToTracker, readTrackerRows } from "@/lib/cmio-tracker";
+import { sanitizeFilename } from "@/lib/content-disposition";
 
 export const maxDuration = 26;
 
 const XLSX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 const DEFAULT_FILENAME = "CMIO_Weekly_Review.xlsx";
 const MAX_DECODED_BYTES = 10 * 1024 * 1024;
+const MAX_FILENAME_LENGTH = 200;
+
+// Caps filename length while keeping the extension (e.g. ".xlsx") intact,
+// trimming from the end of the base name instead of the tail of the string.
+function capFilenameLength(filename: string, maxLength: number): string {
+  if (filename.length <= maxLength) return filename;
+  const dotIndex = filename.lastIndexOf(".");
+  const hasExt = dotIndex > 0 && filename.length - dotIndex <= 10;
+  if (!hasExt) return filename.slice(0, maxLength);
+  const ext = filename.slice(dotIndex);
+  const base = filename.slice(0, dotIndex);
+  const keep = Math.max(1, maxLength - ext.length);
+  return `${base.slice(0, keep)}${ext}`;
+}
 
 export async function GET() {
   try {
@@ -78,8 +93,9 @@ export async function POST(req: NextRequest) {
 
     const payload = (body ?? {}) as Record<string, unknown>;
     const dataBase64 = typeof payload.dataBase64 === "string" ? payload.dataBase64 : "";
-    const filename =
+    const rawFilename =
       typeof payload.filename === "string" && payload.filename.trim() ? payload.filename.trim() : DEFAULT_FILENAME;
+    const filename = capFilenameLength(sanitizeFilename(rawFilename, DEFAULT_FILENAME), MAX_FILENAME_LENGTH);
 
     if (!dataBase64) {
       return NextResponse.json({ error: "Please provide the tracker file." }, { status: 400 });

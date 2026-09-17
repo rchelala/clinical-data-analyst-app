@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { get } from "@vercel/blob";
 import { sql } from "@/lib/db";
+import { attachmentContentDisposition } from "@/lib/content-disposition";
 
 export async function GET() {
   try {
@@ -22,7 +23,7 @@ export async function GET() {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "X-Content-Type-Options": "nosniff",
-        "Content-Disposition": `attachment; filename="${row.filename}"`,
+        "Content-Disposition": attachmentContentDisposition(row.filename, "CMIO_Weekly_Review.xlsx"),
       },
     });
   } catch (err) {

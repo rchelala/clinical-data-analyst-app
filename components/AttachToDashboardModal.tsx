@@ -6,6 +6,7 @@ import { FieldRequestEntry } from "@/lib/history";
 import { Analyst, DashboardWithUrgency } from "@/lib/brain-types";
 import { attachFieldRequestToDashboard } from "@/lib/field-request-attach";
 import { loadAnalystId, saveAnalystId } from "@/lib/analyst-identity";
+import { fetchAnalysts } from "@/lib/reference-data";
 
 interface AttachToDashboardModalProps {
   entry: FieldRequestEntry;
@@ -41,18 +42,10 @@ export function AttachToDashboardModal({
       setError(null);
       setAnalystsError(false);
       try {
-        const analystsRes = await fetch("/api/analysts");
-        const analystsData = await analystsRes.json();
+        const loadedAnalysts = await fetchAnalysts();
 
         if (cancelled) return;
 
-        if (!analystsRes.ok) {
-          setError(analystsData.error ?? "Could not load analysts.");
-          setAnalystsError(true);
-          return;
-        }
-
-        const loadedAnalysts: Analyst[] = analystsData;
         setAnalysts(loadedAnalysts);
 
         const storedAnalystId = loadAnalystId();
@@ -62,9 +55,9 @@ export function AttachToDashboardModal({
             ? storedAnalystId
             : loadedAnalysts[0]?.id;
         setAnalystId(preselectedAnalyst !== undefined ? String(preselectedAnalyst) : "");
-      } catch {
+      } catch (err) {
         if (!cancelled) {
-          setError("Network error — could not reach the server.");
+          setError(err instanceof Error ? err.message : "Network error — could not reach the server.");
           setAnalystsError(true);
         }
       } finally {

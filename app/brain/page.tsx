@@ -29,6 +29,8 @@ import {
 import { MAX_RADIUS } from "@/lib/urgency";
 import { BrainFilters, createDefaultFilters } from "@/lib/filters";
 import { resolveSearchResults, SearchResult } from "@/lib/brain-search";
+import { loadAnalystId } from "@/lib/analyst-identity";
+import { fetchAnalysts, fetchDivisions } from "@/lib/reference-data";
 
 interface SelectedEntity {
   kind: BrainEntityKind;
@@ -57,7 +59,13 @@ function findLinkedDashboard(
 }
 
 export default function BrainPage() {
-  const [viewerAnalystId, setViewerAnalystId] = useState<number | null>(null);
+  // Read any previously-stored analyst identity synchronously on mount (like
+  // app/worklist/page.tsx already does) so the data fetches below can start
+  // immediately instead of waiting for AnalystSelector's own /api/analysts
+  // round trip to resolve first. AnalystSelector still performs that fetch
+  // itself to validate the id and load display names, but this no longer
+  // gates when data loading begins.
+  const [viewerAnalystId, setViewerAnalystId] = useState<number | null>(() => loadAnalystId());
   const [zoom, setZoom] = useState<ZoomState>({ level: "galaxy" });
 
   // All dashboards/subscriptions (not scoped to the current analyst), used to
@@ -152,29 +160,38 @@ export default function BrainPage() {
 
     (async () => {
       try {
-        const [dashboardsData, subscriptionsData, analystsRes, divisionsRes] = await Promise.all([
+        const [dashboardsData, subscriptionsData] = await Promise.all([
           fetchDashboards(),
           fetchSubscriptions(),
-          fetch("/api/analysts"),
-          fetch("/api/divisions"),
         ]);
         if (cancelled) return;
 
         setAllDashboards(dashboardsData);
         setAllSubscriptions(subscriptionsData);
-
-        const analystsData = await analystsRes.json();
-        if (!cancelled && analystsRes.ok) {
-          setAnalysts(analystsData);
-        }
-
-        const divisionsData = await divisionsRes.json();
-        if (!cancelled && divisionsRes.ok) {
-          setAllDivisions(divisionsData);
-        }
       } catch {
         // Non-critical for the main view; dependent UI (Add Request dropdown,
         // hover breakdown, search) will simply show as empty if this fails.
+      }
+
+      // Analysts/divisions are shared reference data (lib/reference-data.ts)
+      // rather than refetched here — the module-level cache means this only
+      // hits the network once per session regardless of how many other
+      // components on this page also ask for them. Still re-run on
+      // refreshKey bumps so a newly created analyst/division shows up, but
+      // that only refetches if invalidateReferenceData() was actually
+      // called (see AddDivisionForm/DeleteDivisionModal).
+      try {
+        const analystsData = await fetchAnalysts();
+        if (!cancelled) setAnalysts(analystsData);
+      } catch {
+        // Non-critical — search/hover breakdown just won't resolve names.
+      }
+
+      try {
+        const divisionsData = await fetchDivisions();
+        if (!cancelled) setAllDivisions(divisionsData);
+      } catch {
+        // Non-critical — search typeahead just won't match division names.
       }
     })();
 

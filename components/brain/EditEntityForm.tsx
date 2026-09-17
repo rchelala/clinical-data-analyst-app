@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Pencil } from "lucide-react";
 import { BrainEntityKind, DashboardStatus, Division, Analyst, UrgencyBucket } from "@/lib/brain-types";
+import { fetchAnalysts } from "@/lib/reference-data";
 
 interface EditEntityFormProps {
   kind: BrainEntityKind;
@@ -81,9 +82,8 @@ export function EditEntityForm({
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/analysts");
-        const data = await res.json();
-        if (!cancelled && res.ok) setAnalysts(data);
+        const data = await fetchAnalysts();
+        if (!cancelled) setAnalysts(data);
       } catch {
         /* non-fatal */
       }

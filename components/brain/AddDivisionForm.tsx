@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { FolderPlus } from "lucide-react";
 import { Division } from "@/lib/brain-types";
+import { invalidateReferenceData } from "@/lib/reference-data";
 
 interface AddDivisionFormProps {
   currentAnalystId: number;
@@ -39,6 +40,7 @@ export function AddDivisionForm({ currentAnalystId, onCreated, onCancel }: AddDi
           return;
         }
 
+        invalidateReferenceData("divisions");
         onCreated(data as Division);
       } catch {
         setError("Network error — could not reach the server.");

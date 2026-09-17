@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { Tag } from "@/lib/brain-types";
+import { invalidateReferenceData } from "@/lib/reference-data";
 
 interface RequestTagEditorProps {
   requestId: number;
@@ -84,6 +85,13 @@ export function RequestTagEditor({ requestId, tags, allTags, onTagsChange }: Req
         setError(data.error ?? "Could not update tags.");
         return;
       }
+
+      // The API creates a new tag row on the fly if `trimmed` doesn't match
+      // an existing tag name — invalidate the shared tag cache so the next
+      // panel to fetch it (this one included, next mount) sees it in the
+      // autocomplete suggestions rather than a stale list.
+      const isNewTagName = !allTags.some((t) => t.name.toLowerCase() === trimmed.toLowerCase());
+      if (isNewTagName) invalidateReferenceData("tags");
 
       onTagsChange(data);
       setInputValue("");

@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { LayoutDashboard } from "lucide-react";
 import { Dashboard, Division, DashboardWithUrgency } from "@/lib/brain-types";
+import { fetchDivisions } from "@/lib/reference-data";
 
 interface AddWorklistDashboardProps {
   currentAnalystId: number;
@@ -39,15 +40,14 @@ export function AddWorklistDashboard({
       setLoading(true);
       setError(null);
       try {
-        const [mineRes, allRes, divisionsRes] = await Promise.all([
+        const [mineRes, allRes, divisionsData] = await Promise.all([
           fetch("/api/dashboards", { headers: { "x-analyst-id": String(currentAnalystId) } }),
           fetch("/api/dashboards"),
-          fetch("/api/divisions"),
+          fetchDivisions(),
         ]);
-        const [mineData, allData, divisionsData] = await Promise.all([
+        const [mineData, allData] = await Promise.all([
           mineRes.json(),
           allRes.json(),
-          divisionsRes.json(),
         ]);
         if (cancelled) return;
 
@@ -57,10 +57,6 @@ export function AddWorklistDashboard({
         }
         if (!allRes.ok) {
           setError(allData.error ?? "Could not load dashboards.");
-          return;
-        }
-        if (!divisionsRes.ok) {
-          setError(divisionsData.error ?? "Could not load divisions.");
           return;
         }
 

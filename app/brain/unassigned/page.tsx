@@ -22,6 +22,7 @@ import {
 import { IntakeRequestsTable } from "@/components/brain/IntakeRequestsTable";
 import { AddIntakeRequestForm } from "@/components/brain/AddIntakeRequestForm";
 import { AddEntityForm } from "@/components/brain/AddEntityForm";
+import { fetchAnalysts, fetchDivisions } from "@/lib/reference-data";
 
 const STATUS_OPTIONS: { value: IntakeStatus; label: string }[] = [
   { value: "not_started", label: "Not started" },
@@ -65,19 +66,16 @@ export default function UnassignedIntakePage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      try {
-        const [divisionsRes, analystsRes] = await Promise.all([
-          fetch("/api/divisions"),
-          fetch("/api/analysts"),
-        ]);
-        const divisionsData = await divisionsRes.json();
-        const analystsData = await analystsRes.json();
-        if (cancelled) return;
-        if (divisionsRes.ok) setDivisions(divisionsData);
-        if (analystsRes.ok) setAnalysts(analystsData);
-      } catch {
-        // Non-critical: dropdowns just render empty if this fails.
-      }
+      // Fetched in parallel, but each handled independently — a failure in
+      // one shouldn't prevent the other from populating, matching the
+      // previous per-response res.ok handling.
+      const [divisionsResult, analystsResult] = await Promise.allSettled([
+        fetchDivisions(),
+        fetchAnalysts(),
+      ]);
+      if (cancelled) return;
+      if (divisionsResult.status === "fulfilled") setDivisions(divisionsResult.value);
+      if (analystsResult.status === "fulfilled") setAnalysts(analystsResult.value);
     })();
     return () => {
       cancelled = true;

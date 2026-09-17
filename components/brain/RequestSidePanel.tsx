@@ -8,6 +8,7 @@ import { EditEntityForm } from "@/components/brain/EditEntityForm";
 import { RequestTagEditor } from "./RequestTagEditor";
 import { RequestLinkPicker } from "./RequestLinkPicker";
 import { formatDateOnly, toLocalDateString } from "@/lib/dates";
+import { fetchAnalysts, fetchTags } from "@/lib/reference-data";
 
 export interface RequestSidePanelEntity {
   kind: BrainEntityKind;
@@ -205,22 +206,22 @@ export function RequestSidePanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entity?.kind, entity?.id, refreshKey]);
 
-  // Fetches the full tag list once the panel opens, for tag-autocomplete
-  // suggestions in RequestTagEditor. Kept separate from the requests-fetch
-  // effect above so a failure here (silently degrading to no suggestions)
-  // can never block the request list from loading.
+  // Fetches the full tag list once per mount (shared cache — see
+  // lib/reference-data.ts), for tag-autocomplete suggestions in
+  // RequestTagEditor. This panel stays mounted across entity selections
+  // (the parent only swaps the `entity` prop), so a plain mount-only effect
+  // is enough — it used to be keyed off entity?.kind/id and refetch on
+  // every entity switch, which was pure waste since the tag list doesn't
+  // depend on which entity is selected. Kept separate from the
+  // requests-fetch effect above so a failure here (silently degrading to no
+  // suggestions) can never block the request list from loading.
   useEffect(() => {
-    if (!entity) return;
-
     let cancelled = false;
 
     (async () => {
       try {
-        const res = await fetch("/api/tags");
-        const data = await res.json();
-        if (cancelled) return;
-        if (!res.ok) return;
-        setAllTags(data);
+        const data = await fetchTags();
+        if (!cancelled) setAllTags(data);
       } catch {
         // Silently degrade — tag autocomplete just won't have suggestions.
       }
@@ -229,7 +230,7 @@ export function RequestSidePanel({
     return () => {
       cancelled = true;
     };
-  }, [entity?.kind, entity?.id]);
+  }, []);
 
   // Fetches this entity's tasks (across all assignees) so the dashboard/
   // subscription owner can see what others are doing on it. Mirrors the
@@ -271,20 +272,17 @@ export function RequestSidePanel({
     };
   }, [entity?.kind, entity?.id, refreshKey]);
 
-  // Fetches the full analyst list once the panel opens, to resolve a task's
-  // ownerAnalystId to a display name. Degrades silently like the tags fetch.
+  // Fetches the full analyst list once per mount (shared cache), to resolve
+  // a task's ownerAnalystId to a display name. Like the tags fetch above,
+  // this doesn't depend on which entity is selected, so it no longer
+  // refetches on every entity switch. Degrades silently like the tags fetch.
   useEffect(() => {
-    if (!entity) return;
-
     let cancelled = false;
 
     (async () => {
       try {
-        const res = await fetch("/api/analysts");
-        const data = await res.json();
-        if (cancelled) return;
-        if (!res.ok) return;
-        setAllAnalysts(data);
+        const data = await fetchAnalysts();
+        if (!cancelled) setAllAnalysts(data);
       } catch {
         // Silently degrade — assignee names just won't resolve.
       }
@@ -293,7 +291,7 @@ export function RequestSidePanel({
     return () => {
       cancelled = true;
     };
-  }, [entity?.kind, entity?.id]);
+  }, []);
 
   const analystNameById = useMemo(() => {
     const map = new Map<number, string>();

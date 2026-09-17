@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { Trash2, Loader2 } from "lucide-react";
 import { Division } from "@/lib/brain-types";
+import { invalidateReferenceData } from "@/lib/reference-data";
 
 interface DeleteDivisionModalProps {
   division: Division;
@@ -36,6 +37,7 @@ export function DeleteDivisionModal({
         return;
       }
 
+      invalidateReferenceData("divisions");
       onDeleted();
     } catch {
       setError("Network error — could not reach the server.");

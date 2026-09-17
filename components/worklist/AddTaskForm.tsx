@@ -5,6 +5,7 @@ import { ClipboardPlus } from "lucide-react";
 import { Analyst, Task } from "@/lib/brain-types";
 import { StatusPrioritySelect } from "@/components/worklist/StatusPrioritySelect";
 import { toLocalDateString } from "@/lib/dates";
+import { fetchAnalysts } from "@/lib/reference-data";
 
 interface AddTaskFormProps {
   currentAnalystId: number;
@@ -81,9 +82,8 @@ export function AddTaskForm({
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/analysts");
-        const data = await res.json();
-        if (!cancelled && res.ok) setAnalysts(data);
+        const data = await fetchAnalysts();
+        if (!cancelled) setAnalysts(data);
       } catch {
         // Non-critical; assignee dropdown will just show the default option.
       }

@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { UserCircle2, RefreshCw, Check } from "lucide-react";
 import { Analyst } from "@/lib/brain-types";
 import { loadAnalystId, saveAnalystId } from "@/lib/analyst-identity";
+import { fetchAnalysts } from "@/lib/reference-data";
 
 interface AnalystSelectorProps {
   onSelect: (analystId: number, analystName: string, isManualSwitch: boolean) => void;
@@ -33,27 +34,23 @@ export function AnalystSelector({ onSelect }: AnalystSelectorProps) {
 
     (async () => {
       try {
-        const res = await fetch("/api/analysts");
-        const data = await res.json();
+        const data = await fetchAnalysts();
         if (cancelled) return;
-
-        if (!res.ok) {
-          setError(data.error ?? "Could not load analysts.");
-          return;
-        }
 
         setAnalysts(data);
 
         const storedId = loadAnalystId();
         if (storedId !== null) {
-          const stored = (data as Analyst[]).find((a) => a.id === storedId);
+          const stored = data.find((a) => a.id === storedId);
           if (stored) setSelectedAnalyst(stored);
           onSelect(storedId, stored?.name ?? "", false);
         } else {
           setOpen(true);
         }
-      } catch {
-        if (!cancelled) setError("Network error — could not reach the server.");
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Network error — could not reach the server.");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }

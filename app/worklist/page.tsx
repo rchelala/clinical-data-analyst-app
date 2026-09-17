@@ -28,6 +28,7 @@ import { WorklistItem, WorklistItemKind } from "@/lib/worklist-types";
 import { WeeklyUpdateDrawer } from "@/components/worklist/WeeklyUpdateDrawer";
 import { RemindersCard } from "@/components/worklist/RemindersCard";
 import { loadAnalystId } from "@/lib/analyst-identity";
+import { fetchDivisions } from "@/lib/reference-data";
 import { toLocalDateString } from "@/lib/dates";
 import { Dashboard, Division, PsqWithTaskCount, ReportSubscription, Task, TaskWithContext } from "@/lib/brain-types";
 import { WeeklyUpdateData } from "@/lib/weekly-update";
@@ -386,9 +387,8 @@ export default function WorklistPage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/divisions");
-        const data = await res.json();
-        if (!cancelled && res.ok) setDivisions(data);
+        const data = await fetchDivisions();
+        if (!cancelled) setDivisions(data);
       } catch {
         // Non-critical
       }

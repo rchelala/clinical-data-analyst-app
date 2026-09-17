@@ -7,6 +7,7 @@ import {
   Division,
   ReportSubscriptionWithUrgency,
 } from "@/lib/brain-types";
+import { fetchDivisions } from "@/lib/reference-data";
 
 export type ZoomState =
   | { level: "galaxy" }
@@ -59,21 +60,20 @@ async function fetchAnalystScopedData(analystId: number): Promise<{
 }> {
   const headers: HeadersInit = { "x-analyst-id": String(analystId) };
 
-  const [divisionsRes, dashboardsRes, subscriptionsRes] = await Promise.all([
-    fetch("/api/divisions"),
+  // Divisions are org-wide, unscoped reference data — shared via
+  // lib/reference-data.ts's cache so switching between analysts here
+  // doesn't refetch the same division list every time.
+  const [divisionsData, dashboardsRes, subscriptionsRes] = await Promise.all([
+    fetchDivisions(),
     fetch("/api/dashboards", { headers }),
     fetch("/api/report-subscriptions", { headers }),
   ]);
 
-  const [divisionsData, dashboardsData, subscriptionsData] = await Promise.all([
-    divisionsRes.json().catch(() => null),
+  const [dashboardsData, subscriptionsData] = await Promise.all([
     dashboardsRes.json().catch(() => null),
     subscriptionsRes.json().catch(() => null),
   ]);
 
-  if (!divisionsRes.ok) {
-    throw new Error(divisionsData?.error ?? "Could not load divisions.");
-  }
   if (!dashboardsRes.ok) {
     throw new Error(dashboardsData?.error ?? "Could not load dashboards.");
   }

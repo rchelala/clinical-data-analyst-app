@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { mapRequestRow, mapRequestWithCreatorRow } from '@/lib/brain-mappers';
 import { RequestType } from '@/lib/brain-types';
+import { requestAttachmentPathnameFromUrl } from '@/lib/request-attachments';
 
 const VALID_REQUEST_TYPES = ['feature', 'bug', 'field_request'] as const;
 
@@ -188,6 +189,17 @@ export async function POST(req: NextRequest) {
     if (requestType !== undefined && !VALID_REQUEST_TYPES.includes(requestType as RequestType)) {
       return NextResponse.json(
         { error: `requestType must be one of: ${VALID_REQUEST_TYPES.join(', ')}` },
+        { status: 400 }
+      );
+    }
+
+    // The blob store is shared across features, so only accept an
+    // attachmentUrl that actually points at our own request-attachments/
+    // prefix - otherwise a crafted URL could later be used to delete or
+    // read another feature's blob (see [id]/route.ts DELETE).
+    if (attachmentUrl != null && !requestAttachmentPathnameFromUrl(attachmentUrl)) {
+      return NextResponse.json(
+        { error: 'attachmentUrl is invalid.' },
         { status: 400 }
       );
     }

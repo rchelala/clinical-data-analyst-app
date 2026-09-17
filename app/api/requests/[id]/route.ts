@@ -3,6 +3,7 @@ import { del } from '@vercel/blob';
 import { sql } from '@/lib/db';
 import { mapRequestRow } from '@/lib/brain-mappers';
 import { RequestStatus } from '@/lib/brain-types';
+import { requestAttachmentPathnameFromUrl } from '@/lib/request-attachments';
 
 const VALID_STATUSES: RequestStatus[] = ['open', 'in_progress', 'done'];
 
@@ -109,15 +110,21 @@ export async function DELETE(
 
     const attachmentUrl: string | null = rows[0].attachment_url;
     if (attachmentUrl) {
-      try {
-        const pathname = new URL(attachmentUrl, 'http://localhost').searchParams.get('pathname');
-        if (pathname) {
+      // Only ever delete blobs under our own request-attachments/ prefix -
+      // the blob store is shared with other features (cmio-trackers/,
+      // cmio-reviews/, clinician-guides/), and this pathname ultimately
+      // traces back to client input accepted on POST.
+      const pathname = requestAttachmentPathnameFromUrl(attachmentUrl);
+      if (pathname) {
+        try {
           await del(pathname);
+        } catch (blobErr: unknown) {
+          // The DB row is already gone; a failed blob cleanup shouldn't fail
+          // the overall request for the user.
+          console.error('Delete request attachment blob error:', blobErr);
         }
-      } catch (blobErr: unknown) {
-        // The DB row is already gone; a failed blob cleanup shouldn't fail
-        // the overall request for the user.
-        console.error('Delete request attachment blob error:', blobErr);
+      } else {
+        console.error('Skipping blob delete for out-of-scope attachment pathname:', attachmentUrl);
       }
     }
 

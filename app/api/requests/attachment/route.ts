@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { put } from '@vercel/blob';
+import { REQUEST_ATTACHMENT_PREFIX } from '@/lib/request-attachments';
 
 const ALLOWED_EXTENSIONS = ['.xlsx', '.xls'];
 
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const blob = await put(`request-attachments/${crypto.randomUUID()}-${file.name}`, file, {
+    const blob = await put(`${REQUEST_ATTACHMENT_PREFIX}${crypto.randomUUID()}-${file.name}`, file, {
       access: 'private',
     });
 

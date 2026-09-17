@@ -1,11 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { get } from '@vercel/blob';
+import { isRequestAttachmentPathname } from '@/lib/request-attachments';
 
 export async function GET(req: NextRequest) {
   try {
     const pathname = req.nextUrl.searchParams.get('pathname');
     if (!pathname) {
       return NextResponse.json({ error: 'pathname is required.' }, { status: 400 });
+    }
+
+    // The blob store is shared with other features (cmio-trackers/,
+    // cmio-reviews/, clinician-guides/); only serve blobs under our own
+    // request-attachments/ prefix so this endpoint can't be used to read
+    // another feature's files.
+    if (!isRequestAttachmentPathname(pathname)) {
+      return NextResponse.json({ error: 'Invalid attachment pathname.' }, { status: 400 });
     }
 
     const analystIdHeader = req.headers.get('x-analyst-id');

@@ -28,7 +28,7 @@ const HEADER_ALIASES: Record<LogicalColumn, string[]> = {
   table: ["table", "cube table", "table name"],
   fieldName: ["field", "field name", "cube object name"],
   format: ["format", "field format"],
-  tooltip: ["tooltip", "tooltip (description)"],
+  tooltip: ["tooltip"],
 };
 
 const MAX_HEADER_SCAN_ROWS = 10;
@@ -191,6 +191,13 @@ function extractRows(
         // spacing between sections — skip it and keep scanning rather than
         // silently dropping every row after it. Only give up once we've
         // seen a long enough run of blanks to be confident the data ended.
+        if (consecutiveBlankRows === 0) {
+          // Entering a new gap: forget the carried-forward date/table so a
+          // footer row after the gap (e.g. "Approved by: …", "Notes") can't
+          // silently inherit stale values from before it.
+          lastDate = "";
+          lastTable = "";
+        }
         consecutiveBlankRows++;
         if (consecutiveBlankRows >= MAX_CONSECUTIVE_BLANK_ROWS) {
           break;
@@ -200,6 +207,21 @@ function extractRows(
       // Stray formatting artifact row; skip but keep scanning.
       consecutiveBlankRows = 0;
       continue;
+    }
+
+    if (consecutiveBlankRows > 0) {
+      // The first row immediately after a blank gap must have at least one
+      // other recognised column populated (table/format/tooltip) in
+      // addition to the field name, or it's more likely a footer line than
+      // real field data — stop parsing rather than absorb it as a row.
+      const hasOtherRecognisedData = !!(
+        tableText.trim() ||
+        formatText.trim() ||
+        tooltipText.trim()
+      );
+      if (!hasOtherRecognisedData) {
+        break;
+      }
     }
 
     consecutiveBlankRows = 0;

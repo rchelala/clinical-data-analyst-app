@@ -11,6 +11,16 @@ const HEX_ENTITY_RE = /&#x([0-9a-fA-F]+);/g;
 // with their own raw XML, since nothing in this regex matches them.
 const TOKEN_RE = /<w:t(?:\s[^>]*)?>([\s\S]*?)<\/w:t>|<w:tab(?:\s[^>]*)?\/>|<w:br(?:\s[^>]*)?\/>|<w:cr(?:\s[^>]*)?\/>/g;
 
+// <w:pPr> (paragraph properties) can contain a <w:tabs> block whose
+// <w:tab w:val="..." w:pos="..."/> tab-STOP DEFINITIONS are also
+// self-closing `<w:tab .../>` elements — they match TOKEN_RE's tab-character
+// branch just as well as a real <w:tab/> whitespace marker, which would
+// inject stray leading tabs into the text. Strip the whole <w:pPr> block
+// before tokenising so only actual run content is scanned. (<w:rPr> — run
+// properties — holds only formatting elements like <w:rFonts>/<w:b/>/<w:sz>,
+// none of which match TOKEN_RE, so it doesn't need the same treatment.)
+const PARAGRAPH_PROPERTIES_RE = /<w:pPr>[\s\S]*?<\/w:pPr>/g;
+
 function decodeXmlEntities(text: string): string {
   return text
     .replace(HEX_ENTITY_RE, (_, code: string) => String.fromCharCode(parseInt(code, 16)))
@@ -23,10 +33,11 @@ function decodeXmlEntities(text: string): string {
 }
 
 function paragraphToText(paragraph: string): string {
+  const withoutParagraphProperties = paragraph.replace(PARAGRAPH_PROPERTIES_RE, "");
   let text = "";
   let match: RegExpExecArray | null;
   TOKEN_RE.lastIndex = 0;
-  while ((match = TOKEN_RE.exec(paragraph)) !== null) {
+  while ((match = TOKEN_RE.exec(withoutParagraphProperties)) !== null) {
     if (match[1] !== undefined) {
       // <w:t>...</w:t> run — check capture group, not a string prefix, since
       // "<w:tab/>" also starts with "<w:t".

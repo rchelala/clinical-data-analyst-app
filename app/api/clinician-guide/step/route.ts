@@ -113,7 +113,14 @@ export async function POST(req: NextRequest) {
 
         const safeName = safeFileSlug(job.report_title || job.dashboard.reportName || "Dashboard");
         const pathname = `clinician-guides/${jobId}.docx`;
-        await put(pathname, docBuffer, { access: "private", contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+        // Same job, same content on a retry — allow overwriting rather than
+        // throwing when a reclaimed finalize re-writes this job's own output
+        // (mirrors cmio-review/step's jobPathname put()).
+        await put(pathname, docBuffer, {
+          access: "private",
+          contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          allowOverwrite: true,
+        });
 
         await sql`
           UPDATE clinician_guide_jobs

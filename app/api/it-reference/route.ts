@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/get-client-ip";
+import { anthropic, isAnthropicTimeout, AI_TIMEOUT_MESSAGE } from "@/lib/anthropic-client";
 import {
   Document,
   Packer,
@@ -385,21 +385,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No SQL provided." }, { status: 400 });
     }
 
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-    const message = await client.messages.create({
-      // Haiku keeps the single extraction call well under the host's function
-      // timeout; the regex table union below guarantees the source-table list
-      // stays complete despite the faster model.
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 4096,
-      messages: [
-        {
-          role: "user",
-          content: `${EXTRACTION_PROMPT}\n\n${sql}`,
-        },
-      ],
-    });
+    const message = await anthropic.messages.create(
+      {
+        // Haiku keeps the single extraction call well under the host's function
+        // timeout; the regex table union below guarantees the source-table list
+        // stays complete despite the faster model.
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 4096,
+        messages: [
+          {
+            role: "user",
+            content: `${EXTRACTION_PROMPT}\n\n${sql}`,
+          },
+        ],
+      },
+      { signal: req.signal }
+    );
 
     const rawText = message.content
       .filter((b) => b.type === "text")
@@ -430,6 +431,9 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     console.error("IT Reference error:", err);
+    if (isAnthropicTimeout(err)) {
+      return NextResponse.json({ error: AI_TIMEOUT_MESSAGE }, { status: 504 });
+    }
     return NextResponse.json(
       { error: "Something went wrong processing your request. Please try again." },
       { status: 500 }

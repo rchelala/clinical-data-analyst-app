@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 import { GoogleGenAI } from "@google/genai";
 import { buildWeeklyUpdatePrompt } from "@/lib/prompts";
 import { AIProvider } from "@/lib/providers";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/get-client-ip";
+import { anthropic, isAnthropicTimeout, AI_TIMEOUT_MESSAGE, ANTHROPIC_TIMEOUT_MS } from "@/lib/anthropic-client";
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+// Constructed once at module load (not per-request) — safe even when
+// GEMINI_API_KEY is unset, since the SDK only warns rather than throwing;
+// the "key not configured" check below still runs before any Gemini call.
+const genAI = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+  httpOptions: { timeout: ANTHROPIC_TIMEOUT_MS },
+});
 
 // The structured worklist markdown this route summarizes is generated
 // client-side from a bounded set of items (one analyst's week), so normal
@@ -66,8 +72,11 @@ export async function POST(req: NextRequest) {
           { status: 500 }
         );
       }
-      const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const result = await genAI.models.generateContent({ model: "gemini-2.5-flash-lite", contents: prompt });
+      const result = await genAI.models.generateContent({
+        model: "gemini-2.5-flash-lite",
+        contents: prompt,
+        config: { abortSignal: req.signal },
+      });
       const text = result.text ?? "";
       return NextResponse.json({ summary: text });
     }
@@ -80,14 +89,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const message = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      // Sectioned output runs one line per worklist item, so it is longer than
-      // the few paragraphs this used to produce. Headroom here avoids silently
-      // truncating the tail sections of a busy week.
-      max_tokens: 2500,
-      messages: [{ role: "user", content: prompt }],
-    });
+    const message = await anthropic.messages.create(
+      {
+        model: "claude-haiku-4-5-20251001",
+        // Sectioned output runs one line per worklist item, so it is longer than
+        // the few paragraphs this used to produce. Headroom here avoids silently
+        // truncating the tail sections of a busy week.
+        max_tokens: 2500,
+        messages: [{ role: "user", content: prompt }],
+      },
+      { signal: req.signal }
+    );
 
     const result = message.content[0];
     if (result.type !== "text") {
@@ -97,6 +109,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ summary: result.text });
   } catch (err: unknown) {
     console.error("Weekly update API error:", err);
+    if (isAnthropicTimeout(err)) {
+      return NextResponse.json({ error: AI_TIMEOUT_MESSAGE }, { status: 504 });
+    }
     return NextResponse.json(
       { error: "Something went wrong processing your request. Please try again." },
       { status: 500 }

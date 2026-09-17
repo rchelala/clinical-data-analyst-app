@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/get-client-ip";
 import { sql } from "@/lib/db";
 import { PbixDashboard, PbixPage, PbixVisual } from "@/lib/pbix-parser";
 import { buildOverviewPrompt, normalizeOverview } from "@/lib/clinician-guide";
+import { anthropic, isAnthropicTimeout, AI_TIMEOUT_MESSAGE } from "@/lib/anthropic-client";
 
 // The overview call is fast; the .pbix is now parsed in the browser and only the
 // small extracted structure is posted here (a raw multi-MB .pbix would exceed the
@@ -71,12 +71,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No report pages found in this file." }, { status: 422 });
     }
 
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    const message = await client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 500,
-      messages: [{ role: "user", content: buildOverviewPrompt(dashboard) }],
-    });
+    const message = await anthropic.messages.create(
+      {
+        model: "claude-sonnet-4-6",
+        max_tokens: 500,
+        messages: [{ role: "user", content: buildOverviewPrompt(dashboard) }],
+      },
+      { signal: req.signal }
+    );
 
     const rawText = message.content
       .filter((b) => b.type === "text")
@@ -110,6 +112,9 @@ export async function POST(req: NextRequest) {
     );
   } catch (err) {
     console.error("Clinician Guide start error:", err);
+    if (isAnthropicTimeout(err)) {
+      return NextResponse.json({ error: AI_TIMEOUT_MESSAGE }, { status: 504 });
+    }
     return NextResponse.json(
       { error: "Something went wrong processing your request. Please try again." },
       { status: 500 }

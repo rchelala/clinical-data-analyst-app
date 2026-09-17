@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 import { put } from "@vercel/blob";
 import { sql } from "@/lib/db";
+import { anthropic } from "@/lib/anthropic-client";
 import { PbixDashboard } from "@/lib/pbix-parser";
 import {
   buildPagePrompt,
@@ -60,14 +60,16 @@ export async function POST(req: NextRequest) {
       if (!job.one_pager) {
         let onePager: ClinicianOnePager;
         try {
-          const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-          const message = await client.messages.create({
-            model: "claude-sonnet-4-6",
-            max_tokens: 1500,
-            messages: [
-              { role: "user", content: buildOnePagerPrompt(job.report_title, job.overview, job.guide_pages) },
-            ],
-          });
+          const message = await anthropic.messages.create(
+            {
+              model: "claude-sonnet-4-6",
+              max_tokens: 1500,
+              messages: [
+                { role: "user", content: buildOnePagerPrompt(job.report_title, job.overview, job.guide_pages) },
+              ],
+            },
+            { signal: req.signal }
+          );
           const rawText = message.content
             .filter((b) => b.type === "text")
             .map((b) => (b as { type: "text"; text: string }).text)
@@ -135,17 +137,19 @@ export async function POST(req: NextRequest) {
     let guidePage: ClinicianPage;
     let rawText: string;
     try {
-      const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-      const message = await client.messages.create({
-        // Haiku for the hot per-page loop: describing a page's visuals is a
-        // simple, well-structured task, and Haiku returns a dense page in ~7s
-        // vs ~25s on Sonnet — the difference between finishing and hitting the
-        // host's function timeout on visual-heavy pages. The flagship overview
-        // and one-pager stay on Sonnet.
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 4000,
-        messages: [{ role: "user", content: buildPagePrompt(page) }],
-      });
+      const message = await anthropic.messages.create(
+        {
+          // Haiku for the hot per-page loop: describing a page's visuals is a
+          // simple, well-structured task, and Haiku returns a dense page in ~7s
+          // vs ~25s on Sonnet — the difference between finishing and hitting the
+          // host's function timeout on visual-heavy pages. The flagship overview
+          // and one-pager stay on Sonnet.
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 4000,
+          messages: [{ role: "user", content: buildPagePrompt(page) }],
+        },
+        { signal: req.signal }
+      );
 
       rawText = message.content
         .filter((b) => b.type === "text")

@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 import { GoogleGenAI } from "@google/genai";
 import { AIProvider } from "@/lib/providers";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/get-client-ip";
+import { anthropic, isAnthropicTimeout, AI_TIMEOUT_MESSAGE, ANTHROPIC_TIMEOUT_MS } from "@/lib/anthropic-client";
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+// Constructed once at module load (not per-request) — safe even when
+// GEMINI_API_KEY is unset, since the SDK only warns rather than throwing;
+// the "key not configured" check below still runs before any Gemini call.
+const genAI = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+  httpOptions: { timeout: ANTHROPIC_TIMEOUT_MS },
+});
 
 interface FieldRow {
   fieldName: string;
@@ -109,8 +115,11 @@ export async function POST(req: NextRequest) {
           { status: 500 }
         );
       }
-      const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const result = await genAI.models.generateContent({ model: "gemini-2.5-flash-lite", contents: prompt });
+      const result = await genAI.models.generateContent({
+        model: "gemini-2.5-flash-lite",
+        contents: prompt,
+        config: { abortSignal: req.signal },
+      });
       return NextResponse.json({ sql: result.text ?? "" });
     }
 
@@ -119,11 +128,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "API key not configured." }, { status: 500 });
     }
 
-    const message = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 4096,
-      messages: [{ role: "user", content: prompt }],
-    });
+    const message = await anthropic.messages.create(
+      {
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 4096,
+        messages: [{ role: "user", content: prompt }],
+      },
+      { signal: req.signal }
+    );
 
     const result = message.content[0];
     if (result.type !== "text") {
@@ -133,6 +145,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ sql: result.text });
   } catch (err: unknown) {
     console.error("Generate SQL error:", err);
+    if (isAnthropicTimeout(err)) {
+      return NextResponse.json({ error: AI_TIMEOUT_MESSAGE }, { status: 504 });
+    }
     return NextResponse.json(
       { error: "Something went wrong processing your request. Please try again." },
       { status: 500 }

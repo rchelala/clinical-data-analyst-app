@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 import { put, get } from "@vercel/blob";
 import { sql } from "@/lib/db";
 import { chunkTranscript } from "@/lib/cmio-chunk";
 import { buildExtractionPrompt, ExtractedRow } from "@/lib/cmio-review-prompt";
 import { appendRowsToTracker, buildStandaloneTracker } from "@/lib/cmio-tracker";
+import { anthropic } from "@/lib/anthropic-client";
 
 // One Claude call per request, same reasoning as clinician-guide/step.
 export const maxDuration = 26;
@@ -344,22 +344,24 @@ export async function POST(req: NextRequest) {
 
     let rawText: string;
     try {
-      const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-      const message = await client.messages.create({
-        model: "claude-sonnet-4-6",
-        max_tokens: 4000,
-        messages: [
-          {
-            role: "user",
-            content: buildExtractionPrompt({
-              transcriptChunk,
-              meetingDate,
-              chunkIndex,
-              chunkCount: job.chunks_total,
-            }),
-          },
-        ],
-      });
+      const message = await anthropic.messages.create(
+        {
+          model: "claude-sonnet-4-6",
+          max_tokens: 4000,
+          messages: [
+            {
+              role: "user",
+              content: buildExtractionPrompt({
+                transcriptChunk,
+                meetingDate,
+                chunkIndex,
+                chunkCount: job.chunks_total,
+              }),
+            },
+          ],
+        },
+        { signal: req.signal }
+      );
       rawText = message.content
         .filter((b) => b.type === "text")
         .map((b) => (b as { type: "text"; text: string }).text)

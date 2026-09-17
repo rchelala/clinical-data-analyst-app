@@ -1,12 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
 import { GoogleGenAI } from "@google/genai";
 import { buildPrompt, buildSummaryPrompt, Language, Density } from "@/lib/prompts";
 import { AIProvider } from "@/lib/providers";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/get-client-ip";
+import { anthropic, isAnthropicTimeout, AI_TIMEOUT_MESSAGE, ANTHROPIC_TIMEOUT_MS } from "@/lib/anthropic-client";
 
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+// Constructed once at module load (not per-request) — safe even when
+// GEMINI_API_KEY is unset, since the SDK only warns rather than throwing;
+// the "key not configured" check below still runs before any Gemini call.
+const genAI = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY,
+  httpOptions: { timeout: ANTHROPIC_TIMEOUT_MS },
+});
 
 export async function POST(req: NextRequest) {
   try {
@@ -48,8 +54,11 @@ export async function POST(req: NextRequest) {
           { status: 500 }
         );
       }
-      const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const result = await genAI.models.generateContent({ model: "gemini-2.5-flash-lite", contents: prompt });
+      const result = await genAI.models.generateContent({
+        model: "gemini-2.5-flash-lite",
+        contents: prompt,
+        config: { abortSignal: req.signal },
+      });
       const text = result.text ?? "";
       return NextResponse.json(isSummary ? { summary: text } : { commented: text });
     }
@@ -62,12 +71,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const message = await anthropic.messages.create({
-      // Haiku for summaries (cheap, short output) — Sonnet for full commenting (handles large files)
-      model: isSummary ? "claude-haiku-4-5-20251001" : "claude-sonnet-4-6",
-      max_tokens: isSummary ? 1024 : 16000,
-      messages: [{ role: "user", content: prompt }],
-    });
+    const message = await anthropic.messages.create(
+      {
+        // Haiku for summaries (cheap, short output) — Sonnet for full commenting (handles large files)
+        model: isSummary ? "claude-haiku-4-5-20251001" : "claude-sonnet-4-6",
+        max_tokens: isSummary ? 1024 : 16000,
+        messages: [{ role: "user", content: prompt }],
+      },
+      { signal: req.signal }
+    );
 
     const result = message.content[0];
     if (result.type !== "text") {
@@ -77,6 +89,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(isSummary ? { summary: result.text } : { commented: result.text });
   } catch (err: unknown) {
     console.error("Comment API error:", err);
+    if (isAnthropicTimeout(err)) {
+      return NextResponse.json({ error: AI_TIMEOUT_MESSAGE }, { status: 504 });
+    }
     return NextResponse.json(
       { error: "Something went wrong processing your request. Please try again." },
       { status: 500 }

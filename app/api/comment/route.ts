@@ -14,6 +14,14 @@ const genAI = new GoogleGenAI({
   httpOptions: { timeout: ANTHROPIC_TIMEOUT_MS },
 });
 
+// The Claude path rewrites the input with inline comments, so output is
+// roughly input-sized (lib/prompts.ts). Netlify's ~26s function budget minus
+// headroom for the rest of the handler leaves ~20s for the LLM call. Haiku
+// generates at roughly 150+ tokens/s, so 20s of generation is ~3,000 output
+// tokens; at ~3.5 chars/token that's ~10,500 output chars, and since output
+// ≈ input here that bounds the input too. Round down a bit for margin.
+const MAX_INPUT_LENGTH = 12_000;
+
 export async function POST(req: NextRequest) {
   try {
     const { allowed, retryAfterSeconds } = await checkRateLimit(getClientIp(req));
@@ -37,8 +45,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No code provided." }, { status: 400 });
     }
 
-    if (code.length > 200_000) {
-      return NextResponse.json({ error: "Input too large. Please keep code under 200,000 characters." }, { status: 400 });
+    if (code.length > MAX_INPUT_LENGTH) {
+      return NextResponse.json(
+        {
+          error: `Input too large. Please keep code under ${MAX_INPUT_LENGTH.toLocaleString()} characters — split large code into sections and run each one separately.`,
+        },
+        { status: 400 }
+      );
     }
 
     const isSummary = mode === "summarize";
@@ -73,9 +86,10 @@ export async function POST(req: NextRequest) {
 
     const message = await anthropic.messages.create(
       {
-        // Haiku for summaries (cheap, short output) — Sonnet for full commenting (handles large files)
-        model: isSummary ? "claude-haiku-4-5-20251001" : "claude-sonnet-4-6",
-        max_tokens: isSummary ? 1024 : 16000,
+        // Haiku for both modes — fast enough to finish within Netlify's
+        // function budget now that MAX_INPUT_LENGTH keeps output bounded too.
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: isSummary ? 1024 : 6000,
         messages: [{ role: "user", content: prompt }],
       },
       { signal: req.signal }

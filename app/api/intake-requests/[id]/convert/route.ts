@@ -35,33 +35,57 @@ export async function POST(
       return NextResponse.json({ error: 'entityId is required and must be numeric.' }, { status: 400 });
     }
 
-    const current = await sql`SELECT id FROM intake_requests WHERE id = ${intakeRequestId}`;
-    if (current.length === 0) {
-      return NextResponse.json({ error: 'Intake request not found.' }, { status: 404 });
-    }
-
     // fulfilled_entity_id has no real FK (the target table depends on kind),
     // so existence is checked explicitly here rather than relying on a DB
-    // constraint to catch a bad reference.
-    const entityExists = kind === 'dashboard'
-      ? await sql`SELECT id FROM dashboards WHERE id = ${entityId}`
-      : await sql`SELECT id FROM report_subscriptions WHERE id = ${entityId}`;
+    // constraint to catch a bad reference. Instead of three sequential round
+    // trips (existence check, entity check, update), this does the update
+    // guarded by an EXISTS clause and reports both existence flags in the
+    // same query so the two distinct error cases (404 vs 400) can still be
+    // told apart from a single round trip.
+    const rows = kind === 'dashboard'
+      ? await sql`
+          WITH updated AS (
+            UPDATE intake_requests
+            SET status = 'fulfilled', fulfilled_entity_kind = ${kind}, fulfilled_entity_id = ${entityId}
+            WHERE id = ${intakeRequestId}
+              AND EXISTS (SELECT 1 FROM dashboards WHERE id = ${entityId})
+            RETURNING id, priority, date_received, division_id, topic, stakeholder, analyst_id, requested_kind, status, ticket_link, internal_comments, created_date, fulfilled_entity_kind, fulfilled_entity_id
+          )
+          SELECT
+            (SELECT EXISTS(SELECT 1 FROM intake_requests WHERE id = ${intakeRequestId})) AS intake_exists,
+            (SELECT EXISTS(SELECT 1 FROM dashboards WHERE id = ${entityId})) AS entity_exists,
+            u.*
+          FROM (SELECT 1) AS x
+          LEFT JOIN updated u ON true
+        `
+      : await sql`
+          WITH updated AS (
+            UPDATE intake_requests
+            SET status = 'fulfilled', fulfilled_entity_kind = ${kind}, fulfilled_entity_id = ${entityId}
+            WHERE id = ${intakeRequestId}
+              AND EXISTS (SELECT 1 FROM report_subscriptions WHERE id = ${entityId})
+            RETURNING id, priority, date_received, division_id, topic, stakeholder, analyst_id, requested_kind, status, ticket_link, internal_comments, created_date, fulfilled_entity_kind, fulfilled_entity_id
+          )
+          SELECT
+            (SELECT EXISTS(SELECT 1 FROM intake_requests WHERE id = ${intakeRequestId})) AS intake_exists,
+            (SELECT EXISTS(SELECT 1 FROM report_subscriptions WHERE id = ${entityId})) AS entity_exists,
+            u.*
+          FROM (SELECT 1) AS x
+          LEFT JOIN updated u ON true
+        `;
 
-    if (entityExists.length === 0) {
+    const row = rows[0] as any;
+    if (!row.intake_exists) {
+      return NextResponse.json({ error: 'Intake request not found.' }, { status: 404 });
+    }
+    if (!row.entity_exists) {
       return NextResponse.json(
         { error: `entityId does not refer to an existing ${kind}.` },
         { status: 400 }
       );
     }
 
-    const rows = await sql`
-      UPDATE intake_requests
-      SET status = 'fulfilled', fulfilled_entity_kind = ${kind}, fulfilled_entity_id = ${entityId}
-      WHERE id = ${intakeRequestId}
-      RETURNING id, priority, date_received, division_id, topic, stakeholder, analyst_id, requested_kind, status, ticket_link, internal_comments, created_date, fulfilled_entity_kind, fulfilled_entity_id
-    `;
-
-    return NextResponse.json(mapIntakeRequestRow(rows[0]));
+    return NextResponse.json(mapIntakeRequestRow(row));
   } catch (err: unknown) {
     console.error('Convert intake request error:', err);
     return NextResponse.json(

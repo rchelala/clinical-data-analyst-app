@@ -10,17 +10,17 @@ import { AnalystSummary, UrgencyBucket } from '@/lib/brain-types';
 // computed from urgency terciles across the *entire* org (not per-analyst).
 export async function GET() {
   try {
-    const analystRows = await sql`SELECT id, name FROM analysts ORDER BY name`;
+    // These four queries are independent of one another — run them
+    // concurrently instead of paying for four sequential round trips.
+    const [analystRows, divisionRows, dashboardRows, subscriptionRows] = await Promise.all([
+      sql`SELECT id, name FROM analysts ORDER BY name`,
+      sql`SELECT id, created_by_analyst_id FROM divisions`,
+      // Unscoped (org-wide) rows — same shared query used by the per-analyst
+      // routes in app/api/dashboards/route.ts and app/api/report-subscriptions/route.ts.
+      fetchDashboardRowsWithStaleness(),
+      fetchSubscriptionRowsWithStaleness(),
+    ]);
     const analysts = analystRows.map(mapAnalystRow);
-
-    const divisionRows = await sql`
-      SELECT id, created_by_analyst_id FROM divisions
-    `;
-
-    // Unscoped (org-wide) rows — same shared query used by the per-analyst
-    // routes in app/api/dashboards/route.ts and app/api/report-subscriptions/route.ts.
-    const dashboardRows = await fetchDashboardRowsWithStaleness();
-    const subscriptionRows = await fetchSubscriptionRowsWithStaleness();
 
     // Combine dashboard + subscription rows into one urgency-driving set so
     // bucketUrgencies() classifies terciles across the whole org at once.

@@ -37,7 +37,11 @@ interface JobRow {
   status: string;
   report_title: string;
   overview: string;
-  dashboard: PbixDashboard;
+  // The heavy `dashboard` JSONB (up to hundreds of pages) is never loaded in
+  // full — only the report name (used as a filename fallback) is pulled out
+  // via a jsonb path extraction, and the one page actually needed for the
+  // current step is fetched separately below when the page phase is reached.
+  dashboard_report_name: string | null;
   pages_total: number;
   pages_done: number;
   guide_pages: ClinicianPage[];
@@ -56,7 +60,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Job not found." }, { status: 404 });
     }
 
-    const rows = await sql`SELECT * FROM clinician_guide_jobs WHERE id = ${jobId}`;
+    const rows = await sql`
+      SELECT
+        id, status, report_title, overview, pages_total, pages_done,
+        guide_pages, one_pager, error, created_at,
+        dashboard->>'reportName' AS dashboard_report_name
+      FROM clinician_guide_jobs WHERE id = ${jobId}
+    `;
     if (rows.length === 0) {
       return NextResponse.json({ error: "Job not found." }, { status: 404 });
     }
@@ -118,7 +128,7 @@ export async function POST(req: NextRequest) {
           onePager: job.one_pager,
         });
 
-        const safeName = safeFileSlug(job.report_title || job.dashboard.reportName || "Dashboard");
+        const safeName = safeFileSlug(job.report_title || job.dashboard_report_name || "Dashboard");
         const pathname = `clinician-guides/${jobId}.docx`;
         // Same job, same content on a retry — allow overwriting rather than
         // throwing when a reclaimed finalize re-writes this job's own output
@@ -157,7 +167,14 @@ export async function POST(req: NextRequest) {
     }
 
     // ---- Page phase: describe the next report page ----
-    const page = job.dashboard.pages[job.pages_done];
+    // Fetch only the one page needed for this step (a jsonb path extraction)
+    // instead of the entire `dashboard` blob, which can hold hundreds of
+    // pages' worth of visuals/fields.
+    const pageRows = await sql`
+      SELECT dashboard->'pages'->${job.pages_done} AS page
+      FROM clinician_guide_jobs WHERE id = ${jobId}
+    `;
+    const page = (pageRows[0] as { page: PbixDashboard['pages'][number] }).page;
 
     let guidePage: ClinicianPage;
     let rawText: string;
@@ -255,7 +272,7 @@ export async function POST(req: NextRequest) {
 
 function buildStatusResponse(job: JobRow) {
   if (job.status === "done") {
-    const safeName = safeFileSlug(job.report_title || job.dashboard.reportName || "Dashboard");
+    const safeName = safeFileSlug(job.report_title || job.dashboard_report_name || "Dashboard");
     return NextResponse.json({
       status: "done",
       pagesDone: job.pages_done,

@@ -8,16 +8,25 @@ function currentWindowStart(): Date {
   return new Date(Math.floor(Date.now() / windowMs) * windowMs);
 }
 
+// Cleanup runs probabilistically instead of on every call — the DELETE's
+// `window_start < ...` predicate can't use the (ip, window_start) primary
+// key, so it's a full-table scan; there's no correctness reason it needs to
+// run on every single LLM call.
+const CLEANUP_PROBABILITY = 0.02;
+
 export async function checkRateLimit(
   ip: string
 ): Promise<{ allowed: boolean; retryAfterSeconds: number }> {
   const windowStart = currentWindowStart();
 
-  // Opportunistic cleanup of old windows, piggybacking on normal traffic
-  // instead of needing a separate cron job.
-  await sql`DELETE FROM api_rate_limits WHERE window_start < now() - interval '1 hour'`;
-
+  // Upsert and opportunistic cleanup combined into one round trip (one
+  // statement, two CTEs) instead of two sequential Neon HTTP round trips.
   const rows = await sql`
+    WITH cleanup AS (
+      DELETE FROM api_rate_limits
+      WHERE ${Math.random() < CLEANUP_PROBABILITY}
+        AND window_start < now() - interval '1 hour'
+    )
     INSERT INTO api_rate_limits (ip, window_start, request_count)
     VALUES (${ip}, ${windowStart.toISOString()}, 1)
     ON CONFLICT (ip, window_start)

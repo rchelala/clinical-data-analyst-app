@@ -21,18 +21,15 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid division id.' }, { status: 400 });
     }
 
-    // (a) Division row (404 if missing).
-    const divisionRows = await sql`
-      SELECT id, name FROM divisions WHERE id = ${divisionId}
-    `;
+    // All five queries below are independent (none depends on another's
+    // result) — run them concurrently and check the division's existence
+    // from the combined results instead of awaiting it up front.
+    const [divisionRows, dashboardRows, subscriptionRows, requestRows, taskRows] = await Promise.all([
+      // (a) Division row (404 if missing).
+      sql`
+        SELECT id, name FROM divisions WHERE id = ${divisionId}
+      `,
 
-    if (divisionRows.length === 0) {
-      return NextResponse.json({ error: 'Division not found.' }, { status: 404 });
-    }
-
-    const divisionRow = divisionRows[0] as any;
-
-    const [dashboardRows, subscriptionRows, requestRows, taskRows] = await Promise.all([
       // (b) Dashboards in this division, with owner name and open-request count.
       sql`
         SELECT
@@ -109,6 +106,12 @@ export async function GET(
         ORDER BY t.created_date DESC
       `,
     ]);
+
+    if (divisionRows.length === 0) {
+      return NextResponse.json({ error: 'Division not found.' }, { status: 404 });
+    }
+
+    const divisionRow = divisionRows[0] as any;
 
     const dashboards: DivisionDetailDashboard[] = (dashboardRows as any[]).map((row) => ({
       id: Number(row.id),

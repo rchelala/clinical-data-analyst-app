@@ -29,12 +29,15 @@ const STUCK_FINALIZE_MINUTES = 2;
 // "invalid input syntax for type uuid" error surfacing as a 500.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// `transcript` (up to 400k chars) is deliberately excluded from this base
+// row shape — it's only needed during the chunk-extraction phase, and is
+// fetched separately there (see JobWithTranscript below) instead of being
+// pulled on every status/finalize check.
 interface JobRow {
   id: string;
   status: string;
   mode: "append" | "standalone";
   meeting_date: string | Date;
-  transcript: string;
   chunks_total: number;
   chunks_done: number;
   rows: ExtractedRow[];
@@ -184,7 +187,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Job not found." }, { status: 404 });
     }
 
-    const rows = await sql`SELECT * FROM cmio_review_jobs WHERE id = ${jobId}`;
+    const rows = await sql`
+      SELECT id, status, mode, meeting_date, chunks_total, chunks_done, rows, blob_pathname, result_version, notes, error, created_at
+      FROM cmio_review_jobs WHERE id = ${jobId}
+    `;
     if (rows.length === 0) {
       return NextResponse.json({ error: "Job not found." }, { status: 404 });
     }
@@ -209,7 +215,10 @@ export async function POST(req: NextRequest) {
       } else {
         // Someone else claimed it first (or it already finished) between our
         // read and our claim attempt — report current state instead.
-        const fresh = (await sql`SELECT * FROM cmio_review_jobs WHERE id = ${jobId}`)[0] as unknown as JobRow;
+        const fresh = (await sql`
+          SELECT id, status, mode, meeting_date, chunks_total, chunks_done, rows, blob_pathname, result_version, notes, error, created_at
+          FROM cmio_review_jobs WHERE id = ${jobId}
+        `)[0] as unknown as JobRow;
         return buildStatusResponse(fresh);
       }
     } else if (job.status === "finalizing") {
@@ -343,7 +352,10 @@ export async function POST(req: NextRequest) {
           } catch (txnErr) {
             // If another finalize already won (its transaction committed
             // first), treat that as success rather than failing this request.
-            const settled = (await sql`SELECT * FROM cmio_review_jobs WHERE id = ${jobId}`)[0] as unknown as JobRow;
+            const settled = (await sql`
+              SELECT id, status, mode, meeting_date, chunks_total, chunks_done, rows, blob_pathname, result_version, notes, error, created_at
+              FROM cmio_review_jobs WHERE id = ${jobId}
+            `)[0] as unknown as JobRow;
             if (settled.status === "done") {
               return buildDoneResponse(settled);
             }
@@ -351,7 +363,10 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        const finalJob = (await sql`SELECT * FROM cmio_review_jobs WHERE id = ${jobId}`)[0] as unknown as JobRow;
+        const finalJob = (await sql`
+          SELECT id, status, mode, meeting_date, chunks_total, chunks_done, rows, blob_pathname, result_version, notes, error, created_at
+          FROM cmio_review_jobs WHERE id = ${jobId}
+        `)[0] as unknown as JobRow;
         return buildDoneResponse(finalJob);
       } catch (err) {
         console.error("CMIO Review finalize error:", err);
@@ -366,7 +381,12 @@ export async function POST(req: NextRequest) {
     }
 
     // ---- Chunk phase: extract action items from the next chunk ----
-    const chunks = chunkTranscript(job.transcript);
+    // The transcript (up to 400k chars) is only needed here, so it's fetched
+    // in its own targeted query instead of being carried on every status,
+    // finalize-claim, and finalize-result fetch above.
+    const transcriptRows = await sql`SELECT transcript FROM cmio_review_jobs WHERE id = ${jobId}`;
+    const transcript = (transcriptRows[0] as { transcript: string } | undefined)?.transcript ?? "";
+    const chunks = chunkTranscript(transcript);
     if (chunks.length !== job.chunks_total) {
       // chunks_total was computed at job creation (app/api/cmio-review/route.ts)
       // by calling chunkTranscript with whatever chunking logic was deployed

@@ -37,12 +37,13 @@ export async function fetchDashboardRowsWithStaleness(analystId?: number) {
         FROM dashboards d
         LEFT JOIN (
           SELECT
-            dashboard_id,
-            COUNT(*) FILTER (WHERE status != 'done') AS open_request_count,
-            COUNT(*) FILTER (WHERE status = 'in_progress') AS in_progress_request_count,
-            MAX(CURRENT_DATE - created_date) FILTER (WHERE status != 'done') AS oldest_open_request_age_days
-          FROM requests
-          GROUP BY dashboard_id
+            r.dashboard_id,
+            COUNT(*) FILTER (WHERE r.status != 'done') AS open_request_count,
+            COUNT(*) FILTER (WHERE r.status = 'in_progress') AS in_progress_request_count,
+            MAX(CURRENT_DATE - r.created_date) FILTER (WHERE r.status != 'done') AS oldest_open_request_age_days
+          FROM requests r
+          JOIN dashboards ad ON ad.id = r.dashboard_id AND ad.analyst_id = ${analystId}
+          GROUP BY r.dashboard_id
         ) agg ON agg.dashboard_id = d.id
         WHERE d.analyst_id = ${analystId}
         ORDER BY d.name
@@ -114,14 +115,16 @@ export async function fetchSubscriptionRowsWithStaleness(analystId?: number) {
         FROM report_subscriptions s
         LEFT JOIN (
           SELECT
-            subscription_id,
-            COUNT(*) FILTER (WHERE status != 'done') AS open_request_count,
-            COUNT(*) FILTER (WHERE status = 'in_progress') AS in_progress_request_count,
-            MAX(CURRENT_DATE - created_date) FILTER (WHERE status != 'done') AS oldest_open_request_age_days
-          FROM requests
-          GROUP BY subscription_id
+            r.subscription_id,
+            COUNT(*) FILTER (WHERE r.status != 'done') AS open_request_count,
+            COUNT(*) FILTER (WHERE r.status = 'in_progress') AS in_progress_request_count,
+            MAX(CURRENT_DATE - r.created_date) FILTER (WHERE r.status != 'done') AS oldest_open_request_age_days
+          FROM requests r
+          JOIN report_subscriptions asub ON asub.id = r.subscription_id AND asub.analyst_id = ${analystId}
+          GROUP BY r.subscription_id
         ) agg ON agg.subscription_id = s.id
         WHERE s.analyst_id = ${analystId}
+        ORDER BY s.name
       `
     : await sql`
         SELECT
@@ -156,5 +159,6 @@ export async function fetchSubscriptionRowsWithStaleness(analystId?: number) {
           FROM requests
           GROUP BY subscription_id
         ) agg ON agg.subscription_id = s.id
+        ORDER BY s.name
       `;
 }

@@ -14,13 +14,32 @@ const genAI = new GoogleGenAI({
   httpOptions: { timeout: ANTHROPIC_TIMEOUT_MS },
 });
 
-// The Claude path rewrites the input with inline comments, so output is
-// roughly input-sized (lib/prompts.ts). Netlify's ~26s function budget minus
-// headroom for the rest of the handler leaves ~20s for the LLM call. Haiku
-// generates at roughly 150+ tokens/s, so 20s of generation is ~3,000 output
-// tokens; at ~3.5 chars/token that's ~10,500 output chars, and since output
-// ≈ input here that bounds the input too. Round down a bit for margin.
-const MAX_INPUT_LENGTH = 12_000;
+// Netlify's ~26s function budget minus headroom for the rest of the handler
+// (JSON parsing, response building) leaves ~20s for the LLM call. Haiku
+// generates at roughly 150+ tokens/s, so 20s of generation is a budget of
+// ~3,000 output tokens — at ~3.5 chars/token, ~10,500 output chars.
+//
+// Comment mode rewrites the input with inline comments, but how much LARGER
+// than the input the output gets depends on the chosen density
+// (lib/prompts.ts's densityInstructions): "brief" adds one short phrase per
+// line (output ≈ input, ~1x), "detailed" adds a full explanatory sentence
+// per line plus section headers (~2x), and "step-by-step" adds WHAT/WHY/
+// gotcha explanations per line plus section headers (~3x). Dividing the
+// fixed ~10,500-char output budget by each level's expansion factor gives
+// its input cap, rounded down for margin. Applies to both Claude and Gemini
+// — nothing in this codebase gives Gemini a separately-derived limit, and
+// its comment-mode output has the same expansion-by-density shape.
+const COMMENT_MAX_INPUT_CHARS: Record<Density, number> = {
+  brief: 12_000, // ~1x expansion — full output budget
+  detailed: 8_000, // ~2x expansion — half the budget in, double out
+  "step-by-step": 5_000, // ~3x expansion — a third of the budget in, triple out
+};
+
+// "summarize" mode's output is capped at 1024 tokens (see max_tokens below)
+// regardless of input size — a summary is bounded, not proportional to the
+// code it describes — so it keeps its own, much larger original ceiling
+// rather than the comment-mode caps above.
+const SUMMARIZE_MAX_INPUT_CHARS = 200_000;
 
 export async function POST(req: NextRequest) {
   try {
@@ -45,19 +64,45 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No code provided." }, { status: 400 });
     }
 
-    if (code.length > MAX_INPUT_LENGTH) {
+    const isSummary = mode === "summarize";
+    // Comment mode's cap depends on the chosen density (its output expands
+    // by a different factor per level — see COMMENT_MAX_INPUT_CHARS above).
+    // Fall back to the "brief" cap for a missing/unrecognized density rather
+    // than crashing on an undefined lookup.
+    const maxInputChars = isSummary
+      ? SUMMARIZE_MAX_INPUT_CHARS
+      : COMMENT_MAX_INPUT_CHARS[density] ?? COMMENT_MAX_INPUT_CHARS.brief;
+
+    if (code.length > maxInputChars) {
+      const levelNote = isSummary ? "" : ` at the "${density}" comment level`;
       return NextResponse.json(
         {
-          error: `Input too large. Please keep code under ${MAX_INPUT_LENGTH.toLocaleString()} characters — split large code into sections and run each one separately.`,
+          error: `Input too large${levelNote}. Please keep code under ${maxInputChars.toLocaleString()} characters — split large code into sections${
+            isSummary ? "" : ", or choose a lighter comment level,"
+          } and run each one separately.`,
         },
         { status: 400 }
       );
     }
 
-    const isSummary = mode === "summarize";
     const prompt = isSummary
       ? buildSummaryPrompt(code, language)
       : buildPrompt(code, language, density);
+
+    // Shared 422 for both providers when the model ran out of room mid-
+    // response (max_tokens / MAX_TOKENS) — the content returned is
+    // truncated, not a complete result, and returning it silently would
+    // hand back broken/cut-off comments (or a chopped summary) with no
+    // indication anything went wrong.
+    const truncatedResponse = () =>
+      NextResponse.json(
+        {
+          error: isSummary
+            ? "The summary was too long to finish. Try a smaller section."
+            : "The commented result was too long to finish. Try a smaller section or a lighter comment level.",
+        },
+        { status: 422 }
+      );
 
     // ── Gemini ────────────────────────────────────────────────────────────────
     if (provider === "gemini") {
@@ -72,6 +117,11 @@ export async function POST(req: NextRequest) {
         contents: prompt,
         config: { abortSignal: req.signal },
       });
+
+      if (result.candidates?.[0]?.finishReason === "MAX_TOKENS") {
+        return truncatedResponse();
+      }
+
       const text = result.text ?? "";
       return NextResponse.json(isSummary ? { summary: text } : { commented: text });
     }
@@ -87,13 +137,18 @@ export async function POST(req: NextRequest) {
     const message = await anthropic.messages.create(
       {
         // Haiku for both modes — fast enough to finish within Netlify's
-        // function budget now that MAX_INPUT_LENGTH keeps output bounded too.
+        // function budget now that the per-mode/level caps above keep
+        // output bounded too.
         model: "claude-haiku-4-5-20251001",
         max_tokens: isSummary ? 1024 : 6000,
         messages: [{ role: "user", content: prompt }],
       },
       { signal: req.signal }
     );
+
+    if (message.stop_reason === "max_tokens") {
+      return truncatedResponse();
+    }
 
     const result = message.content[0];
     if (result.type !== "text") {

@@ -39,22 +39,28 @@ export async function PATCH(
     // Transitioning to 'done' stamps completed_date — with the caller's local
     // date when provided (see lib/dates.ts toLocalDateString), falling back
     // to the server's CURRENT_DATE (UTC on Netlify) only when the client
-    // didn't send one. Transitioning away from 'done' clears it so a
-    // re-opened request doesn't keep a stale date. Done via branches rather
-    // than a nested sql fragment so we don't depend on unverified
-    // nested-template-literal support in the driver.
+    // didn't send one. The `status <> 'done'` check reads the bare (i.e.
+    // pre-update) status column, so a client date is only applied when this
+    // is an actual open/in_progress -> done transition; re-marking an
+    // already-done request (the worklist checkbox always resends
+    // completedDate alongside status: 'done', even as a no-op — see
+    // statusPatchBody in app/worklist/page.tsx) keeps the existing
+    // completed_date instead of resetting it. Transitioning away from 'done'
+    // clears it so a re-opened request doesn't keep a stale date. Done via
+    // branches rather than a nested sql fragment so we don't depend on
+    // unverified nested-template-literal support in the driver.
     const rows =
       status === 'done'
         ? completedDate
           ? await sql`
               UPDATE requests
-              SET status = ${status}, completed_date = ${completedDate}::date
+              SET status = ${status}, completed_date = CASE WHEN status <> 'done' THEN ${completedDate}::date ELSE completed_date END
               WHERE id = ${requestId}
               RETURNING id, dashboard_id, subscription_id, created_by_id, title, description, request_type, status, jira_ticket_id, created_date, completed_date, attachment_url, attachment_filename, field_names
             `
           : await sql`
               UPDATE requests
-              SET status = ${status}, completed_date = CURRENT_DATE
+              SET status = ${status}, completed_date = CASE WHEN status <> 'done' THEN CURRENT_DATE ELSE completed_date END
               WHERE id = ${requestId}
               RETURNING id, dashboard_id, subscription_id, created_by_id, title, description, request_type, status, jira_ticket_id, created_date, completed_date, attachment_url, attachment_filename, field_names
             `

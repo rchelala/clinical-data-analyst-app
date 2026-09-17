@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 
 interface EditableCellProps {
   value: string | null;
@@ -15,16 +15,26 @@ interface EditableCellProps {
 // changed, and reverts the displayed text if the save fails. Matches the
 // mockup's .edit-cell affordance.
 export function EditableCell({ value, placeholder, onSave }: EditableCellProps) {
-  const ref = useRef<HTMLDivElement>(null);
-  const original = value ?? "";
+  // Bumped on a failed save to force React to remount the contentEditable
+  // element (via key) instead of mutating its DOM text node directly —
+  // direct mutation (innerText = ...) desyncs the node from React's vdom, so
+  // later `value` prop updates stop rendering and a later blur can save
+  // stale text over newer data.
+  const [revertKey, setRevertKey] = useState(0);
+  // Tracks the latest `value` prop so the no-op comparison in `onBlur`
+  // (whose closure is created once per render) always compares against the
+  // current value, not a stale one captured at an earlier render.
+  const valueRef = useRef(value);
+  valueRef.current = value;
 
   return (
     <div
-      ref={ref}
+      key={revertKey}
       contentEditable
       suppressContentEditableWarning
       onBlur={async (e) => {
         const next = e.currentTarget.innerText.trim();
+        const original = valueRef.current ?? "";
         if (next === original) return;
         let ok = false;
         try {
@@ -32,8 +42,8 @@ export function EditableCell({ value, placeholder, onSave }: EditableCellProps) 
         } catch {
           ok = false;
         }
-        if (!ok && ref.current) {
-          ref.current.innerText = original;
+        if (!ok) {
+          setRevertKey((k) => k + 1);
         }
       }}
       data-placeholder={placeholder}

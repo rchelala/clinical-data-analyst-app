@@ -192,7 +192,7 @@ export async function POST(req: NextRequest) {
       status?: string;
       priority?: string;
       ownerAnalystId?: number;
-      createdDate?: string;
+      createdDate?: string | null;
     };
 
     const { dashboardId, subscriptionId, divisionId, psqId, title, description, status, priority, ownerAnalystId, createdDate } = body;
@@ -216,7 +216,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (createdDate !== undefined && !isValidDateString(createdDate)) {
+    if (createdDate !== undefined && createdDate !== null && !isValidDateString(createdDate)) {
       return NextResponse.json(
         { error: 'createdDate must be a valid YYYY-MM-DD date.' },
         { status: 400 }

@@ -154,7 +154,7 @@ export async function POST(req: NextRequest) {
       attachmentUrl?: string;
       attachmentFilename?: string;
       fieldNames?: unknown;
-      createdDate?: string;
+      createdDate?: string | null;
     };
 
     const {
@@ -207,7 +207,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (createdDate !== undefined && !isValidDateString(createdDate)) {
+    if (createdDate !== undefined && createdDate !== null && !isValidDateString(createdDate)) {
       return NextResponse.json(
         { error: 'createdDate must be a valid YYYY-MM-DD date.' },
         { status: 400 }

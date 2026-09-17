@@ -1,4 +1,5 @@
 import { FieldRequestEntry } from "./history";
+import { toLocalDateString } from "./dates";
 
 const TEMPLATE_LABELS: Record<string, string> = {
   "general": "General",
@@ -47,6 +48,7 @@ export async function attachFieldRequestToDashboard(
       description: summarizeFieldRequest(entry),
       requestType: "field_request",
       fieldNames: extractFieldNames(entry),
+      createdDate: toLocalDateString(new Date()),
     }),
   });
   const data = await res.json();

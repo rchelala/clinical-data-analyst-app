@@ -68,11 +68,16 @@ export async function PATCH(
     // (bare column references in a Postgres UPDATE...SET always read
     // pre-update values, even when referenced in a later SET expression) —
     // this preserves the original fetch-merge-write semantics exactly:
-    // - An explicitly provided completedDate/resolutionComment always wins.
+    // - An explicitly provided completedDate wins only when the row is
+    //   transitioning INTO 'done' (old status <> 'done') — the worklist
+    //   client always sends completedDate alongside status: 'done' (see
+    //   statusPatchBody in app/worklist/page.tsx), including when
+    //   re-marking an already-done task, so this keeps that no-op from
+    //   resetting completed_date. An explicitly provided resolutionComment
+    //   always wins.
     // - Otherwise, entering 'done' stamps completed_date (CURRENT_DATE here
-    //   is only a fallback — the worklist client sends completedDate
-    //   directly, see lib/dates.ts toLocalDateString), and leaving 'done'
-    //   clears both completed_date and resolution_comment.
+    //   is only a fallback), and leaving 'done' clears both completed_date
+    //   and resolution_comment.
     // - Any other transition (or no status change) keeps the existing value.
     const trimmedTitle = title !== undefined ? title.trim() : undefined;
     const hasTitle = trimmedTitle !== undefined;
@@ -95,7 +100,7 @@ export async function PATCH(
         priority = CASE WHEN ${hasPriority} THEN ${priority ?? null}::text ELSE priority END,
         owner_analyst_id = CASE WHEN ${hasOwnerAnalystId} THEN ${ownerAnalystId ?? null}::int ELSE owner_analyst_id END,
         completed_date = CASE
-          WHEN ${hasCompletedDate} THEN ${completedDate ?? null}::date
+          WHEN ${hasCompletedDate} AND status <> 'done' THEN ${completedDate ?? null}::date
           WHEN ${newStatusIsDone} AND status <> 'done' THEN CURRENT_DATE
           WHEN ${newStatusIsNotDone} AND status = 'done' THEN NULL
           ELSE completed_date

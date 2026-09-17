@@ -499,7 +499,7 @@ export default function WorklistPage() {
   );
 
   const patchTask = useCallback(
-    async (key: string, taskId: number, body: Record<string, unknown>) => {
+    async (key: string, taskId: number, body: Record<string, unknown>): Promise<boolean> => {
       try {
         const res = await fetch(`/api/tasks/${taskId}`, {
           method: "PATCH",
@@ -508,15 +508,17 @@ export default function WorklistPage() {
         });
         if (!res.ok) {
           setNotice(await readErrorMessage(res, "Couldn't save your change. Please try again."));
-          return;
+          return false;
         }
         const updated = await res.json();
         setTasksByItem((prev) => ({
           ...prev,
           [key]: (prev[key] ?? []).map((t) => (t.id === taskId ? updated : t)),
         }));
+        return true;
       } catch {
         setNotice("Couldn't save your change. Please try again.");
+        return false;
       }
     },
     []
@@ -578,7 +580,7 @@ export default function WorklistPage() {
   );
 
   const patchAssignedTask = useCallback(
-    async (taskId: number, body: Record<string, unknown>) => {
+    async (taskId: number, body: Record<string, unknown>): Promise<boolean> => {
       try {
         const res = await fetch(`/api/tasks/${taskId}`, {
           method: "PATCH",
@@ -587,14 +589,16 @@ export default function WorklistPage() {
         });
         if (!res.ok) {
           setNotice(await readErrorMessage(res, "Couldn't save your change. Please try again."));
-          return;
+          return false;
         }
         const updated = await res.json();
         setAssignedTasks((prev) =>
           prev.map((t) => (t.id === taskId ? { ...t, ...updated } : t))
         );
+        return true;
       } catch {
         setNotice("Couldn't save your change. Please try again.");
+        return false;
       }
     },
     []
@@ -636,7 +640,7 @@ export default function WorklistPage() {
   );
 
   const patchPsqTask = useCallback(
-    async (psqId: number, taskId: number, body: Record<string, unknown>) => {
+    async (psqId: number, taskId: number, body: Record<string, unknown>): Promise<boolean> => {
       try {
         const res = await fetch(`/api/tasks/${taskId}`, {
           method: "PATCH",
@@ -645,15 +649,17 @@ export default function WorklistPage() {
         });
         if (!res.ok) {
           setNotice(await readErrorMessage(res, "Couldn't save your change. Please try again."));
-          return;
+          return false;
         }
         const updated = await res.json();
         setTasksByPsq((prev) => ({
           ...prev,
           [psqId]: (prev[psqId] ?? []).map((t) => (t.id === taskId ? updated : t)),
         }));
+        return true;
       } catch {
         setNotice("Couldn't save your change. Please try again.");
+        return false;
       }
     },
     []
@@ -859,8 +865,8 @@ export default function WorklistPage() {
                   // editor issues next, so a fast note save can't be
                   // clobbered by a slower in-flight status response.
                   const completing = task.status !== "done";
-                  await patchPsqTask(p.id, task.id, statusPatchBody(completing ? "done" : "open"));
-                  setNoteEditingTaskId(completing ? task.id : null);
+                  const ok = await patchPsqTask(p.id, task.id, statusPatchBody(completing ? "done" : "open"));
+                  if (ok) setNoteEditingTaskId(completing ? task.id : null);
                 }}
                 className={`mt-0.5 w-[18px] h-[18px] rounded-[5px] flex-shrink-0 border flex items-center justify-center text-[10px] transition-colors ${
                   task.status === "done" ? "bg-emerald-500 border-emerald-500 text-black" : "border-secondary"
@@ -1052,8 +1058,8 @@ export default function WorklistPage() {
                     // editor issues next, so a fast note save can't be
                     // clobbered by a slower in-flight status response.
                     const completing = task.status !== "done";
-                    await patchTask(key, task.id, statusPatchBody(completing ? "done" : "open"));
-                    setNoteEditingTaskId(completing ? task.id : null);
+                    const ok = await patchTask(key, task.id, statusPatchBody(completing ? "done" : "open"));
+                    if (ok) setNoteEditingTaskId(completing ? task.id : null);
                   }}
                   className={`mt-0.5 w-[18px] h-[18px] rounded-[5px] flex-shrink-0 border flex items-center justify-center text-[10px] transition-colors ${
                     task.status === "done" ? "bg-emerald-500 border-emerald-500 text-black" : "border-secondary"
@@ -1599,7 +1605,8 @@ export default function WorklistPage() {
                             // lists: the status PATCH must land before any
                             // note PATCH the editor issues next.
                             const completing = task.status !== "done";
-                            await patchAssignedTask(task.id, statusPatchBody(completing ? "done" : "open"));
+                            const ok = await patchAssignedTask(task.id, statusPatchBody(completing ? "done" : "open"));
+                            if (!ok) return;
                             setNoteEditingTaskId(completing ? task.id : null);
                             // Keep it visible in this list (see
                             // recentlyCompletedAssignedIds) so the note

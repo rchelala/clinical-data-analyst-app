@@ -29,6 +29,39 @@ export async function GET(req: NextRequest) {
     const hasAssignedTo = !!assignedToParam && Number.isFinite(assignedTo);
     const hasExcludeWorklistOf = !!excludeWorklistOfParam && Number.isFinite(excludeWorklistOf);
 
+    const scope = req.nextUrl.searchParams.get('scope');
+
+    if (scope === 'worklist') {
+      // Batch mode for the Worklist page's "Generate Weekly Update": every
+      // task the page's dashboard/subscription/PSQ sections would show for
+      // this analyst, in one query, instead of one request per item (which
+      // was ~40 sequential/parallel round trips for a full worklist). Mirrors
+      // exactly which items the page shows: worklist_dashboards membership
+      // for dashboards, ownership (analyst_id) for subscriptions and psqs —
+      // same as /api/worklist-dashboards and /api/worklist-subscriptions.
+      if (!ownerAnalystIdParam || !Number.isInteger(ownerAnalystId)) {
+        return NextResponse.json(
+          { error: 'ownerAnalystId must be an integer when scope=worklist.' },
+          { status: 400 }
+        );
+      }
+
+      const rows = await sql`
+        SELECT t.id, t.dashboard_id, t.subscription_id, t.division_id, t.psq_id, t.owner_analyst_id, t.created_by_id, t.title, t.description, t.status, t.priority, t.created_date, t.completed_date, t.resolution_comment, owner.name AS owner_name
+        FROM tasks t
+        LEFT JOIN analysts owner ON owner.id = t.owner_analyst_id
+        WHERE t.owner_analyst_id = ${ownerAnalystId}
+          AND (
+            t.dashboard_id IN (SELECT dashboard_id FROM worklist_dashboards WHERE analyst_id = ${ownerAnalystId})
+            OR t.subscription_id IN (SELECT id FROM report_subscriptions WHERE analyst_id = ${ownerAnalystId})
+            OR t.psq_id IN (SELECT id FROM psqs WHERE analyst_id = ${ownerAnalystId})
+          )
+        ORDER BY t.created_date DESC
+      `;
+
+      return NextResponse.json(rows.map(mapTaskRow));
+    }
+
     if (hasDashboardId) {
       const rows = hasOwnerAnalystId
         ? await sql`

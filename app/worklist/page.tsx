@@ -12,7 +12,6 @@ import {
   Trash2,
   Loader2,
   CalendarDays,
-  StickyNote,
   BrainCircuit,
   Building2,
 } from "lucide-react";
@@ -27,9 +26,8 @@ import { EditableCell } from "@/components/worklist/EditableCell";
 import { TaskResolutionNote } from "@/components/worklist/TaskResolutionNote";
 import { WorklistItem, WorklistItemKind } from "@/lib/worklist-types";
 import { WeeklyUpdateDrawer } from "@/components/worklist/WeeklyUpdateDrawer";
+import { RemindersCard } from "@/components/worklist/RemindersCard";
 import { loadAnalystId } from "@/lib/analyst-identity";
-import { loadReminders, saveReminders } from "@/lib/reminders-cache";
-import { formatSavedAt } from "@/lib/weekly-summary-cache";
 import { toLocalDateString } from "@/lib/dates";
 import { Dashboard, Division, PsqWithTaskCount, ReportSubscription, Task, TaskWithContext } from "@/lib/brain-types";
 import { WeeklyUpdateData } from "@/lib/weekly-update";
@@ -139,11 +137,8 @@ export default function WorklistPage() {
   // visibilitychange/focus effect below.
   const [weekStart, setWeekStart] = useState<string>(() => getIsoMonday(new Date()));
 
-  // Reminders: persistent private note, not week-scoped, not in the weekly update
-  const [reminders, setReminders] = useState<string>("");
-  const [remindersLoaded, setRemindersLoaded] = useState(false);
-  const [remindersSavedAt, setRemindersSavedAt] = useState<number | null>(null);
-  const [remindersSaveFailed, setRemindersSaveFailed] = useState(false);
+  // Reminders (persistent private note, not week-scoped, not in the weekly
+  // update) lives in its own RemindersCard component — see that file for why.
 
   // Dashboards + report subscriptions (rendered together in one section)
   const [dashboards, setDashboards] = useState<WorklistDashboardItem[]>([]);
@@ -306,29 +301,6 @@ export default function WorklistPage() {
       }
     },
     [analystId, weekStart]
-  );
-
-  // Load reminders from browser storage (per analyst)
-  useEffect(() => {
-    if (analystId === null) return;
-    const entry = loadReminders(analystId);
-    setReminders(entry?.text ?? "");
-    setRemindersSavedAt(entry?.updatedAt ?? null);
-    setRemindersSaveFailed(false);
-    setRemindersLoaded(true);
-  }, [analystId]);
-
-  // Saves on every keystroke (localStorage is synchronous and cheap), so a
-  // refresh mid-typing can't lose anything. The DOM is left uncontrolled while
-  // typing to avoid caret jumps; `key={analystId}` remounts it on analyst switch.
-  const handleRemindersInput = useCallback(
-    (value: string) => {
-      if (analystId === null) return;
-      const ok = saveReminders(analystId, value);
-      setRemindersSaveFailed(!ok);
-      if (ok) setRemindersSavedAt(value.trim() ? Date.now() : null);
-    },
-    [analystId]
   );
 
   // Fetch the analyst's worklist dashboards AND owned report subscriptions in
@@ -1134,46 +1106,78 @@ export default function WorklistPage() {
     ]
   );
 
-  // Compiles WeeklyUpdateData for the drawer. Fetches tasks for every
-  // worklist dashboard AND report subscription in parallel (not just the
-  // currently expanded one) so the update reflects everything, then opens
-  // the drawer.
+  // Compiles WeeklyUpdateData for the drawer. Fetches every task on the
+  // analyst's worklist (dashboards, subscriptions, PSQs) in ONE batched
+  // request, then groups client-side — instead of one request per item
+  // (~40 sequential round trips for a full worklist). Also merges the
+  // results into tasksByItem/tasksByPsq so expanding a row right after is
+  // instant. The per-item fetch (fetchTasksForItem/fetchTasksForPsq) is kept
+  // for the normal expand-one-row interaction.
   const handleGenerateWeeklyUpdate = useCallback(async () => {
     if (analystId === null) return;
+    const requestAnalystId = analystId;
     setWeeklyUpdateLoading(true);
     setWeeklyUpdateError(null);
     try {
-      const results = await Promise.all(
-        items.map(async (item) => {
-          const key = itemKey(item.kind, item.id);
-          // Reuse already-fetched tasks if this item happens to be expanded.
-          const cached = tasksByItem[key];
-          if (cached) return { item, tasks: cached };
-          try {
-            const param = item.kind === "dashboard" ? `dashboardId=${item.id}` : `subscriptionId=${item.id}`;
-            const res = await fetch(`/api/tasks?${param}&ownerAnalystId=${analystId}`);
-            const data = await res.json();
-            return { item, tasks: res.ok ? (data as Task[]) : [] };
-          } catch {
-            return { item, tasks: [] as Task[] };
-          }
-        })
-      );
+      const res = await fetch(`/api/tasks?ownerAnalystId=${analystId}&scope=worklist`);
+      const json = await res.json();
+      if (isStaleAnalyst(requestAnalystId)) return;
+      const allTasks: Task[] = res.ok ? (json as Task[]) : [];
 
-      const psqResults = await Promise.all(
-        psqs.map(async (p) => {
-          // Reuse already-fetched tasks if this PSQ happens to be expanded.
-          const cached = tasksByPsq[p.id];
-          if (cached) return { psq: p, tasks: cached };
-          try {
-            const res = await fetch(`/api/tasks?psqId=${p.id}&ownerAnalystId=${analystId}`);
-            const data = await res.json();
-            return { psq: p, tasks: res.ok ? (data as Task[]) : [] };
-          } catch {
-            return { psq: p, tasks: [] as Task[] };
-          }
-        })
-      );
+      const tasksByDashboardId = new Map<number, Task[]>();
+      const tasksBySubscriptionId = new Map<number, Task[]>();
+      const tasksByPsqId = new Map<number, Task[]>();
+      for (const t of allTasks) {
+        if (t.dashboardId !== null) {
+          const list = tasksByDashboardId.get(t.dashboardId) ?? [];
+          list.push(t);
+          tasksByDashboardId.set(t.dashboardId, list);
+        } else if (t.subscriptionId !== null) {
+          const list = tasksBySubscriptionId.get(t.subscriptionId) ?? [];
+          list.push(t);
+          tasksBySubscriptionId.set(t.subscriptionId, list);
+        } else if (t.psqId !== null) {
+          const list = tasksByPsqId.get(t.psqId) ?? [];
+          list.push(t);
+          tasksByPsqId.set(t.psqId, list);
+        }
+      }
+
+      // Merge into the per-item caches so expanding a row right after
+      // generating the update doesn't re-fetch. Only fills gaps — an
+      // already-cached (e.g. expanded) item's list is left as-is since it
+      // may include an in-flight local edit the batch fetch raced with.
+      setTasksByItem((prev) => {
+        const next = { ...prev };
+        for (const item of items) {
+          const key = itemKey(item.kind, item.id);
+          if (next[key]) continue;
+          const list = item.kind === "dashboard" ? tasksByDashboardId.get(item.id) : tasksBySubscriptionId.get(item.id);
+          next[key] = list ?? [];
+        }
+        return next;
+      });
+      setTasksByPsq((prev) => {
+        const next = { ...prev };
+        for (const p of psqs) {
+          if (next[p.id]) continue;
+          next[p.id] = tasksByPsqId.get(p.id) ?? [];
+        }
+        return next;
+      });
+
+      const results = items.map((item) => ({
+        item,
+        tasks:
+          tasksByItem[itemKey(item.kind, item.id)] ??
+          (item.kind === "dashboard" ? tasksByDashboardId.get(item.id) : tasksBySubscriptionId.get(item.id)) ??
+          [],
+      }));
+
+      const psqResults = psqs.map((p) => ({
+        psq: p,
+        tasks: tasksByPsq[p.id] ?? tasksByPsqId.get(p.id) ?? [],
+      }));
 
       // Dashboards and report subscriptions render under separate headings in
       // the update, so they are split apart here rather than being flattened
@@ -1231,6 +1235,7 @@ export default function WorklistPage() {
     psqs,
     tasksByPsq,
     divisionNameById,
+    isStaleAnalyst,
   ]);
 
   return (
@@ -1343,35 +1348,7 @@ export default function WorklistPage() {
             </div>
 
             {/* Reminders — private, persists across weeks */}
-            <div className="min-w-0 rounded-lg border border-theme bg-panel shadow-panel px-4 py-3.5">
-              <div className="flex items-center justify-between gap-2">
-                <label className="flex items-center gap-1.5 text-[11px] uppercase tracking-wide text-secondary font-medium">
-                  <StickyNote className="w-3 h-3" />
-                  Reminders
-                </label>
-                {remindersSaveFailed ? (
-                  <span className="text-[11px] text-red-400">Not saved — browser storage unavailable</span>
-                ) : remindersSavedAt !== null ? (
-                  <span className="text-[11px] text-secondary">Saved {formatSavedAt(remindersSavedAt)}</span>
-                ) : null}
-              </div>
-              {remindersLoaded ? (
-                <div
-                  key={analystId}
-                  contentEditable
-                  suppressContentEditableWarning
-                  data-placeholder="Quick notes to self…"
-                  onInput={(e) => handleRemindersInput(e.currentTarget.innerText)}
-                  className="mt-1.5 text-sm text-primary whitespace-pre-wrap break-words outline-none rounded-md px-2 py-1.5 border border-transparent hover:border-theme hover:bg-secondary-glass focus:border-brand-500 focus:bg-secondary-glass transition-colors min-h-[1.5em] empty:before:content-[attr(data-placeholder)] empty:before:text-secondary"
-                >
-                  {reminders}
-                </div>
-              ) : (
-                <div className="mt-1.5 h-6 flex items-center">
-                  <Loader2 className="w-3.5 h-3.5 text-secondary animate-spin" />
-                </div>
-              )}
-            </div>
+            <RemindersCard key={analystId} analystId={analystId} />
             </div>
 
             {/* My Dashboards / Report Subscriptions */}

@@ -26,7 +26,7 @@ export async function PATCH(
   try {
     const { id } = await params;
     const intakeRequestId = Number(id);
-    if (!Number.isFinite(intakeRequestId)) {
+    if (!Number.isInteger(intakeRequestId)) {
       return NextResponse.json({ error: 'Invalid intake request id.' }, { status: 400 });
     }
 
@@ -97,35 +97,38 @@ export async function PATCH(
       );
     }
 
-    const current = await sql`
-      SELECT id, priority, division_id, topic, stakeholder, analyst_id, requested_kind, status, ticket_link, internal_comments
-      FROM intake_requests
-      WHERE id = ${intakeRequestId}
-    `;
-
-    if (current.length === 0) {
-      return NextResponse.json({ error: 'Intake request not found.' }, { status: 404 });
-    }
-
-    // No optimistic lock on this fetch-merge-write; acceptable for
-    // single-admin use where concurrent edits to the same row are not expected.
-    const merged = {
-      priority: priority !== undefined ? priority : current[0].priority,
-      divisionId: divisionId !== undefined ? divisionId : current[0].division_id,
-      stakeholder: stakeholder !== undefined ? stakeholder : current[0].stakeholder,
-      analystId: analystId !== undefined ? analystId : current[0].analyst_id,
-      requestedKind: requestedKind !== undefined ? requestedKind : current[0].requested_kind,
-      status: status !== undefined ? status : current[0].status,
-      ticketLink: ticketLink !== undefined ? ticketLink : current[0].ticket_link,
-      internalComments: internalComments !== undefined ? internalComments : current[0].internal_comments,
-    };
+    // Single UPDATE that only touches columns actually present in the body
+    // (via a CASE per column keyed on a "was this field provided" flag) —
+    // no read-merge-write, so a concurrent PATCH to a *different* field on
+    // the same intake request can't clobber this one's change. 404 comes
+    // from UPDATE...RETURNING finding no matching row.
+    const hasPriority = priority !== undefined;
+    const hasDivisionId = divisionId !== undefined;
+    const hasStakeholder = stakeholder !== undefined;
+    const hasAnalystId = analystId !== undefined;
+    const hasRequestedKind = requestedKind !== undefined;
+    const hasStatus = status !== undefined;
+    const hasTicketLink = ticketLink !== undefined;
+    const hasInternalComments = internalComments !== undefined;
 
     const rows = await sql`
       UPDATE intake_requests
-      SET priority = ${merged.priority}, division_id = ${merged.divisionId}, stakeholder = ${merged.stakeholder}, analyst_id = ${merged.analystId}, requested_kind = ${merged.requestedKind}, status = ${merged.status}, ticket_link = ${merged.ticketLink}, internal_comments = ${merged.internalComments}
+      SET
+        priority = CASE WHEN ${hasPriority} THEN ${priority ?? null}::text ELSE priority END,
+        division_id = CASE WHEN ${hasDivisionId} THEN ${divisionId ?? null}::int ELSE division_id END,
+        stakeholder = CASE WHEN ${hasStakeholder} THEN ${stakeholder ?? null}::text ELSE stakeholder END,
+        analyst_id = CASE WHEN ${hasAnalystId} THEN ${analystId ?? null}::int ELSE analyst_id END,
+        requested_kind = CASE WHEN ${hasRequestedKind} THEN ${requestedKind ?? null}::text ELSE requested_kind END,
+        status = CASE WHEN ${hasStatus} THEN ${status ?? null}::text ELSE status END,
+        ticket_link = CASE WHEN ${hasTicketLink} THEN ${ticketLink ?? null}::text ELSE ticket_link END,
+        internal_comments = CASE WHEN ${hasInternalComments} THEN ${internalComments ?? null}::text ELSE internal_comments END
       WHERE id = ${intakeRequestId}
       RETURNING id, priority, date_received, division_id, topic, stakeholder, analyst_id, requested_kind, status, ticket_link, internal_comments, created_date, fulfilled_entity_kind, fulfilled_entity_id
     `;
+
+    if (rows.length === 0) {
+      return NextResponse.json({ error: 'Intake request not found.' }, { status: 404 });
+    }
 
     return NextResponse.json(mapIntakeRequestRow(rows[0]));
   } catch (err: unknown) {
@@ -150,7 +153,7 @@ export async function DELETE(
   try {
     const { id } = await params;
     const intakeRequestId = Number(id);
-    if (!Number.isFinite(intakeRequestId)) {
+    if (!Number.isInteger(intakeRequestId)) {
       return NextResponse.json({ error: 'Invalid intake request id.' }, { status: 400 });
     }
 

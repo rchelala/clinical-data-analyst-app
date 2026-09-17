@@ -25,7 +25,7 @@ export async function PATCH(
   try {
     const { id } = await params;
     const subscriptionId = Number(id);
-    if (!Number.isFinite(subscriptionId)) {
+    if (!Number.isInteger(subscriptionId)) {
       return NextResponse.json({ error: 'Invalid report subscription id.' }, { status: 400 });
     }
 
@@ -100,8 +100,12 @@ export async function PATCH(
       );
     }
 
+    // Only fetched for the 404 check and the linkedDashboardId/division
+    // cross-check below (that validation genuinely needs the current
+    // division_id when the caller changes linkedDashboardId without also
+    // sending divisionId) — the write itself never uses this row.
     const current = await sql`
-      SELECT id, name, division_id, analyst_id, stakeholder, status, jira_ticket_id, linked_dashboard_id, priority, enterprise_analyst, comments, notes, worklist_status, summary, manual_urgency
+      SELECT id, division_id
       FROM report_subscriptions
       WHERE id = ${subscriptionId}
     `;
@@ -129,24 +133,25 @@ export async function PATCH(
       }
     }
 
-    // No optimistic lock on this fetch-merge-write; acceptable for
-    // single-admin use where concurrent edits to the same row are not expected.
-    const merged = {
-      name: name !== undefined ? name.trim() : current[0].name,
-      stakeholder: stakeholder !== undefined ? stakeholder : current[0].stakeholder,
-      status: status !== undefined ? status : current[0].status,
-      jiraTicketId: jiraTicketId !== undefined ? jiraTicketId : current[0].jira_ticket_id,
-      priority: priority !== undefined ? priority : current[0].priority,
-      enterpriseAnalyst: enterpriseAnalyst !== undefined ? enterpriseAnalyst : current[0].enterprise_analyst,
-      comments: comments !== undefined ? comments : current[0].comments,
-      notes: notes !== undefined ? notes : current[0].notes,
-      worklistStatus: worklistStatus !== undefined ? worklistStatus : current[0].worklist_status,
-      summary: summary !== undefined ? summary : current[0].summary,
-      divisionId: divisionId !== undefined ? divisionId : current[0].division_id,
-      linkedDashboardId: linkedDashboardId !== undefined ? linkedDashboardId : current[0].linked_dashboard_id,
-      analystId: analystId !== undefined ? analystId : current[0].analyst_id,
-      manualUrgency: manualUrgency !== undefined ? manualUrgency : current[0].manual_urgency,
-    };
+    // Single UPDATE that only touches columns actually present in the body
+    // (via a CASE per column keyed on a "was this field provided" flag) —
+    // no read-merge-write, so a concurrent PATCH to a *different* field on
+    // the same subscription can't clobber this one's change.
+    const trimmedName = name !== undefined ? name.trim() : undefined;
+    const hasName = trimmedName !== undefined;
+    const hasStakeholder = stakeholder !== undefined;
+    const hasStatus = status !== undefined;
+    const hasJiraTicketId = jiraTicketId !== undefined;
+    const hasPriority = priority !== undefined;
+    const hasEnterpriseAnalyst = enterpriseAnalyst !== undefined;
+    const hasComments = comments !== undefined;
+    const hasNotes = notes !== undefined;
+    const hasWorklistStatus = worklistStatus !== undefined;
+    const hasSummary = summary !== undefined;
+    const hasDivisionId = divisionId !== undefined;
+    const hasLinkedDashboardId = linkedDashboardId !== undefined;
+    const hasAnalystId = analystId !== undefined;
+    const hasManualUrgency = manualUrgency !== undefined;
 
     // last_touched_date intentionally untouched here: it drives the
     // staleness/urgency scoring, and a metadata correction (renaming,
@@ -154,14 +159,29 @@ export async function PATCH(
     // bumping it would artificially suppress the urgency signal.
     const rows = await sql`
       UPDATE report_subscriptions
-      SET name = ${merged.name}, stakeholder = ${merged.stakeholder}, status = ${merged.status}, jira_ticket_id = ${merged.jiraTicketId},
-          priority = ${merged.priority}, enterprise_analyst = ${merged.enterpriseAnalyst}, comments = ${merged.comments},
-          notes = ${merged.notes}, worklist_status = ${merged.worklistStatus}, summary = ${merged.summary},
-          division_id = ${merged.divisionId}, linked_dashboard_id = ${merged.linkedDashboardId}, analyst_id = ${merged.analystId}, manual_urgency = ${merged.manualUrgency}
+      SET
+        name = CASE WHEN ${hasName} THEN ${trimmedName ?? null}::text ELSE name END,
+        stakeholder = CASE WHEN ${hasStakeholder} THEN ${stakeholder ?? null}::text ELSE stakeholder END,
+        status = CASE WHEN ${hasStatus} THEN ${status ?? null}::text ELSE status END,
+        jira_ticket_id = CASE WHEN ${hasJiraTicketId} THEN ${jiraTicketId ?? null}::text ELSE jira_ticket_id END,
+        priority = CASE WHEN ${hasPriority} THEN ${priority ?? null}::text ELSE priority END,
+        enterprise_analyst = CASE WHEN ${hasEnterpriseAnalyst} THEN ${enterpriseAnalyst ?? null}::text ELSE enterprise_analyst END,
+        comments = CASE WHEN ${hasComments} THEN ${comments ?? null}::text ELSE comments END,
+        notes = CASE WHEN ${hasNotes} THEN ${notes ?? null}::text ELSE notes END,
+        worklist_status = CASE WHEN ${hasWorklistStatus} THEN ${worklistStatus ?? null}::text ELSE worklist_status END,
+        summary = CASE WHEN ${hasSummary} THEN ${summary ?? null}::text ELSE summary END,
+        division_id = CASE WHEN ${hasDivisionId} THEN ${divisionId ?? null}::int ELSE division_id END,
+        linked_dashboard_id = CASE WHEN ${hasLinkedDashboardId} THEN ${linkedDashboardId ?? null}::int ELSE linked_dashboard_id END,
+        analyst_id = CASE WHEN ${hasAnalystId} THEN ${analystId ?? null}::int ELSE analyst_id END,
+        manual_urgency = CASE WHEN ${hasManualUrgency} THEN ${manualUrgency ?? null}::text ELSE manual_urgency END
       WHERE id = ${subscriptionId}
       RETURNING id, name, division_id, analyst_id, linked_dashboard_id, stakeholder, status, jira_ticket_id, last_touched_date, created_date,
                 priority, enterprise_analyst, comments, notes, worklist_status, summary, manual_urgency
     `;
+
+    if (rows.length === 0) {
+      return NextResponse.json({ error: 'Report subscription not found.' }, { status: 404 });
+    }
 
     return NextResponse.json(mapReportSubscriptionRow(rows[0]));
   } catch (err: unknown) {
@@ -186,7 +206,7 @@ export async function DELETE(
   try {
     const { id } = await params;
     const subscriptionId = Number(id);
-    if (!Number.isFinite(subscriptionId)) {
+    if (!Number.isInteger(subscriptionId)) {
       return NextResponse.json({ error: 'Invalid report subscription id.' }, { status: 400 });
     }
 

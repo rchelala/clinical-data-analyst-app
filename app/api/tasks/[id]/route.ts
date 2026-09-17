@@ -11,7 +11,7 @@ export async function PATCH(
   try {
     const { id } = await params;
     const taskId = Number(id);
-    if (!Number.isFinite(taskId)) {
+    if (!Number.isInteger(taskId)) {
       return NextResponse.json({ error: 'Invalid task id.' }, { status: 400 });
     }
 
@@ -56,66 +56,62 @@ export async function PATCH(
       );
     }
 
-    const current = await sql`
-      SELECT id, dashboard_id, subscription_id, division_id, psq_id, owner_analyst_id, created_by_id, title, description, status, priority, created_date, completed_date, resolution_comment
-      FROM tasks
+    // Single UPDATE that only touches columns actually present in the body
+    // (via a CASE per column keyed on a "was this field provided" flag) —
+    // no read-merge-write, so a concurrent PATCH to a *different* field on
+    // the same task (e.g. a resolution note saved on blur while a status
+    // change is in flight) can't clobber this one's change. 404 comes from
+    // UPDATE...RETURNING finding no matching row.
+    //
+    // completed_date/resolution_comment derive from the status transition,
+    // computed relative to the OLD `status`/`resolution_comment` columns
+    // (bare column references in a Postgres UPDATE...SET always read
+    // pre-update values, even when referenced in a later SET expression) —
+    // this preserves the original fetch-merge-write semantics exactly:
+    // - An explicitly provided completedDate/resolutionComment always wins.
+    // - Otherwise, entering 'done' stamps completed_date (CURRENT_DATE here
+    //   is only a fallback — the worklist client sends completedDate
+    //   directly, see lib/dates.ts toLocalDateString), and leaving 'done'
+    //   clears both completed_date and resolution_comment.
+    // - Any other transition (or no status change) keeps the existing value.
+    const trimmedTitle = title !== undefined ? title.trim() : undefined;
+    const hasTitle = trimmedTitle !== undefined;
+    const hasDescription = description !== undefined;
+    const hasStatus = status !== undefined;
+    const hasPriority = priority !== undefined;
+    const hasOwnerAnalystId = ownerAnalystId !== undefined;
+    const hasCompletedDate = completedDate !== undefined;
+    const normalizedResolutionComment = normalizeNullableString(resolutionComment);
+    const hasResolutionComment = normalizedResolutionComment !== undefined;
+    const newStatusIsDone = hasStatus && status === 'done';
+    const newStatusIsNotDone = hasStatus && status !== 'done';
+
+    const rows = await sql`
+      UPDATE tasks
+      SET
+        title = CASE WHEN ${hasTitle} THEN ${trimmedTitle ?? null}::text ELSE title END,
+        description = CASE WHEN ${hasDescription} THEN ${description ?? null}::text ELSE description END,
+        status = CASE WHEN ${hasStatus} THEN ${status ?? null}::text ELSE status END,
+        priority = CASE WHEN ${hasPriority} THEN ${priority ?? null}::text ELSE priority END,
+        owner_analyst_id = CASE WHEN ${hasOwnerAnalystId} THEN ${ownerAnalystId ?? null}::int ELSE owner_analyst_id END,
+        completed_date = CASE
+          WHEN ${hasCompletedDate} THEN ${completedDate ?? null}::date
+          WHEN ${newStatusIsDone} AND status <> 'done' THEN CURRENT_DATE
+          WHEN ${newStatusIsNotDone} AND status = 'done' THEN NULL
+          ELSE completed_date
+        END,
+        resolution_comment = CASE
+          WHEN ${hasResolutionComment} THEN ${normalizedResolutionComment ?? null}::text
+          WHEN ${newStatusIsNotDone} AND status = 'done' THEN NULL
+          ELSE resolution_comment
+        END
       WHERE id = ${taskId}
+      RETURNING id, dashboard_id, subscription_id, division_id, psq_id, owner_analyst_id, created_by_id, title, description, status, priority, created_date, completed_date, resolution_comment
     `;
 
-    if (current.length === 0) {
+    if (rows.length === 0) {
       return NextResponse.json({ error: 'Task not found.' }, { status: 404 });
     }
-
-    const mergedStatus = status !== undefined ? status : current[0].status;
-    const enteringDone = mergedStatus === 'done' && current[0].status !== 'done';
-    const leavingDone = mergedStatus !== 'done' && current[0].status === 'done';
-
-    // An explicitly provided completedDate always wins. Otherwise: entering
-    // 'done' stamps today's date (via CURRENT_DATE in SQL below), leaving
-    // 'done' clears it, and any other transition keeps the existing value.
-    const shouldStampToday = completedDate === undefined && enteringDone;
-    const mergedCompletedDate: string | null =
-      completedDate !== undefined
-        ? completedDate
-        : leavingDone
-          ? null
-          : current[0].completed_date;
-
-    const merged = {
-      title: title !== undefined ? title.trim() : current[0].title,
-      description: description !== undefined ? description : current[0].description,
-      status: mergedStatus,
-      priority: priority !== undefined ? priority : current[0].priority,
-      ownerAnalystId: ownerAnalystId !== undefined ? ownerAnalystId : current[0].owner_analyst_id,
-      completedDate: mergedCompletedDate,
-      // An explicitly provided resolutionComment always wins. Otherwise,
-      // re-opening a completed task clears its resolution note, mirroring
-      // how completedDate is cleared above.
-      resolutionComment:
-        resolutionComment !== undefined
-          ? normalizeNullableString(resolutionComment)
-          : leavingDone
-            ? null
-            : current[0].resolution_comment,
-    };
-
-    const rows = shouldStampToday
-      ? await sql`
-          UPDATE tasks
-          SET title = ${merged.title}, description = ${merged.description}, status = ${merged.status},
-              priority = ${merged.priority}, owner_analyst_id = ${merged.ownerAnalystId},
-              completed_date = CURRENT_DATE, resolution_comment = ${merged.resolutionComment}
-          WHERE id = ${taskId}
-          RETURNING id, dashboard_id, subscription_id, division_id, psq_id, owner_analyst_id, created_by_id, title, description, status, priority, created_date, completed_date, resolution_comment
-        `
-      : await sql`
-          UPDATE tasks
-          SET title = ${merged.title}, description = ${merged.description}, status = ${merged.status},
-              priority = ${merged.priority}, owner_analyst_id = ${merged.ownerAnalystId},
-              completed_date = ${merged.completedDate}, resolution_comment = ${merged.resolutionComment}
-          WHERE id = ${taskId}
-          RETURNING id, dashboard_id, subscription_id, division_id, psq_id, owner_analyst_id, created_by_id, title, description, status, priority, created_date, completed_date, resolution_comment
-        `;
 
     return NextResponse.json(mapTaskRow(rows[0]));
   } catch (err: unknown) {
@@ -140,7 +136,7 @@ export async function DELETE(
   try {
     const { id } = await params;
     const taskId = Number(id);
-    if (!Number.isFinite(taskId)) {
+    if (!Number.isInteger(taskId)) {
       return NextResponse.json({ error: 'Invalid task id.' }, { status: 400 });
     }
 

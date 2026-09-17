@@ -10,7 +10,7 @@ export async function PATCH(
   try {
     const { id } = await params;
     const psqId = Number(id);
-    if (!Number.isFinite(psqId)) {
+    if (!Number.isInteger(psqId)) {
       return NextResponse.json({ error: 'Invalid psq id.' }, { status: 400 });
     }
 
@@ -58,53 +58,48 @@ export async function PATCH(
       );
     }
 
-    const current = await sql`
-      SELECT id, analyst_id, division_id, year, name, status, tasks, comments, notes, enterprise_analyst, summary, created_date, last_touched_date, dashboard_id
-      FROM psqs
+    // Single UPDATE that only touches columns actually present in the body
+    // (via a CASE per column keyed on a "was this field provided" flag) —
+    // no read-merge-write, so a concurrent PATCH to a *different* field on
+    // the same psq can't clobber this one's change. 404 comes from
+    // UPDATE...RETURNING finding no matching row.
+    const trimmedName = name !== undefined ? name.trim() : undefined;
+    const hasName = trimmedName !== undefined;
+    const hasDivisionId = divisionId !== undefined;
+    const hasYear = year !== undefined;
+    const hasStatus = status !== undefined;
+    const hasTasks = tasks !== undefined;
+    const hasComments = comments !== undefined;
+    const hasNotes = notes !== undefined;
+    const hasEnterpriseAnalyst = enterpriseAnalyst !== undefined;
+    const hasSummary = summary !== undefined;
+    const hasDashboardId = dashboardId !== undefined;
+
+    // last_touched_date always stamps on a PATCH — with the caller's local
+    // date when provided (see lib/dates.ts toLocalDateString), falling back
+    // to the server's CURRENT_DATE (UTC on Netlify) only when the client
+    // didn't send one.
+    const rows = await sql`
+      UPDATE psqs
+      SET
+        name = CASE WHEN ${hasName} THEN ${trimmedName ?? null}::text ELSE name END,
+        division_id = CASE WHEN ${hasDivisionId} THEN ${divisionId ?? null}::int ELSE division_id END,
+        year = CASE WHEN ${hasYear} THEN ${year ?? null}::int ELSE year END,
+        status = CASE WHEN ${hasStatus} THEN ${status ?? null}::text ELSE status END,
+        tasks = CASE WHEN ${hasTasks} THEN ${tasks ?? null}::text ELSE tasks END,
+        comments = CASE WHEN ${hasComments} THEN ${comments ?? null}::text ELSE comments END,
+        notes = CASE WHEN ${hasNotes} THEN ${notes ?? null}::text ELSE notes END,
+        enterprise_analyst = CASE WHEN ${hasEnterpriseAnalyst} THEN ${enterpriseAnalyst ?? null}::text ELSE enterprise_analyst END,
+        summary = CASE WHEN ${hasSummary} THEN ${summary ?? null}::text ELSE summary END,
+        dashboard_id = CASE WHEN ${hasDashboardId} THEN ${dashboardId ?? null}::int ELSE dashboard_id END,
+        last_touched_date = CASE WHEN ${!!clientDate} THEN ${clientDate ?? null}::date ELSE CURRENT_DATE END
       WHERE id = ${psqId}
+      RETURNING id, analyst_id, division_id, year, name, status, tasks, comments, notes, enterprise_analyst, summary, created_date, last_touched_date, dashboard_id
     `;
 
-    if (current.length === 0) {
+    if (rows.length === 0) {
       return NextResponse.json({ error: 'Psq not found.' }, { status: 404 });
     }
-
-    const merged = {
-      name: name !== undefined ? name.trim() : current[0].name,
-      divisionId: divisionId !== undefined ? divisionId : current[0].division_id,
-      year: year !== undefined ? year : current[0].year,
-      status: status !== undefined ? status : current[0].status,
-      tasks: tasks !== undefined ? tasks : current[0].tasks,
-      comments: comments !== undefined ? comments : current[0].comments,
-      notes: notes !== undefined ? notes : current[0].notes,
-      enterpriseAnalyst: enterpriseAnalyst !== undefined ? enterpriseAnalyst : current[0].enterprise_analyst,
-      summary: summary !== undefined ? summary : current[0].summary,
-      dashboardId: dashboardId !== undefined ? dashboardId : current[0].dashboard_id,
-    };
-
-    // last_touched_date uses the caller's local date when provided (see
-    // lib/dates.ts toLocalDateString), falling back to the server's
-    // CURRENT_DATE (UTC on Netlify) only when the client didn't send one.
-    const rows = clientDate
-      ? await sql`
-          UPDATE psqs
-          SET name = ${merged.name}, division_id = ${merged.divisionId}, year = ${merged.year},
-              status = ${merged.status}, tasks = ${merged.tasks}, comments = ${merged.comments},
-              notes = ${merged.notes}, enterprise_analyst = ${merged.enterpriseAnalyst}, summary = ${merged.summary},
-              dashboard_id = ${merged.dashboardId},
-              last_touched_date = ${clientDate}::date
-          WHERE id = ${psqId}
-          RETURNING id, analyst_id, division_id, year, name, status, tasks, comments, notes, enterprise_analyst, summary, created_date, last_touched_date, dashboard_id
-        `
-      : await sql`
-          UPDATE psqs
-          SET name = ${merged.name}, division_id = ${merged.divisionId}, year = ${merged.year},
-              status = ${merged.status}, tasks = ${merged.tasks}, comments = ${merged.comments},
-              notes = ${merged.notes}, enterprise_analyst = ${merged.enterpriseAnalyst}, summary = ${merged.summary},
-              dashboard_id = ${merged.dashboardId},
-              last_touched_date = CURRENT_DATE
-          WHERE id = ${psqId}
-          RETURNING id, analyst_id, division_id, year, name, status, tasks, comments, notes, enterprise_analyst, summary, created_date, last_touched_date, dashboard_id
-        `;
 
     return NextResponse.json(mapPsqRow(rows[0]));
   } catch (err: unknown) {
@@ -129,7 +124,7 @@ export async function DELETE(
   try {
     const { id } = await params;
     const psqId = Number(id);
-    if (!Number.isFinite(psqId)) {
+    if (!Number.isInteger(psqId)) {
       return NextResponse.json({ error: 'Invalid psq id.' }, { status: 400 });
     }
 

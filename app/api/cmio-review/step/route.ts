@@ -4,7 +4,13 @@ import { sql } from "@/lib/db";
 import { chunkTranscript } from "@/lib/cmio-chunk";
 import { buildExtractionPrompt, ExtractedRow } from "@/lib/cmio-review-prompt";
 import { appendRowsToTracker, buildStandaloneTracker } from "@/lib/cmio-tracker";
-import { anthropic } from "@/lib/anthropic-client";
+import {
+  anthropic,
+  isAnthropicTimeout,
+  isRetryableAnthropicError,
+  isJobTooOld,
+  AI_TIMEOUT_MESSAGE,
+} from "@/lib/anthropic-client";
 
 // One Claude call per request, same reasoning as clinician-guide/step.
 export const maxDuration = 26;
@@ -36,6 +42,7 @@ interface JobRow {
   result_version: number | null;
   notes: string[];
   error: string | null;
+  created_at: string | Date;
 }
 
 interface HeldTrackerRow {
@@ -360,6 +367,23 @@ export async function POST(req: NextRequest) {
 
     // ---- Chunk phase: extract action items from the next chunk ----
     const chunks = chunkTranscript(job.transcript);
+    if (chunks.length !== job.chunks_total) {
+      // chunks_total was computed at job creation (app/api/cmio-review/route.ts)
+      // by calling chunkTranscript with whatever chunking logic was deployed
+      // then. Re-chunking here with the currently-deployed logic can produce
+      // a different chunk count/boundaries if the chunking logic changed
+      // mid-run (e.g. a deploy between job creation and this step) — which
+      // would silently skip, duplicate, or drop chunks if we kept going
+      // against `job.chunks_done` as an index into the newly re-chunked
+      // array. Fail cleanly instead.
+      const errorMessage = "This review was started before an update. Please run it again.";
+      await sql`
+        UPDATE cmio_review_jobs
+        SET status = 'failed', error = ${errorMessage}, updated_at = now()
+        WHERE id = ${jobId}
+      `;
+      return NextResponse.json({ status: "failed", error: errorMessage }, { status: 200 });
+    }
     const chunkIndex = job.chunks_done;
     const transcriptChunk = chunks[chunkIndex] ?? "";
 
@@ -394,7 +418,20 @@ export async function POST(req: NextRequest) {
         .join("");
     } catch (err) {
       console.error("CMIO Review step error:", err);
-      const errorMessage = "Could not process this transcript. Please try again.";
+
+      if (isRetryableAnthropicError(err) && !isJobTooOld(job.created_at)) {
+        // Transient upstream error (429/5xx/connection reset) — leave the
+        // job exactly as it is (don't advance chunks_done, don't fail it) so
+        // the client's next poll (see CmioReviewForm's backoff) retries this
+        // same chunk with a fresh request budget instead of the whole run
+        // failing over a blip. Bounded by isJobTooOld so a persistently
+        // failing chunk can't poll forever.
+        return NextResponse.json({ status: "processing", chunksDone: job.chunks_done, chunksTotal: job.chunks_total });
+      }
+
+      const errorMessage = isAnthropicTimeout(err)
+        ? AI_TIMEOUT_MESSAGE
+        : "Could not process this transcript. Please try again.";
       await sql`
         UPDATE cmio_review_jobs
         SET status = 'failed', error = ${errorMessage}, updated_at = now()
@@ -432,9 +469,16 @@ export async function POST(req: NextRequest) {
     `;
 
     if (advanced.length === 0) {
-      const fresh = (await sql`
+      const freshRows = await sql`
         SELECT chunks_done, chunks_total, status FROM cmio_review_jobs WHERE id = ${jobId}
-      `)[0] as { chunks_done: number; chunks_total: number; status: string };
+      `;
+      // The row can be gone by now (e.g. the daily `DELETE ... WHERE created_at
+      // < now() - interval '1 day'` cleanup in app/api/cmio-review/route.ts
+      // raced this request) — report 404 instead of throwing on `fresh[0]`.
+      if (freshRows.length === 0) {
+        return NextResponse.json({ error: "Job not found." }, { status: 404 });
+      }
+      const fresh = freshRows[0] as { chunks_done: number; chunks_total: number; status: string };
       return NextResponse.json({ status: "processing", chunksDone: fresh.chunks_done, chunksTotal: fresh.chunks_total });
     }
 

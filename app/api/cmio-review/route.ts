@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/get-client-ip";
 import { sql } from "@/lib/db";
-import { chunkTranscript } from "@/lib/cmio-chunk";
+import { chunkTranscript, MAX_CHUNKS } from "@/lib/cmio-chunk";
 
 // Chunking happens instantly (no Claude call in this route) — this margin is
 // just for cold starts, mirroring the other CMIO Review / Clinician Guide routes.
@@ -132,7 +132,17 @@ export async function POST(req: NextRequest) {
     }
 
     const meetingDate = resolveMeetingDate(transcript, payload.meetingDate, payload.clientDate);
-    const chunksTotal = chunkTranscript(transcript).length;
+    const chunks = chunkTranscript(transcript);
+    if (chunks.length > MAX_CHUNKS) {
+      // Below MAX_TRANSCRIPT_CHARS but still chunks into more pieces than the
+      // job pipeline is bounded for (e.g. many long lines) — reject up front
+      // rather than letting lib/cmio-chunk.ts silently merge/truncate chunks.
+      return NextResponse.json(
+        { error: "This transcript is too long to process. Please split it." },
+        { status: 400 }
+      );
+    }
+    const chunksTotal = chunks.length;
 
     await sql`DELETE FROM cmio_review_jobs WHERE created_at < now() - interval '1 day'`;
 

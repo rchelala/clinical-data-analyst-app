@@ -44,3 +44,48 @@ export function isAnthropicTimeout(err: unknown): boolean {
   }
   return false;
 }
+
+// Statuses the Anthropic SDK's own retry logic would normally retry (see the
+// SDK's default `maxRetries`), which we've turned off above (maxRetries: 0)
+// because a client-side retry would spend our whole ~22s request budget
+// again on a request that already failed to finish once. A step route can
+// afford to "retry" differently: leave the job's progress where it is and
+// let the client's next poll (a fresh request, fresh budget) make the next
+// attempt, rather than failing the whole job over a transient blip.
+const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 529]);
+
+/**
+ * True when `err` is a transient upstream failure worth leaving a step-route
+ * job in place for (so the next poll retries it) rather than failing the job
+ * outright: a rate limit (429), a server-side error (500/502/503), Anthropic
+ * being temporarily overloaded (529), or a connection reset/network error
+ * that is NOT a timeout (isAnthropicTimeout already covers timeouts/aborts,
+ * which should surface as AI_TIMEOUT_MESSAGE instead of being retried here —
+ * a timeout means our own budget ran out, not that the upstream call would
+ * likely succeed again immediately).
+ */
+export function isRetryableAnthropicError(err: unknown): boolean {
+  if (isAnthropicTimeout(err)) return false;
+  if (err instanceof Anthropic.APIConnectionError) {
+    // Covers plain network errors (e.g. connection reset). Subclasses that
+    // are timeouts/aborts are already excluded above.
+    return true;
+  }
+  if (err instanceof Anthropic.APIError && typeof err.status === "number") {
+    return RETRYABLE_STATUS_CODES.has(err.status);
+  }
+  return false;
+}
+
+// How long a job is allowed to keep "retrying" a transient error before a
+// step route gives up and fails it outright — guards against a job polling
+// forever when transient errors don't actually clear up. No per-job counter
+// column exists for consecutive transient failures, so this caps by job age
+// instead (a job that's been running this long has almost certainly stalled
+// regardless of cause).
+export const MAX_JOB_AGE_MS = 30 * 60 * 1000;
+
+export function isJobTooOld(createdAt: string | Date): boolean {
+  const created = createdAt instanceof Date ? createdAt : new Date(createdAt);
+  return Date.now() - created.getTime() > MAX_JOB_AGE_MS;
+}

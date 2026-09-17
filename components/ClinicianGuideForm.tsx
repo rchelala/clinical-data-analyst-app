@@ -81,7 +81,17 @@ export function ClinicianGuideForm({ provider: _provider }: ClinicianGuideFormPr
 
       // Each step call generates one page and comfortably fits under the
       // host's short function timeout; the loop drives the job to completion.
+      const POLL_BACKOFF_MS = 1500;
+      const MAX_POLL_MS = 15 * 60 * 1000;
+      const pollStart = Date.now();
+      let lastDone = 0;
+
       for (;;) {
+        if (Date.now() - pollStart > MAX_POLL_MS) {
+          setError("Generating the guide is taking too long. Please try again.");
+          return;
+        }
+
         const stepRes = await fetch("/api/clinician-guide/step", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -107,6 +117,16 @@ export function ClinicianGuideForm({ provider: _provider }: ClinicianGuideFormPr
         }
 
         setProgress({ done: result.pagesDone, total: result.pagesTotal });
+
+        // Normal path: each call advances a page, so don't slow it down. Only
+        // back off when the server reported "processing" without progress
+        // (e.g. a transient upstream error being retried on the same page)
+        // to avoid spinning back-to-back (mirrors CmioReviewForm's polling).
+        if (result.pagesDone <= lastDone) {
+          await new Promise((resolve) => setTimeout(resolve, POLL_BACKOFF_MS));
+        } else {
+          lastDone = result.pagesDone;
+        }
       }
     } catch {
       setError("Network error — could not reach the server.");

@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import { sql } from "@/lib/db";
-import { anthropic } from "@/lib/anthropic-client";
+import {
+  anthropic,
+  isAnthropicTimeout,
+  isRetryableAnthropicError,
+  isJobTooOld,
+  AI_TIMEOUT_MESSAGE,
+} from "@/lib/anthropic-client";
 import { PbixDashboard } from "@/lib/pbix-parser";
 import {
   buildPagePrompt,
@@ -37,6 +43,7 @@ interface JobRow {
   guide_pages: ClinicianPage[];
   one_pager: ClinicianOnePager | null;
   error: string | null;
+  created_at: string | Date;
 }
 
 export async function POST(req: NextRequest) {
@@ -174,17 +181,27 @@ export async function POST(req: NextRequest) {
         .map((b) => (b as { type: "text"; text: string }).text)
         .join("");
     } catch (err) {
-      // Genuine API/network failure — surface it so the job can be retried.
       console.error("Clinician Guide step error:", err);
+
+      if (isRetryableAnthropicError(err) && !isJobTooOld(job.created_at)) {
+        // Transient upstream error (429/5xx/connection reset) — leave the
+        // job exactly as it is (don't advance pages_done, don't fail it) so
+        // the client's next poll retries this same page with a fresh
+        // request budget instead of the whole run failing over a blip.
+        // Bounded by isJobTooOld so a persistently failing page can't poll
+        // forever.
+        return NextResponse.json({ status: "processing", pagesDone: job.pages_done, pagesTotal: job.pages_total });
+      }
+
+      const errorMessage = isAnthropicTimeout(err)
+        ? AI_TIMEOUT_MESSAGE
+        : "Could not generate the guide for this report. Please try again.";
       await sql`
         UPDATE clinician_guide_jobs
-        SET status = 'failed', error = ${"Could not generate the guide for this report. Please try again."}, updated_at = now()
+        SET status = 'failed', error = ${errorMessage}, updated_at = now()
         WHERE id = ${jobId}
       `;
-      return NextResponse.json(
-        { status: "failed", error: "Could not generate the guide for this report. Please try again." },
-        { status: 200 }
-      );
+      return NextResponse.json({ status: "failed", error: errorMessage }, { status: 200 });
     }
 
     try {
@@ -213,9 +230,16 @@ export async function POST(req: NextRequest) {
     `;
 
     if (advanced.length === 0) {
-      const fresh = (await sql`
+      const freshRows = await sql`
         SELECT pages_done, pages_total, status FROM clinician_guide_jobs WHERE id = ${jobId}
-      `)[0] as { pages_done: number; pages_total: number; status: string };
+      `;
+      // The row can be gone by now (a racing/duplicate request could hit
+      // this after the job row was removed) — report 404 instead of
+      // throwing on `fresh[0]` being undefined.
+      if (freshRows.length === 0) {
+        return NextResponse.json({ error: "Job not found." }, { status: 404 });
+      }
+      const fresh = freshRows[0] as { pages_done: number; pages_total: number; status: string };
       return NextResponse.json({ status: "processing", pagesDone: fresh.pages_done, pagesTotal: fresh.pages_total });
     }
 

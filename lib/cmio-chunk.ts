@@ -1,40 +1,53 @@
 // Shared chunker for the CMIO Review pipeline. Splits a transcript into
-// ~character-sized windows on line ("\n") boundaries — never mid-line, since
-// a speaker turn shouldn't be cut in half — with no overlap between chunks.
+// ~character-sized windows on line ("\n") boundaries, splitting a line only
+// when that single line itself exceeds the target chunk size (at the last
+// run of whitespace before the limit, or a hard break if it has none) — with
+// no overlap between chunks.
 //
 // Both app/api/cmio-review/route.ts (which decides chunks_total at job
-// creation) and app/api/cmio-review/step/route.ts (which re-derives the
-// chunk to process on each call) call this SAME function on the SAME
-// transcript, so the chunking must be a pure, deterministic function of its
-// input with no external state.
+// creation, and rejects transcripts that would need more than MAX_CHUNKS) and
+// app/api/cmio-review/step/route.ts (which re-derives the chunk to process on
+// each call) call this SAME function on the SAME transcript, so the chunking
+// must be a pure, deterministic function of its input with no external state.
 
 const TARGET_CHUNK_SIZE = 6000;
 // Each chunk gets its own Claude call in app/api/cmio-review/step/route.ts,
 // budgeted to finish within Netlify's function timeout — growing the chunk
 // size for long transcripts (as this used to do, up to ~10k chars) risked
 // that budget. Chunk size is capped at TARGET_CHUNK_SIZE instead; transcripts
-// just get more, evenly-sized chunks. The app's transcript cap is 400,000
-// chars (see app/api/cmio-review/route.ts), which is ceil(400000 / 6000) =
-// 67 chunks at this size — MAX_CHUNKS gives that comfortable headroom while
-// still bounding a pathological transcript (e.g. thousands of tiny lines)
-// from spinning up an unbounded number of job-steps.
-const MAX_CHUNKS = 100;
+// just get more, evenly-sized chunks.
+//
+// MAX_CHUNKS bounds how many steps (Claude calls) a job can take. The app's
+// transcript cap is 400,000 chars (see app/api/cmio-review/route.ts). For
+// average-length lines, packing is efficient and gives close to
+// ceil(400000 / 6000) = 67 chunks — but greedy line-packing can leave chunks
+// half-full when lines are long relative to TARGET_CHUNK_SIZE: a line longer
+// than TARGET_CHUNK_SIZE / 2 = 3000 chars gets a whole chunk to itself, since
+// a second such line wouldn't also fit. Worst case, every line is just over
+// 3000 chars: 400000 / 3001 ≈ 134 one-line chunks. MAX_CHUNKS = 140 covers
+// that worst case with a small margin. Job creation
+// (app/api/cmio-review/route.ts) rejects any transcript whose chunk count
+// would exceed this, rather than this file silently merging/truncating
+// chunks to fit.
+export const MAX_CHUNKS = 140;
 
 // Splits one line into pieces no longer than `maxLen`, breaking at the last
-// whitespace before the limit so words aren't cut mid-word when possible;
-// falls back to a hard break when a single "word" itself exceeds maxLen.
-// Without this, one oversized line (e.g. a wall-of-text transcript export
-// with no line breaks) would become its own oversized chunk, regardless of
-// TARGET_CHUNK_SIZE.
+// run of whitespace (space, tab, etc. — not just " ") before the limit so
+// words aren't cut mid-word when possible; falls back to a hard break when a
+// single "word" itself exceeds maxLen. Without this, one oversized line
+// (e.g. a wall-of-text transcript export with no line breaks) would become
+// its own oversized chunk, regardless of TARGET_CHUNK_SIZE.
 function splitLongLine(line: string, maxLen: number): string[] {
   if (line.length <= maxLen) return [line];
   const pieces: string[] = [];
   let rest = line;
   while (rest.length > maxLen) {
-    let breakAt = rest.lastIndexOf(" ", maxLen);
-    if (breakAt <= 0) breakAt = maxLen; // no whitespace to break on — hard split
+    const window = rest.slice(0, maxLen + 1);
+    const wsMatches = [...window.matchAll(/\s/g)];
+    const lastWs = wsMatches.length > 0 ? wsMatches[wsMatches.length - 1].index! : -1;
+    const breakAt = lastWs > 0 ? lastWs : maxLen; // no whitespace to break on — hard split
     pieces.push(rest.slice(0, breakAt));
-    rest = rest.slice(breakAt).replace(/^ /, "");
+    rest = rest.slice(breakAt).replace(/^\s/, "");
   }
   if (rest.length > 0) pieces.push(rest);
   return pieces;
@@ -62,21 +75,15 @@ function splitIntoChunks(text: string, targetSize: number): string[] {
   return chunks;
 }
 
-/** Splits a transcript into ordered, non-overlapping chunks (always at least one). */
+/**
+ * Splits a transcript into ordered, non-overlapping chunks (always at least
+ * one). Does NOT enforce MAX_CHUNKS — a transcript that would need more than
+ * MAX_CHUNKS chunks must be rejected at job creation
+ * (app/api/cmio-review/route.ts), since merging/truncating chunks here would
+ * silently drop content from whatever chunk it lands on.
+ */
 export function chunkTranscript(text: string): string[] {
   const normalized = text ?? "";
   const chunks = splitIntoChunks(normalized, TARGET_CHUNK_SIZE);
-
-  if (chunks.length > MAX_CHUNKS) {
-    // Shouldn't happen for any input within the app's transcript cap (see
-    // above) — defense in depth if that cap is ever raised without updating
-    // this file. Merge the excess trailing chunks together as a last resort
-    // rather than growing chunk size, which would risk the per-chunk LLM
-    // call no longer finishing within Netlify's function timeout.
-    const head = chunks.slice(0, MAX_CHUNKS - 1);
-    const tail = chunks.slice(MAX_CHUNKS - 1).join("\n");
-    return [...head, tail];
-  }
-
   return chunks.length > 0 ? chunks : [""];
 }

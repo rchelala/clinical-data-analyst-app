@@ -25,12 +25,13 @@ export async function POST(
 
     const normalizedName = tagName.trim().toLowerCase();
 
-    // Single round trip instead of three: upsert the tag, link it to the
-    // request (guarded by an EXISTS check on the request instead of relying
-    // on the request_tags FK to fail), then return the request's full tag
-    // list, carrying whether the request existed so the caller can tell a
-    // missing request apart from "no tags."
-    const rows = await sql`
+    // Two round trips: upsert the tag and link it to the request (guarded by
+    // an EXISTS check on the request instead of relying on the request_tags
+    // FK to fail) in one CTE, then a separate SELECT for the tag list. The
+    // CTE's own LATERAL join over request_tags would read the pre-statement
+    // snapshot and miss the tag just linked, so the list has to be a
+    // follow-up statement (same as the DELETE handler below).
+    const writeRows = await sql`
       WITH request_check AS (
         SELECT id FROM requests WHERE id = ${requestId}
       ),
@@ -47,26 +48,23 @@ export async function POST(
         ON CONFLICT DO NOTHING
         RETURNING request_id
       )
-      SELECT
-        (SELECT EXISTS(SELECT 1 FROM request_check)) AS request_exists,
-        tags_agg.id, tags_agg.name
-      FROM (SELECT 1) AS x
-      LEFT JOIN LATERAL (
-        SELECT t.id, t.name
-        FROM tags t
-        JOIN request_tags rt ON rt.tag_id = t.id
-        WHERE rt.request_id = ${requestId}
-        ORDER BY t.name
-      ) tags_agg ON true
+      SELECT (SELECT EXISTS(SELECT 1 FROM request_check)) AS request_exists
     `;
 
-    const requestExists = rows.length > 0 && Boolean((rows[0] as any).request_exists);
+    const requestExists = writeRows.length > 0 && Boolean((writeRows[0] as any).request_exists);
     if (!requestExists) {
       return NextResponse.json({ error: 'Request not found.' }, { status: 404 });
     }
 
-    const tags = rows.filter((row: any) => row.id !== null);
-    return NextResponse.json(tags.map(mapTagRow));
+    const tagRows = await sql`
+      SELECT t.id, t.name
+      FROM tags t
+      JOIN request_tags rt ON rt.tag_id = t.id
+      WHERE rt.request_id = ${requestId}
+      ORDER BY t.name
+    `;
+
+    return NextResponse.json(tagRows.map(mapTagRow));
   } catch (err: unknown) {
     console.error('Add tag to request error:', err);
     return NextResponse.json(

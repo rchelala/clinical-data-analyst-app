@@ -171,7 +171,7 @@ export async function POST(req: NextRequest) {
     // instead of the entire `dashboard` blob, which can hold hundreds of
     // pages' worth of visuals/fields.
     const pageRows = await sql`
-      SELECT dashboard->'pages'->${job.pages_done} AS page
+      SELECT jsonb_array_element(dashboard->'pages', ${job.pages_done}::int) AS page
       FROM clinician_guide_jobs WHERE id = ${jobId}
     `;
     const page = (pageRows[0] as { page: PbixDashboard['pages'][number] }).page;

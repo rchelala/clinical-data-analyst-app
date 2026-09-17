@@ -3,6 +3,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/get-client-ip";
 import { sql } from "@/lib/db";
 import { chunkTranscript, MAX_CHUNKS } from "@/lib/cmio-chunk";
+import { pad2, toLocalDateString } from "@/lib/dates";
 
 // Chunking happens instantly (no Claude call in this route) — this margin is
 // just for cold starts, mirroring the other CMIO Review / Clinician Guide routes.
@@ -24,19 +25,6 @@ const MONTH_NAMES = [
   "november",
   "december",
 ];
-
-function pad2(n: number): string {
-  return String(n).padStart(2, "0");
-}
-
-// "Today" in the server's local timezone, as "YYYY-MM-DD". Deliberately uses
-// local date parts (not toISOString) — see lib/dates.ts for why parsing a
-// date-only string through the Date constructor / toISOString introduces a
-// timezone skew that plain string handling avoids.
-function todayLocalDateString(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-}
 
 function isValidDateString(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -78,7 +66,7 @@ function resolveMeetingDate(transcript: string, meetingDate: unknown, clientDate
   if (typeof clientDate === "string" && isValidDateString(clientDate)) {
     return clientDate;
   }
-  return todayLocalDateString();
+  return toLocalDateString();
 }
 
 export async function POST(req: NextRequest) {

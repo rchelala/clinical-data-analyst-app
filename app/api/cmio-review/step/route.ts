@@ -11,6 +11,8 @@ import {
   isJobTooOld,
   AI_TIMEOUT_MESSAGE,
 } from "@/lib/anthropic-client";
+import { toDateOnlyString } from "@/lib/dates";
+import { parseJsonResponse } from "@/lib/parse-json-response";
 
 // One Claude call per request, same reasoning as clinician-guide/step.
 export const maxDuration = 26;
@@ -52,21 +54,6 @@ interface HeldTrackerRow {
   blob_pathname: string;
   filename: string;
   version: number;
-}
-
-function pad2(n: number): string {
-  return String(n).padStart(2, "0");
-}
-
-// Postgres `date` columns can come back as a plain "YYYY-MM-DD" string or as
-// a Date object (local-midnight timestamp) depending on driver path — either
-// way, taking the first 10 chars / local date parts avoids any UTC skew.
-function toDateOnlyString(value: string | Date | null | undefined): string {
-  if (!value) return "";
-  if (value instanceof Date) {
-    return `${value.getFullYear()}-${pad2(value.getMonth() + 1)}-${pad2(value.getDate())}`;
-  }
-  return String(value).slice(0, 10);
 }
 
 function resolveFileName(mode: "append" | "standalone", meetingDate: string): string {
@@ -462,8 +449,7 @@ export async function POST(req: NextRequest) {
 
     let extractedRows: ExtractedRow[] = [];
     try {
-      const jsonText = rawText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
-      const parsed = JSON.parse(jsonText);
+      const parsed = parseJsonResponse(rawText);
       if (Array.isArray(parsed)) {
         extractedRows = parsed
           .map((item) => coerceRow(item, meetingDate))

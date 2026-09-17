@@ -2,22 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { mapIntakeRequestRow } from '@/lib/brain-mappers';
 import { IntakePriority, IntakeStatus, BrainEntityKind } from '@/lib/brain-types';
+import { normalizeNullableString } from '@/lib/normalize';
 
 const VALID_PRIORITIES: IntakePriority[] = ['low', 'medium', 'high'];
 const VALID_STATUSES: IntakeStatus[] = ['not_started', 'discovery', 'ready', 'in_progress', 'on_hold', 'fulfilled'];
 const VALID_REQUESTED_KINDS: BrainEntityKind[] = ['dashboard', 'subscription'];
-
-// Trims a provided string field to null when empty, matching the
-// null-vs-empty-string normalization EditEntityForm already applies
-// client-side. `undefined` (not provided) and `null` (explicit clear)
-// pass through unchanged.
-function normalizeNullableString(value: string | null | undefined): string | null | undefined {
-  if (typeof value !== 'string') {
-    return value;
-  }
-  const trimmed = value.trim();
-  return trimmed === '' ? null : trimmed;
-}
 
 export async function PATCH(
   req: NextRequest,

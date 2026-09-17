@@ -1,25 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { get } from "@vercel/blob";
 import { sql } from "@/lib/db";
+import { toDateOnlyString } from "@/lib/dates";
 
 // Job ids are Postgres `uuid` columns (scripts/schema.sql) — validate before
 // querying so a malformed id returns a clean 404 instead of a Postgres
 // "invalid input syntax for type uuid" error surfacing as a 500.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function pad2(n: number): string {
-  return String(n).padStart(2, "0");
-}
-
-// See app/api/cmio-review/step/route.ts for why date-only columns are
-// handled this way (avoids UTC/local skew on Postgres `date` values).
-function toDateOnlyString(value: string | Date | null | undefined): string {
-  if (!value) return "";
-  if (value instanceof Date) {
-    return `${value.getFullYear()}-${pad2(value.getMonth() + 1)}-${pad2(value.getDate())}`;
-  }
-  return String(value).slice(0, 10);
-}
 
 export async function GET(req: NextRequest) {
   try {

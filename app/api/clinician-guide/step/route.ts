@@ -21,6 +21,7 @@ import {
   ClinicianPage,
   ClinicianOnePager,
 } from "@/lib/clinician-guide";
+import { parseJsonResponse } from "@/lib/parse-json-response";
 
 // Give each step headroom over the platform's default sync-function limit.
 // Individual steps are designed to finish in well under this (Haiku page calls
@@ -99,8 +100,7 @@ export async function POST(req: NextRequest) {
             .filter((b) => b.type === "text")
             .map((b) => (b as { type: "text"; text: string }).text)
             .join("");
-          const jsonText = rawText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
-          onePager = normalizeOnePager(JSON.parse(jsonText));
+          onePager = normalizeOnePager(parseJsonResponse(rawText));
         } catch (err) {
           // A hiccup here shouldn't waste a fully-described report — fall back
           // to a non-AI briefing and still finish the guide.
@@ -222,8 +222,7 @@ export async function POST(req: NextRequest) {
     }
 
     try {
-      const jsonText = rawText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
-      guidePage = normalizePage(page.name, JSON.parse(jsonText));
+      guidePage = normalizePage(page.name, parseJsonResponse(rawText));
     } catch (parseErr) {
       // Model returned non-JSON / truncated output for this page. Don't fail the
       // whole job — fall back to a non-AI description so the guide still completes.

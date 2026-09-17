@@ -5,6 +5,7 @@ import { sql } from "@/lib/db";
 import { PbixDashboard, PbixPage, PbixVisual } from "@/lib/pbix-parser";
 import { buildOverviewPrompt, normalizeOverview } from "@/lib/clinician-guide";
 import { anthropic, isAnthropicTimeout, AI_TIMEOUT_MESSAGE } from "@/lib/anthropic-client";
+import { parseJsonResponse } from "@/lib/parse-json-response";
 
 // The overview call is fast; the .pbix is now parsed in the browser and only the
 // small extracted structure is posted here (a raw multi-MB .pbix would exceed the
@@ -85,11 +86,9 @@ export async function POST(req: NextRequest) {
       .map((b) => (b as { type: "text"; text: string }).text)
       .join("");
 
-    const jsonText = rawText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
-
     let overviewData: { reportTitle: string; overview: string };
     try {
-      overviewData = normalizeOverview(JSON.parse(jsonText), dashboard);
+      overviewData = normalizeOverview(parseJsonResponse(rawText), dashboard);
     } catch {
       overviewData = normalizeOverview(null, dashboard);
     }

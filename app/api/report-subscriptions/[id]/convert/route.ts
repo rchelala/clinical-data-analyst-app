@@ -1,17 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { convertSubscriptionToDashboard, isValidStatus, VALID_STATUSES } from '@/lib/entity-conversion';
-
-// Trims a provided string field to null when empty, matching the
-// null-vs-empty-string normalization EditEntityForm already applies
-// client-side. `undefined` (not provided) and `null` (explicit clear)
-// pass through unchanged.
-function normalizeNullableString(value: string | null | undefined): string | null | undefined {
-  if (typeof value !== 'string') {
-    return value;
-  }
-  const trimmed = value.trim();
-  return trimmed === '' ? null : trimmed;
-}
+import { normalizeNullableString } from '@/lib/normalize';
 
 export async function POST(
   req: NextRequest,

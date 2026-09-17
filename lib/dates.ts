@@ -12,7 +12,7 @@
 // sort chronologically, so plain string comparison is both correct and
 // simpler than any Date-based arithmetic.
 
-function pad2(n: number): string {
+export function pad2(n: number): string {
   return String(n).padStart(2, "0");
 }
 
@@ -128,6 +128,19 @@ export function formatDateOnly(
   const d = new Date(year, month, day);
   if (Number.isNaN(d.getTime())) return "—";
   return options ? d.toLocaleDateString("en-US", options) : d.toLocaleDateString();
+}
+
+// Coerces a date-only value (a Postgres `date` column, which Neon may
+// serialise as a bare "YYYY-MM-DD" string or as a Date at local midnight)
+// down to a plain "YYYY-MM-DD" string, or "" when missing. Used for CMIO
+// Review file names, where the value needs to be a plain string rather than
+// the localized display formatting formatDateOnly() produces.
+export function toDateOnlyString(value: string | Date | null | undefined): string {
+  if (!value) return "";
+  if (value instanceof Date) {
+    return `${value.getFullYear()}-${pad2(value.getMonth() + 1)}-${pad2(value.getDate())}`;
+  }
+  return String(value).slice(0, 10);
 }
 
 // Returns the inclusive start date and exclusive end date of a calendar

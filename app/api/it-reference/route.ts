@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/get-client-ip";
 import { anthropic, isAnthropicTimeout, AI_TIMEOUT_MESSAGE } from "@/lib/anthropic-client";
+import { parseJsonResponse } from "@/lib/parse-json-response";
 import {
   Document,
   Packer,
@@ -408,8 +409,7 @@ export async function POST(req: NextRequest) {
       .join("");
 
     // Strip markdown fences if Claude wrapped the JSON
-    const jsonText = rawText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/, "").trim();
-    const data: ExtractedData = JSON.parse(jsonText);
+    const data: ExtractedData = parseJsonResponse<ExtractedData>(rawText);
 
     // Guarantee a complete source-table list by unioning the model's tables with
     // a deterministic parse of the SQL.

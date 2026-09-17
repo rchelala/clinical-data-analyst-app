@@ -81,6 +81,7 @@ CREATE INDEX idx_requests_dashboard_id ON requests(dashboard_id);
 CREATE INDEX idx_requests_subscription_id ON requests(subscription_id);
 CREATE INDEX idx_requests_status ON requests(status);
 CREATE INDEX idx_requests_completed_date ON requests(completed_date);
+CREATE INDEX idx_requests_created_by_id ON requests(created_by_id);
 CREATE INDEX idx_dashboards_analyst_id ON dashboards(analyst_id);
 CREATE INDEX idx_dashboards_division_id ON dashboards(division_id);
 CREATE INDEX idx_report_subscriptions_analyst_id ON report_subscriptions(analyst_id);
@@ -146,6 +147,7 @@ CREATE TABLE psqs (
 );
 
 CREATE INDEX idx_psqs_analyst_id ON psqs(analyst_id);
+CREATE INDEX idx_psqs_dashboard_id ON psqs(dashboard_id);
 
 -- status: 'open' | 'in_progress' | 'done' plus custom values; priority is free-form
 -- (not enforced by a DB enum/check constraint, documented only). Standalone category
@@ -176,6 +178,11 @@ CREATE INDEX idx_tasks_subscription_id ON tasks(subscription_id);
 CREATE INDEX idx_tasks_division_id ON tasks(division_id);
 CREATE INDEX idx_tasks_psq_id ON tasks(psq_id);
 CREATE INDEX idx_tasks_owner_analyst_id ON tasks(owner_analyst_id);
+CREATE INDEX idx_tasks_created_date ON tasks(created_date);
+CREATE INDEX idx_tasks_completed_date ON tasks(completed_date);
+CREATE INDEX idx_tasks_owner_analyst_id_psq_id ON tasks(owner_analyst_id, psq_id);
+CREATE INDEX idx_tasks_owner_analyst_id_dashboard_id ON tasks(owner_analyst_id, dashboard_id);
+CREATE INDEX idx_tasks_created_by_id ON tasks(created_by_id);
 
 -- "Meetings this week" notes, one row per analyst per week.
 CREATE TABLE weekly_notes (
@@ -219,6 +226,11 @@ CREATE TABLE api_rate_limits (
    PRIMARY KEY (ip, window_start)
 );
 
+-- Helps the cleanup DELETE (window_start < ...) in lib/rate-limit.ts, which
+-- can't use the (ip, window_start) primary key since window_start isn't its
+-- leading column.
+CREATE INDEX idx_api_rate_limits_window_start ON api_rate_limits(window_start);
+
 -- Backs the Clinician Guide docx generator (app/api/clinician-guide/*): tracks
 -- per-page generation progress so the work can be split across many short
 -- (<10s) requests instead of one long synchronous call, since Netlify's
@@ -239,6 +251,8 @@ CREATE TABLE clinician_guide_jobs (
    created_at    timestamptz NOT NULL DEFAULT now(),
    updated_at    timestamptz NOT NULL DEFAULT now()
 );
+
+CREATE INDEX idx_clinician_guide_jobs_created_at ON clinician_guide_jobs(created_at);
 
 -- Backs the CMIO Review tab (app/api/cmio-review/*): turns a meeting transcript
 -- into rows appended to the canonical CMIO_Weekly_Review Excel tracker.
@@ -273,3 +287,5 @@ CREATE TABLE cmio_review_jobs (
    created_at     timestamptz NOT NULL DEFAULT now(),
    updated_at     timestamptz NOT NULL DEFAULT now()
 );
+
+CREATE INDEX idx_cmio_review_jobs_created_at ON cmio_review_jobs(created_at);

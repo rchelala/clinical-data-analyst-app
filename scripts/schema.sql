@@ -73,8 +73,46 @@ CREATE TABLE requests (
    completed_date  date,
    attachment_url      text,
    attachment_filename text,
+   field_names         jsonb,
    CHECK (num_nonnulls(dashboard_id, subscription_id) = 1)
 );
+
+CREATE INDEX idx_requests_dashboard_id ON requests(dashboard_id);
+CREATE INDEX idx_requests_subscription_id ON requests(subscription_id);
+CREATE INDEX idx_requests_status ON requests(status);
+CREATE INDEX idx_requests_completed_date ON requests(completed_date);
+CREATE INDEX idx_dashboards_analyst_id ON dashboards(analyst_id);
+CREATE INDEX idx_dashboards_division_id ON dashboards(division_id);
+CREATE INDEX idx_report_subscriptions_analyst_id ON report_subscriptions(analyst_id);
+CREATE INDEX idx_report_subscriptions_division_id ON report_subscriptions(division_id);
+CREATE INDEX idx_report_subscriptions_linked_dashboard_id ON report_subscriptions(linked_dashboard_id);
+
+CREATE TABLE tags (
+   id    serial PRIMARY KEY,
+   -- name is stored lowercase; trim/lowercase normalization happens in the API layer, not the DB
+   name  text NOT NULL UNIQUE
+);
+
+CREATE TABLE request_tags (
+   request_id int NOT NULL REFERENCES requests(id) ON DELETE CASCADE,
+   tag_id     int NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+   PRIMARY KEY (request_id, tag_id)
+);
+
+-- Self-referential many-to-many table for bidirectional "related request" links.
+-- A pair of requests is always stored as a single row with the lower id in
+-- request_id_a; the CHECK constraint enforces this ordering (and rejects self-links).
+-- The API layer must normalize operand order on every write since the DB won't reorder for you.
+CREATE TABLE request_links (
+   request_id_a int NOT NULL REFERENCES requests(id) ON DELETE CASCADE,
+   request_id_b int NOT NULL REFERENCES requests(id) ON DELETE CASCADE,
+   created_date  date NOT NULL DEFAULT CURRENT_DATE,
+   CHECK (request_id_a < request_id_b),
+   PRIMARY KEY (request_id_a, request_id_b)
+);
+
+CREATE INDEX idx_request_tags_tag_id ON request_tags(tag_id);
+CREATE INDEX idx_request_links_b ON request_links(request_id_b);
 
 -- Which dashboards are on an analyst's worklist.
 CREATE TABLE worklist_dashboards (
@@ -168,4 +206,70 @@ CREATE TABLE intake_requests (
    created_date      date NOT NULL DEFAULT CURRENT_DATE,
    fulfilled_entity_kind text CHECK (fulfilled_entity_kind IN ('dashboard', 'subscription')),
    fulfilled_entity_id   int
+);
+
+-- Backs lib/rate-limit.ts: tracks per-IP request counts in fixed 10-minute
+-- windows so the AI-calling routes can reject sustained abuse without
+-- requiring any login. window_start is always truncated to a 10-minute
+-- boundary (see currentWindowStart() in lib/rate-limit.ts).
+CREATE TABLE api_rate_limits (
+   ip            text NOT NULL,
+   window_start  timestamptz NOT NULL,
+   request_count int  NOT NULL DEFAULT 1,
+   PRIMARY KEY (ip, window_start)
+);
+
+-- Backs the Clinician Guide docx generator (app/api/clinician-guide/*): tracks
+-- per-page generation progress so the work can be split across many short
+-- (<10s) requests instead of one long synchronous call, since Netlify's
+-- free-tier functions hard-timeout at 10 seconds. one_pager holds the
+-- synthesized "5-minute briefing" one-pager, added after the rest of the job.
+CREATE TABLE clinician_guide_jobs (
+   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+   status        text NOT NULL DEFAULT 'processing', -- processing | done | failed
+   report_title  text,
+   overview      text,
+   dashboard     jsonb NOT NULL,
+   pages_total   int   NOT NULL,
+   pages_done    int   NOT NULL DEFAULT 0,
+   guide_pages   jsonb NOT NULL DEFAULT '[]',
+   blob_pathname text,
+   error         text,
+   one_pager     jsonb,
+   created_at    timestamptz NOT NULL DEFAULT now(),
+   updated_at    timestamptz NOT NULL DEFAULT now()
+);
+
+-- Backs the CMIO Review tab (app/api/cmio-review/*): turns a meeting transcript
+-- into rows appended to the canonical CMIO_Weekly_Review Excel tracker.
+--
+-- cmio_tracker holds a pointer to the single canonical, versioned workbook
+-- (bytes live in Vercel Blob; this row just tracks the current pointer/version).
+CREATE TABLE cmio_tracker (
+   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+   blob_pathname text NOT NULL,
+   filename      text NOT NULL DEFAULT 'CMIO_Weekly_Review.xlsx',
+   version       int  NOT NULL UNIQUE DEFAULT 1,
+   updated_at    timestamptz NOT NULL DEFAULT now(),
+   created_at    timestamptz NOT NULL DEFAULT now()
+);
+
+-- cmio_review_jobs tracks one transcript-extraction job, processed across
+-- several short requests (one Claude call per chunk per request) to stay
+-- under Netlify's ~26s function timeout, modeled on clinician_guide_jobs.
+CREATE TABLE cmio_review_jobs (
+   id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+   status         text NOT NULL DEFAULT 'processing', -- processing | done | failed
+   mode           text NOT NULL, -- append | standalone
+   meeting_date   date,
+   transcript     text NOT NULL,
+   chunks_total   int  NOT NULL,
+   chunks_done    int  NOT NULL DEFAULT 0,
+   rows           jsonb NOT NULL DEFAULT '[]', -- accumulated ExtractedRow[]
+   blob_pathname  text, -- final .xlsx once status=done
+   result_version int,  -- cmio_tracker.version this produced (append mode)
+   notes          jsonb NOT NULL DEFAULT '[]', -- controller flags (judgment calls, dupes, omissions)
+   error          text,
+   created_at     timestamptz NOT NULL DEFAULT now(),
+   updated_at     timestamptz NOT NULL DEFAULT now()
 );

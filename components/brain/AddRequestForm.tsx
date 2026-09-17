@@ -13,6 +13,7 @@ import {
   generateDescriptionFromParsedRows,
   type ParseFieldRequestResult,
 } from "@/lib/parseFieldRequestExcel";
+import { toLocalDateString } from "@/lib/dates";
 
 interface AddRequestFormProps {
   dashboards: DashboardWithUrgency[];
@@ -182,6 +183,7 @@ export function AddRequestForm({
             attachmentUrl,
             attachmentFilename,
             fieldNames: fieldNames && fieldNames.length > 0 ? fieldNames : undefined,
+            createdDate: toLocalDateString(new Date()),
           }),
         });
         const data = await res.json();

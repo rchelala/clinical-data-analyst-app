@@ -7,7 +7,7 @@ import { AttachFieldRequestForm } from "@/components/brain/AttachFieldRequestFor
 import { EditEntityForm } from "@/components/brain/EditEntityForm";
 import { RequestTagEditor } from "./RequestTagEditor";
 import { RequestLinkPicker } from "./RequestLinkPicker";
-import { formatDateOnly } from "@/lib/dates";
+import { formatDateOnly, toLocalDateString } from "@/lib/dates";
 
 export interface RequestSidePanelEntity {
   kind: BrainEntityKind;
@@ -314,7 +314,11 @@ export function RequestSidePanel({
         const res = await fetch(`/api/requests/${requestId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: newStatus }),
+          body: JSON.stringify(
+            newStatus === "done"
+              ? { status: newStatus, completedDate: toLocalDateString(new Date()) }
+              : { status: newStatus }
+          ),
         });
         const data = await res.json();
 

@@ -30,6 +30,7 @@ import { WeeklyUpdateDrawer } from "@/components/worklist/WeeklyUpdateDrawer";
 import { loadAnalystId } from "@/lib/analyst-identity";
 import { loadReminders, saveReminders } from "@/lib/reminders-cache";
 import { formatSavedAt } from "@/lib/weekly-summary-cache";
+import { toLocalDateString } from "@/lib/dates";
 import { Dashboard, Division, PsqWithTaskCount, ReportSubscription, Task, TaskWithContext } from "@/lib/brain-types";
 import { WeeklyUpdateData } from "@/lib/weekly-update";
 
@@ -58,6 +59,15 @@ function itemKey(kind: WorklistItemKind, id: number): string {
 function fmtDate(d: string | null): string | null {
   if (!d) return null;
   return d.slice(0, 10);
+}
+
+// Builds a task-status PATCH body. When the new status is "done", stamps
+// completedDate with the browser's local date (see lib/dates.ts
+// toLocalDateString) so work finished in a US evening records today's date
+// instead of the server's UTC "tomorrow" — the API route falls back to its
+// own CURRENT_DATE only when this isn't sent.
+function statusPatchBody(status: string): Record<string, unknown> {
+  return status === "done" ? { status, completedDate: toLocalDateString(new Date()) } : { status };
 }
 
 // Small read-only "Created … · Completed …" line shown under each task.
@@ -665,10 +675,13 @@ export default function WorklistPage() {
 
   const patchPsq = useCallback(async (id: number, body: Record<string, unknown>): Promise<boolean> => {
     try {
+      // last_touched_date always stamps on a PATCH; send the browser's local
+      // date so it records the analyst's actual day rather than the
+      // server's UTC one (the route falls back to CURRENT_DATE if absent).
       const res = await fetch(`/api/psqs/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ ...body, clientDate: toLocalDateString(new Date()) }),
       });
       if (!res.ok) {
         setNotice(await readErrorMessage(res, "Couldn't save your change. Please try again."));
@@ -846,7 +859,7 @@ export default function WorklistPage() {
                   // editor issues next, so a fast note save can't be
                   // clobbered by a slower in-flight status response.
                   const completing = task.status !== "done";
-                  await patchPsqTask(p.id, task.id, { status: completing ? "done" : "open" });
+                  await patchPsqTask(p.id, task.id, statusPatchBody(completing ? "done" : "open"));
                   setNoteEditingTaskId(completing ? task.id : null);
                 }}
                 className={`mt-0.5 w-[18px] h-[18px] rounded-[5px] flex-shrink-0 border flex items-center justify-center text-[10px] transition-colors ${
@@ -869,7 +882,7 @@ export default function WorklistPage() {
                     kind="status"
                     value={task.status}
                     suggestions={statusSuggestions}
-                    onChange={(value) => patchPsqTask(p.id, task.id, { status: value })}
+                    onChange={(value) => patchPsqTask(p.id, task.id, statusPatchBody(value))}
                   />
                   <StatusPrioritySelect
                     kind="priority"
@@ -1039,7 +1052,7 @@ export default function WorklistPage() {
                     // editor issues next, so a fast note save can't be
                     // clobbered by a slower in-flight status response.
                     const completing = task.status !== "done";
-                    await patchTask(key, task.id, { status: completing ? "done" : "open" });
+                    await patchTask(key, task.id, statusPatchBody(completing ? "done" : "open"));
                     setNoteEditingTaskId(completing ? task.id : null);
                   }}
                   className={`mt-0.5 w-[18px] h-[18px] rounded-[5px] flex-shrink-0 border flex items-center justify-center text-[10px] transition-colors ${
@@ -1062,7 +1075,7 @@ export default function WorklistPage() {
                       kind="status"
                       value={task.status}
                       suggestions={statusSuggestions}
-                      onChange={(value) => patchTask(key, task.id, { status: value })}
+                      onChange={(value) => patchTask(key, task.id, statusPatchBody(value))}
                     />
                     <StatusPrioritySelect
                       kind="priority"
@@ -1586,7 +1599,7 @@ export default function WorklistPage() {
                             // lists: the status PATCH must land before any
                             // note PATCH the editor issues next.
                             const completing = task.status !== "done";
-                            await patchAssignedTask(task.id, { status: completing ? "done" : "open" });
+                            await patchAssignedTask(task.id, statusPatchBody(completing ? "done" : "open"));
                             setNoteEditingTaskId(completing ? task.id : null);
                             // Keep it visible in this list (see
                             // recentlyCompletedAssignedIds) so the note
@@ -1638,7 +1651,7 @@ export default function WorklistPage() {
                           kind="status"
                           value={task.status}
                           suggestions={statusSuggestions}
-                          onChange={(value) => patchAssignedTask(task.id, { status: value })}
+                          onChange={(value) => patchAssignedTask(task.id, statusPatchBody(value))}
                         />
                         <button
                           type="button"

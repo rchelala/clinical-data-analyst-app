@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { mapPsqRow } from '@/lib/brain-mappers';
+import { isValidDateString } from '@/lib/dates';
 
 export async function PATCH(
   req: NextRequest,
@@ -24,8 +25,9 @@ export async function PATCH(
       enterpriseAnalyst?: string | null;
       summary?: string | null;
       dashboardId?: number | null;
+      clientDate?: string | null;
     };
-    const { name, divisionId, year, status, tasks, comments, notes, enterpriseAnalyst, summary, dashboardId } = body;
+    const { name, divisionId, year, status, tasks, comments, notes, enterpriseAnalyst, summary, dashboardId, clientDate } = body;
 
     if (
       name === undefined &&
@@ -47,6 +49,13 @@ export async function PATCH(
 
     if (name !== undefined && !name.trim()) {
       return NextResponse.json({ error: 'name cannot be empty.' }, { status: 400 });
+    }
+
+    if (clientDate !== undefined && clientDate !== null && !isValidDateString(clientDate)) {
+      return NextResponse.json(
+        { error: 'clientDate must be a valid YYYY-MM-DD date.' },
+        { status: 400 }
+      );
     }
 
     const current = await sql`
@@ -72,16 +81,30 @@ export async function PATCH(
       dashboardId: dashboardId !== undefined ? dashboardId : current[0].dashboard_id,
     };
 
-    const rows = await sql`
-      UPDATE psqs
-      SET name = ${merged.name}, division_id = ${merged.divisionId}, year = ${merged.year},
-          status = ${merged.status}, tasks = ${merged.tasks}, comments = ${merged.comments},
-          notes = ${merged.notes}, enterprise_analyst = ${merged.enterpriseAnalyst}, summary = ${merged.summary},
-          dashboard_id = ${merged.dashboardId},
-          last_touched_date = CURRENT_DATE
-      WHERE id = ${psqId}
-      RETURNING id, analyst_id, division_id, year, name, status, tasks, comments, notes, enterprise_analyst, summary, created_date, last_touched_date, dashboard_id
-    `;
+    // last_touched_date uses the caller's local date when provided (see
+    // lib/dates.ts toLocalDateString), falling back to the server's
+    // CURRENT_DATE (UTC on Netlify) only when the client didn't send one.
+    const rows = clientDate
+      ? await sql`
+          UPDATE psqs
+          SET name = ${merged.name}, division_id = ${merged.divisionId}, year = ${merged.year},
+              status = ${merged.status}, tasks = ${merged.tasks}, comments = ${merged.comments},
+              notes = ${merged.notes}, enterprise_analyst = ${merged.enterpriseAnalyst}, summary = ${merged.summary},
+              dashboard_id = ${merged.dashboardId},
+              last_touched_date = ${clientDate}::date
+          WHERE id = ${psqId}
+          RETURNING id, analyst_id, division_id, year, name, status, tasks, comments, notes, enterprise_analyst, summary, created_date, last_touched_date, dashboard_id
+        `
+      : await sql`
+          UPDATE psqs
+          SET name = ${merged.name}, division_id = ${merged.divisionId}, year = ${merged.year},
+              status = ${merged.status}, tasks = ${merged.tasks}, comments = ${merged.comments},
+              notes = ${merged.notes}, enterprise_analyst = ${merged.enterpriseAnalyst}, summary = ${merged.summary},
+              dashboard_id = ${merged.dashboardId},
+              last_touched_date = CURRENT_DATE
+          WHERE id = ${psqId}
+          RETURNING id, analyst_id, division_id, year, name, status, tasks, comments, notes, enterprise_analyst, summary, created_date, last_touched_date, dashboard_id
+        `;
 
     return NextResponse.json(mapPsqRow(rows[0]));
   } catch (err: unknown) {

@@ -18,6 +18,7 @@ import { AIProvider } from "@/lib/providers";
 import { parseTranscript } from "@/lib/parseTranscript";
 import type { ExtractedRow } from "@/lib/cmio-review-prompt";
 import { TaskStatusBadge } from "@/components/overview/StatusBadge";
+import { toLocalDateString } from "@/lib/dates";
 
 interface CmioReviewFormProps {
   provider?: AIProvider;
@@ -280,7 +281,7 @@ export function CmioReviewForm({ provider: _provider }: CmioReviewFormProps) {
       const startRes = await fetch("/api/cmio-review", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transcript, mode }),
+        body: JSON.stringify({ transcript, mode, clientDate: toLocalDateString(new Date()) }),
       });
 
       if (!startRes.ok) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { mapTaskRow, mapTaskWithContextRow } from '@/lib/brain-mappers';
+import { isValidDateString } from '@/lib/dates';
 
 export async function GET(req: NextRequest) {
   try {
@@ -191,9 +192,10 @@ export async function POST(req: NextRequest) {
       status?: string;
       priority?: string;
       ownerAnalystId?: number;
+      createdDate?: string;
     };
 
-    const { dashboardId, subscriptionId, divisionId, psqId, title, description, status, priority, ownerAnalystId } = body;
+    const { dashboardId, subscriptionId, divisionId, psqId, title, description, status, priority, ownerAnalystId, createdDate } = body;
 
     const hasDashboardId = dashboardId !== undefined && dashboardId !== null;
     const hasSubscriptionId = subscriptionId !== undefined && subscriptionId !== null;
@@ -214,9 +216,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (createdDate !== undefined && !isValidDateString(createdDate)) {
+      return NextResponse.json(
+        { error: 'createdDate must be a valid YYYY-MM-DD date.' },
+        { status: 400 }
+      );
+    }
+
+    // created_date defaults to CURRENT_DATE (UTC on Netlify) when the client
+    // doesn't send one; when it does (see lib/dates.ts toLocalDateString),
+    // that local date is used instead so a task created late in a US evening
+    // isn't stamped with tomorrow's date.
     const rows = await sql`
-      INSERT INTO tasks (dashboard_id, subscription_id, division_id, psq_id, owner_analyst_id, created_by_id, title, description, status, priority)
-      VALUES (${dashboardId ?? null}, ${subscriptionId ?? null}, ${divisionId ?? null}, ${psqId ?? null}, ${ownerAnalystId ?? createdById}, ${createdById}, ${title}, ${description ?? null}, ${status ?? 'open'}, ${priority ?? null})
+      INSERT INTO tasks (dashboard_id, subscription_id, division_id, psq_id, owner_analyst_id, created_by_id, title, description, status, priority, created_date)
+      VALUES (${dashboardId ?? null}, ${subscriptionId ?? null}, ${divisionId ?? null}, ${psqId ?? null}, ${ownerAnalystId ?? createdById}, ${createdById}, ${title}, ${description ?? null}, ${status ?? 'open'}, ${priority ?? null}, COALESCE(${createdDate ?? null}::date, CURRENT_DATE))
       RETURNING id, dashboard_id, subscription_id, division_id, psq_id, owner_analyst_id, created_by_id, title, description, status, priority, created_date, completed_date, resolution_comment
     `;
 

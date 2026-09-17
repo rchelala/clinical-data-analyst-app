@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { sql } from '@/lib/db';
 import { mapTaskRow } from '@/lib/brain-mappers';
 import { normalizeNullableString } from '@/lib/normalize';
+import { isValidDateString } from '@/lib/dates';
 
 export async function PATCH(
   req: NextRequest,
@@ -46,6 +47,13 @@ export async function PATCH(
 
     if (title !== undefined && !title.trim()) {
       return NextResponse.json({ error: 'title cannot be empty.' }, { status: 400 });
+    }
+
+    if (completedDate !== undefined && completedDate !== null && !isValidDateString(completedDate)) {
+      return NextResponse.json(
+        { error: 'completedDate must be a valid YYYY-MM-DD date.' },
+        { status: 400 }
+      );
     }
 
     const current = await sql`

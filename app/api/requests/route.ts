@@ -3,6 +3,7 @@ import { sql } from '@/lib/db';
 import { mapRequestRow, mapRequestWithCreatorRow } from '@/lib/brain-mappers';
 import { RequestType } from '@/lib/brain-types';
 import { requestAttachmentPathnameFromUrl } from '@/lib/request-attachments';
+import { isValidDateString } from '@/lib/dates';
 
 const VALID_REQUEST_TYPES = ['feature', 'bug', 'field_request'] as const;
 
@@ -153,6 +154,7 @@ export async function POST(req: NextRequest) {
       attachmentUrl?: string;
       attachmentFilename?: string;
       fieldNames?: unknown;
+      createdDate?: string;
     };
 
     const {
@@ -165,6 +167,7 @@ export async function POST(req: NextRequest) {
       attachmentUrl,
       attachmentFilename,
       fieldNames,
+      createdDate,
     } = body;
 
     const sanitizedFieldNames = sanitizeFieldNames(fieldNames);
@@ -204,9 +207,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (createdDate !== undefined && !isValidDateString(createdDate)) {
+      return NextResponse.json(
+        { error: 'createdDate must be a valid YYYY-MM-DD date.' },
+        { status: 400 }
+      );
+    }
+
+    // created_date defaults to CURRENT_DATE (UTC on Netlify) when the client
+    // doesn't send one; when it does (see lib/dates.ts toLocalDateString),
+    // that local date is used instead so a request created late in a US
+    // evening isn't stamped with tomorrow's date.
     const rows = await sql`
-      INSERT INTO requests (dashboard_id, subscription_id, created_by_id, title, description, request_type, jira_ticket_id, attachment_url, attachment_filename, field_names)
-      VALUES (${dashboardId ?? null}, ${subscriptionId ?? null}, ${createdById}, ${title}, ${description ?? null}, ${requestType ?? 'feature'}, ${jiraTicketId ?? null}, ${attachmentUrl ?? null}, ${attachmentFilename ?? null}, ${sanitizedFieldNames ? JSON.stringify(sanitizedFieldNames) : null}::jsonb)
+      INSERT INTO requests (dashboard_id, subscription_id, created_by_id, title, description, request_type, jira_ticket_id, attachment_url, attachment_filename, field_names, created_date)
+      VALUES (${dashboardId ?? null}, ${subscriptionId ?? null}, ${createdById}, ${title}, ${description ?? null}, ${requestType ?? 'feature'}, ${jiraTicketId ?? null}, ${attachmentUrl ?? null}, ${attachmentFilename ?? null}, ${sanitizedFieldNames ? JSON.stringify(sanitizedFieldNames) : null}::jsonb, COALESCE(${createdDate ?? null}::date, CURRENT_DATE))
       RETURNING id, dashboard_id, subscription_id, created_by_id, title, description, request_type, status, jira_ticket_id, created_date, completed_date, attachment_url, attachment_filename, field_names
     `;
 

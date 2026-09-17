@@ -25,6 +25,18 @@ export function toLocalDateString(d: Date = new Date()): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
+// Validates that `value` is a real calendar date in "YYYY-MM-DD" form (not
+// just shape — rejects e.g. "2026-02-30"). Used by API routes to validate a
+// client-supplied date (e.g. completedDate/clientDate on a PATCH body)
+// before it reaches SQL, so a malformed value 400s instead of producing a
+// confusing 500 or a silently-wrong stored date.
+export function isValidDateString(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [y, m, d] = value.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
+
 // Returns the Monday and Sunday ("YYYY-MM-DD") of `reference`'s ISO week
 // (default: now), computed from local date parts.
 export function isoWeekRange(reference: Date = new Date()): { startDate: string; endDate: string } {

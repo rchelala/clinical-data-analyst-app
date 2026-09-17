@@ -64,12 +64,20 @@ function parseMeetingDateFromTranscript(transcript: string): string | null {
   return isValidDateString(candidate) ? candidate : null;
 }
 
-function resolveMeetingDate(transcript: string, meetingDate: unknown): string {
+// Priority: an explicit meetingDate wins, then a date parsed out of the
+// transcript itself, then the caller's local "today" (clientDate — see
+// lib/dates.ts toLocalDateString) when the client sent one, and only as a
+// last resort the server's own local time (UTC on Netlify), which can be a
+// day ahead of the analyst's actual evening in a US timezone.
+function resolveMeetingDate(transcript: string, meetingDate: unknown, clientDate: unknown): string {
   if (typeof meetingDate === "string" && isValidDateString(meetingDate)) {
     return meetingDate;
   }
   const parsed = parseMeetingDateFromTranscript(transcript);
   if (parsed) return parsed;
+  if (typeof clientDate === "string" && isValidDateString(clientDate)) {
+    return clientDate;
+  }
   return todayLocalDateString();
 }
 
@@ -123,7 +131,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const meetingDate = resolveMeetingDate(transcript, payload.meetingDate);
+    const meetingDate = resolveMeetingDate(transcript, payload.meetingDate, payload.clientDate);
     const chunksTotal = chunkTranscript(transcript).length;
 
     await sql`DELETE FROM cmio_review_jobs WHERE created_at < now() - interval '1 day'`;

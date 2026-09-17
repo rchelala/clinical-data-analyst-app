@@ -4,6 +4,7 @@ import { sql } from '@/lib/db';
 import { mapRequestRow } from '@/lib/brain-mappers';
 import { RequestStatus } from '@/lib/brain-types';
 import { requestAttachmentPathnameFromUrl } from '@/lib/request-attachments';
+import { isValidDateString } from '@/lib/dates';
 
 const VALID_STATUSES: RequestStatus[] = ['open', 'in_progress', 'done'];
 
@@ -18,8 +19,8 @@ export async function PATCH(
       return NextResponse.json({ error: 'Invalid request id.' }, { status: 400 });
     }
 
-    const body = await req.json() as { status?: string };
-    const { status } = body;
+    const body = await req.json() as { status?: string; completedDate?: string | null };
+    const { status, completedDate } = body;
 
     if (!status || !VALID_STATUSES.includes(status as RequestStatus)) {
       return NextResponse.json(
@@ -28,18 +29,35 @@ export async function PATCH(
       );
     }
 
-    // Transitioning to 'done' stamps completed_date; transitioning away from
-    // 'done' clears it so a re-opened request doesn't keep a stale date.
-    // Done via two branches rather than a nested sql fragment so we don't
-    // depend on unverified nested-template-literal support in the driver.
+    if (completedDate !== undefined && completedDate !== null && !isValidDateString(completedDate)) {
+      return NextResponse.json(
+        { error: 'completedDate must be a valid YYYY-MM-DD date.' },
+        { status: 400 }
+      );
+    }
+
+    // Transitioning to 'done' stamps completed_date — with the caller's local
+    // date when provided (see lib/dates.ts toLocalDateString), falling back
+    // to the server's CURRENT_DATE (UTC on Netlify) only when the client
+    // didn't send one. Transitioning away from 'done' clears it so a
+    // re-opened request doesn't keep a stale date. Done via branches rather
+    // than a nested sql fragment so we don't depend on unverified
+    // nested-template-literal support in the driver.
     const rows =
       status === 'done'
-        ? await sql`
-            UPDATE requests
-            SET status = ${status}, completed_date = CURRENT_DATE
-            WHERE id = ${requestId}
-            RETURNING id, dashboard_id, subscription_id, created_by_id, title, description, request_type, status, jira_ticket_id, created_date, completed_date, attachment_url, attachment_filename, field_names
-          `
+        ? completedDate
+          ? await sql`
+              UPDATE requests
+              SET status = ${status}, completed_date = ${completedDate}::date
+              WHERE id = ${requestId}
+              RETURNING id, dashboard_id, subscription_id, created_by_id, title, description, request_type, status, jira_ticket_id, created_date, completed_date, attachment_url, attachment_filename, field_names
+            `
+          : await sql`
+              UPDATE requests
+              SET status = ${status}, completed_date = CURRENT_DATE
+              WHERE id = ${requestId}
+              RETURNING id, dashboard_id, subscription_id, created_by_id, title, description, request_type, status, jira_ticket_id, created_date, completed_date, attachment_url, attachment_filename, field_names
+            `
         : await sql`
             UPDATE requests
             SET status = ${status}, completed_date = NULL

@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { ClipboardPlus } from "lucide-react";
 import { Analyst, Task } from "@/lib/brain-types";
 import { StatusPrioritySelect } from "@/components/worklist/StatusPrioritySelect";
+import { toLocalDateString } from "@/lib/dates";
 
 interface AddTaskFormProps {
   currentAnalystId: number;
@@ -218,6 +219,7 @@ export function AddTaskForm({
           status,
           priority: priority ?? undefined,
           ownerAnalystId,
+          createdDate: toLocalDateString(new Date()),
         };
         if (targetType === "dashboard") body.dashboardId = targetId;
         else if (targetType === "subscription") body.subscriptionId = targetId;

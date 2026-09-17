@@ -18,6 +18,11 @@ const VALID_STATUSES: ExtractedRow["status"][] = ["Open", "In progress", "Blocke
 // we wait before letting another request reclaim and retry it.
 const STUCK_FINALIZE_MINUTES = 2;
 
+// Job ids are Postgres `uuid` columns (scripts/schema.sql) — validate before
+// querying so a malformed id returns a clean 404 instead of a Postgres
+// "invalid input syntax for type uuid" error surfacing as a 500.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 interface JobRow {
   id: string;
   status: string;
@@ -168,6 +173,9 @@ export async function POST(req: NextRequest) {
     if (!jobId || typeof jobId !== "string") {
       return NextResponse.json({ error: "jobId is required." }, { status: 400 });
     }
+    if (!UUID_RE.test(jobId)) {
+      return NextResponse.json({ error: "Job not found." }, { status: 404 });
+    }
 
     const rows = await sql`SELECT * FROM cmio_review_jobs WHERE id = ${jobId}`;
     if (rows.length === 0) {
@@ -266,16 +274,29 @@ export async function POST(req: NextRequest) {
           workbookBuffer = await appendRowsToTracker(heldBuffer, deduped);
 
           newVersion = heldRow.version + 1;
-          versionedTrackerPath = `cmio-trackers/v${newVersion}.xlsx`;
           heldFilename = heldRow.filename;
-          await put(versionedTrackerPath, workbookBuffer, {
+          // A reclaimed/retried finalize can recompute the same newVersion —
+          // addRandomSuffix (plus the job id in the base name) guarantees
+          // this put() can't collide with an earlier attempt's blob, and the
+          // job id makes concurrent finalizes for different jobs distinct
+          // even if they land on the same version number. Store the
+          // pathname `put` actually used, not the one we asked for.
+          const versionedBlob = await put(`cmio-trackers/v${newVersion}-${jobId}.xlsx`, workbookBuffer, {
             access: "private",
             contentType: XLSX_CONTENT_TYPE,
+            addRandomSuffix: true,
           });
+          versionedTrackerPath = versionedBlob.pathname;
         }
 
+        // Same job, same content on a retry — allow overwriting rather than
+        // throwing when a reclaimed finalize re-writes this job's own output.
         const jobPathname = `cmio-reviews/${jobId}.xlsx`;
-        await put(jobPathname, workbookBuffer, { access: "private", contentType: XLSX_CONTENT_TYPE });
+        await put(jobPathname, workbookBuffer, {
+          access: "private",
+          contentType: XLSX_CONTENT_TYPE,
+          allowOverwrite: true,
+        });
 
         if (job.mode === "standalone") {
           await sql`
@@ -346,8 +367,13 @@ export async function POST(req: NextRequest) {
     try {
       const message = await anthropic.messages.create(
         {
-          model: "claude-sonnet-4-6",
-          max_tokens: 4000,
+          // Haiku per chunk: extraction is a bounded, well-structured task
+          // (a 6,000-char chunk yields at most a handful of short JSON rows —
+          // see lib/cmio-review-prompt.ts's ExtractedRow, a few hundred chars
+          // each), and Haiku's speed is the difference between finishing and
+          // hitting Netlify's function timeout across many chunk steps.
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 2000,
           messages: [
             {
               role: "user",

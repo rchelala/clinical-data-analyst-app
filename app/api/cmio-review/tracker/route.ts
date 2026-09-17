@@ -147,8 +147,15 @@ export async function POST(req: NextRequest) {
     const versionRows = await sql`SELECT COALESCE(MAX(version), 0) AS max_version FROM cmio_tracker`;
     const newVersion = Number((versionRows[0] as { max_version: number }).max_version) + 1;
 
-    const pathname = `cmio-trackers/v${newVersion}.xlsx`;
-    await put(pathname, buffer, { access: "private", contentType: XLSX_CONTENT_TYPE });
+    // addRandomSuffix guarantees this put() can't collide with an earlier
+    // upload even if two uploads race and compute the same newVersion —
+    // store the pathname `put` actually used, not the one we asked for.
+    const versionedBlob = await put(`cmio-trackers/v${newVersion}.xlsx`, buffer, {
+      access: "private",
+      contentType: XLSX_CONTENT_TYPE,
+      addRandomSuffix: true,
+    });
+    const pathname = versionedBlob.pathname;
 
     const inserted = await sql`
       INSERT INTO cmio_tracker (blob_pathname, filename, version)

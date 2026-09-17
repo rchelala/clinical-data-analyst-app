@@ -2,11 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { get } from "@vercel/blob";
 import { sql } from "@/lib/db";
 
+// Job ids are Postgres `uuid` columns (scripts/schema.sql) — validate before
+// querying so a malformed id returns a clean 404 instead of a Postgres
+// "invalid input syntax for type uuid" error surfacing as a 500.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function GET(req: NextRequest) {
   try {
     const jobId = req.nextUrl.searchParams.get("jobId");
     if (!jobId) {
       return NextResponse.json({ error: "jobId is required." }, { status: 400 });
+    }
+    if (!UUID_RE.test(jobId)) {
+      return NextResponse.json({ error: "Job not found." }, { status: 404 });
     }
 
     const rows = await sql`SELECT status, blob_pathname FROM clinician_guide_jobs WHERE id = ${jobId}`;

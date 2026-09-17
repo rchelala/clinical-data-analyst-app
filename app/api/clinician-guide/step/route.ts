@@ -21,6 +21,11 @@ import {
 // ~7-13s incl. network); this is a safety margin against cold starts.
 export const maxDuration = 26;
 
+// Job ids are Postgres `uuid` columns (scripts/schema.sql) — validate before
+// querying so a malformed id returns a clean 404 instead of a Postgres
+// "invalid input syntax for type uuid" error surfacing as a 500.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 interface JobRow {
   id: string;
   status: string;
@@ -39,6 +44,9 @@ export async function POST(req: NextRequest) {
     const { jobId } = await req.json();
     if (!jobId || typeof jobId !== "string") {
       return NextResponse.json({ error: "jobId is required." }, { status: 400 });
+    }
+    if (!UUID_RE.test(jobId)) {
+      return NextResponse.json({ error: "Job not found." }, { status: 404 });
     }
 
     const rows = await sql`SELECT * FROM clinician_guide_jobs WHERE id = ${jobId}`;
@@ -83,10 +91,13 @@ export async function POST(req: NextRequest) {
           onePager = buildFallbackOnePager(job.report_title, job.overview, job.guide_pages);
         }
 
+        // CAS on one_pager being unset so an overlapping/duplicate poll can't
+        // write it twice (each write is its own Claude call — see
+        // cmio-review/step's chunks_done CAS for the same pattern).
         await sql`
           UPDATE clinician_guide_jobs
           SET one_pager = ${JSON.stringify(onePager)}, updated_at = now()
-          WHERE id = ${jobId}
+          WHERE id = ${jobId} AND one_pager IS NULL
         `;
         return NextResponse.json({ status: "processing", pagesDone: job.pages_done, pagesTotal: job.pages_total });
       }
@@ -184,11 +195,23 @@ export async function POST(req: NextRequest) {
 
     // Persist progress. When the last page lands, the job stays "processing" and
     // the next call enters the finalize phase above (one-pager, then docx).
-    await sql`
+    // CAS on pages_done so an overlapping/duplicate poll for the same page
+    // can't clobber the other's pages with a stale read-modify-write (same
+    // pattern as cmio-review/step's chunks_done CAS).
+    const advanced = await sql`
       UPDATE clinician_guide_jobs
       SET guide_pages = ${JSON.stringify(updatedPages)}, pages_done = ${pagesDone}, updated_at = now()
-      WHERE id = ${jobId}
+      WHERE id = ${jobId} AND pages_done = ${job.pages_done}
+      RETURNING id
     `;
+
+    if (advanced.length === 0) {
+      const fresh = (await sql`
+        SELECT pages_done, pages_total, status FROM clinician_guide_jobs WHERE id = ${jobId}
+      `)[0] as { pages_done: number; pages_total: number; status: string };
+      return NextResponse.json({ status: "processing", pagesDone: fresh.pages_done, pagesTotal: fresh.pages_total });
+    }
+
     return NextResponse.json({ status: "processing", pagesDone, pagesTotal: job.pages_total });
   } catch (err) {
     console.error("Clinician Guide step error:", err);

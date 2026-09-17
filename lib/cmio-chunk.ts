@@ -9,13 +9,39 @@
 // input with no external state.
 
 const TARGET_CHUNK_SIZE = 6000;
-// A pathological transcript (e.g. one giant line, or thousands of tiny
-// lines) shouldn't be able to spin up hundreds of job-steps. If the target
-// size would produce more than this many chunks, we grow the window instead.
-const MAX_CHUNKS = 40;
+// Each chunk gets its own Claude call in app/api/cmio-review/step/route.ts,
+// budgeted to finish within Netlify's function timeout — growing the chunk
+// size for long transcripts (as this used to do, up to ~10k chars) risked
+// that budget. Chunk size is capped at TARGET_CHUNK_SIZE instead; transcripts
+// just get more, evenly-sized chunks. The app's transcript cap is 400,000
+// chars (see app/api/cmio-review/route.ts), which is ceil(400000 / 6000) =
+// 67 chunks at this size — MAX_CHUNKS gives that comfortable headroom while
+// still bounding a pathological transcript (e.g. thousands of tiny lines)
+// from spinning up an unbounded number of job-steps.
+const MAX_CHUNKS = 100;
+
+// Splits one line into pieces no longer than `maxLen`, breaking at the last
+// whitespace before the limit so words aren't cut mid-word when possible;
+// falls back to a hard break when a single "word" itself exceeds maxLen.
+// Without this, one oversized line (e.g. a wall-of-text transcript export
+// with no line breaks) would become its own oversized chunk, regardless of
+// TARGET_CHUNK_SIZE.
+function splitLongLine(line: string, maxLen: number): string[] {
+  if (line.length <= maxLen) return [line];
+  const pieces: string[] = [];
+  let rest = line;
+  while (rest.length > maxLen) {
+    let breakAt = rest.lastIndexOf(" ", maxLen);
+    if (breakAt <= 0) breakAt = maxLen; // no whitespace to break on — hard split
+    pieces.push(rest.slice(0, breakAt));
+    rest = rest.slice(breakAt).replace(/^ /, "");
+  }
+  if (rest.length > 0) pieces.push(rest);
+  return pieces;
+}
 
 function splitIntoChunks(text: string, targetSize: number): string[] {
-  const lines = text.split("\n");
+  const lines = text.split("\n").flatMap((line) => splitLongLine(line, targetSize));
   const chunks: string[] = [];
   let current: string[] = [];
   let currentLen = 0;
@@ -39,22 +65,17 @@ function splitIntoChunks(text: string, targetSize: number): string[] {
 /** Splits a transcript into ordered, non-overlapping chunks (always at least one). */
 export function chunkTranscript(text: string): string[] {
   const normalized = text ?? "";
-  let chunks = splitIntoChunks(normalized, TARGET_CHUNK_SIZE);
+  const chunks = splitIntoChunks(normalized, TARGET_CHUNK_SIZE);
 
   if (chunks.length > MAX_CHUNKS) {
-    // Grow the window so the whole transcript fits within MAX_CHUNKS, then
-    // rebuild once with the larger target.
-    const targetSize = Math.max(TARGET_CHUNK_SIZE, Math.ceil(normalized.length / MAX_CHUNKS));
-    chunks = splitIntoChunks(normalized, targetSize);
-
-    // A handful of individually oversized lines (each forced into its own
-    // chunk regardless of target size) can still push the count over the
-    // cap — merge any excess trailing chunks together as a last resort.
-    if (chunks.length > MAX_CHUNKS) {
-      const head = chunks.slice(0, MAX_CHUNKS - 1);
-      const tail = chunks.slice(MAX_CHUNKS - 1).join("\n");
-      chunks = [...head, tail];
-    }
+    // Shouldn't happen for any input within the app's transcript cap (see
+    // above) — defense in depth if that cap is ever raised without updating
+    // this file. Merge the excess trailing chunks together as a last resort
+    // rather than growing chunk size, which would risk the per-chunk LLM
+    // call no longer finishing within Netlify's function timeout.
+    const head = chunks.slice(0, MAX_CHUNKS - 1);
+    const tail = chunks.slice(MAX_CHUNKS - 1).join("\n");
+    return [...head, tail];
   }
 
   return chunks.length > 0 ? chunks : [""];

@@ -124,7 +124,6 @@ export default function WorklistPage() {
   // Meetings banner
   const [meetings, setMeetings] = useState<string>("");
   const [meetingsLoaded, setMeetingsLoaded] = useState(false);
-  const meetingsRef = useRef<HTMLDivElement>(null);
   // Recomputed (not a one-time useMemo) so a tab left open past Monday
   // doesn't keep saving meetings to last week's note — see the
   // visibilitychange/focus effect below.
@@ -276,15 +275,11 @@ export default function WorklistPage() {
   }, [refetchMeetings]);
 
   const handleMeetingsBlur = useCallback(
-    async (value: string, previousValue: string) => {
+    async (value: string) => {
       if (analystId === null) return;
-      const revert = () => {
-        setMeetings(previousValue);
-        // The div is uncontrolled (edited directly by the browser), so
-        // restoring React state alone won't update what's on screen if the
-        // text didn't otherwise change — set it imperatively too.
-        if (meetingsRef.current) meetingsRef.current.innerText = previousValue;
-      };
+      // Deliberately does NOT roll back `meetings` on failure — this is a
+      // free-text box, and discarding what the user just typed would be
+      // worse than leaving it unsaved. The notice tells them to retry.
       try {
         const res = await fetch("/api/weekly-notes", {
           method: "PUT",
@@ -292,12 +287,12 @@ export default function WorklistPage() {
           body: JSON.stringify({ analystId, weekStart, meetings: value.trim() ? value.trim() : null }),
         });
         if (!res.ok) {
-          revert();
-          setNotice(await readErrorMessage(res, "Couldn't save your change. Please try again."));
+          setNotice(
+            await readErrorMessage(res, "Couldn't save meetings. Click into the box and out again to retry.")
+          );
         }
       } catch {
-        revert();
-        setNotice("Couldn't save your change. Please try again.");
+        setNotice("Couldn't save meetings. Click into the box and out again to retry.");
       }
     },
     [analystId, weekStart]
@@ -1310,14 +1305,12 @@ export default function WorklistPage() {
               </label>
               {meetingsLoaded ? (
                 <div
-                  ref={meetingsRef}
                   contentEditable
                   suppressContentEditableWarning
                   onBlur={(e) => {
                     const value = e.currentTarget.innerText;
-                    const previousValue = meetings;
                     setMeetings(value);
-                    handleMeetingsBlur(value, previousValue);
+                    handleMeetingsBlur(value);
                   }}
                   className="mt-1.5 text-sm text-primary whitespace-pre-wrap break-words outline-none rounded-md px-2 py-1.5 border border-transparent hover:border-theme hover:bg-secondary-glass focus:border-brand-500 focus:bg-secondary-glass transition-colors min-h-[1.5em]"
                 >

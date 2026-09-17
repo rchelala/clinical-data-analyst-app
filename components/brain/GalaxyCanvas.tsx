@@ -1,6 +1,6 @@
 "use client";
 
-import { MouseEvent, ReactNode, useRef } from "react";
+import { MouseEvent, ReactNode, useLayoutEffect, useRef } from "react";
 import { Starfield } from "@/components/brain/Starfield";
 
 interface GalaxyCanvasProps {
@@ -35,18 +35,31 @@ export function GalaxyCanvas({ children, onBackgroundClick, zoomDepth, zoomKey }
   // Previous render's depth, used to derive transition direction. `undefined`
   // on the very first render, in which case no animation should play (the
   // initial view shouldn't "fly in" — only subsequent zoom changes should).
+  // The ref is updated in a useLayoutEffect below rather than inline during
+  // render: mutating a ref during render is impure and gets silently
+  // corrupted under StrictMode's double-invoked render (the second
+  // invocation would see prevDepthRef.current already equal to zoomDepth,
+  // permanently losing the transition direction for that render).
   const prevDepthRef = useRef<number | undefined>(undefined);
   const prevDepth = prevDepthRef.current;
-  prevDepthRef.current = zoomDepth;
 
-  // Computed synchronously here (not in a useEffect) so the class is already
-  // set on the very first render of the new keyed element below — React never
-  // paints an unstyled intermediate frame, which is what avoids a flash/flicker
-  // on remount. Moving this into an effect would reintroduce that flash.
+  // Computed synchronously during render (not derived inside the effect
+  // below) so the class is already set on the very first render of the new
+  // keyed element below — React never paints an unstyled intermediate
+  // frame, which is what avoids a flash/flicker on remount.
   let animationClass = "";
   if (prevDepth !== undefined && prevDepth !== zoomDepth) {
     animationClass = zoomDepth > prevDepth ? "zoom-enter-in" : "zoom-enter-out";
   }
+
+  // Updating the ref here (layout effect, runs synchronously after DOM
+  // mutations but before the browser paints) rather than inline during
+  // render preserves the exact same no-flash behavior while keeping render
+  // itself pure — this runs strictly after the animationClass above was
+  // already computed and used for this render's output.
+  useLayoutEffect(() => {
+    prevDepthRef.current = zoomDepth;
+  }, [zoomDepth]);
 
   return (
     <div className="relative w-full h-full" onClick={handleClick}>

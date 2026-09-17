@@ -23,6 +23,16 @@ const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
   ssr: false,
 });
 
+// Hoisted to module scope: these are fully static (no dependency on props or
+// state), so there's no reason to reallocate them on every render.
+const LINK_DASH = [4, 3];
+const LINK_DASH_CLOSED = [1, 3];
+const LINK_DASH_BY_STATUS: Record<RequestStatus, number[] | null> = {
+  open: null,
+  in_progress: LINK_DASH,
+  done: LINK_DASH_CLOSED,
+};
+
 interface DivisionGraphBrainProps {
   division: Division;
   dashboards: DashboardWithUrgency[]; // already filtered by caller to just this division
@@ -252,14 +262,6 @@ export function DivisionGraphBrain({
   // never confused with the gray center-tether or status-colored request
   // tethers. Always rendered at full opacity, unaffected by any filter.
   const linkedEntityColor = "rgba(37, 64, 245, 0.6)";
-  const LINK_DASH = [4, 3];
-  const LINK_DASH_CLOSED = [1, 3];
-
-  const LINK_DASH_BY_STATUS: Record<RequestStatus, number[] | null> = {
-    open: null,
-    in_progress: LINK_DASH,
-    done: LINK_DASH_CLOSED,
-  };
 
   // Applies the request-state filter's fade to a "rgba(r, g, b, a)" color
   // string's alpha channel via fadeOpacity(), layering on top of the
@@ -297,6 +299,27 @@ export function DivisionGraphBrain({
     return l.requestStatus ? LINK_DASH_BY_STATUS[l.requestStatus] : null;
   }, []);
 
+  // Precomputed `target node id -> requestStatus` lookup, built once per
+  // graphData recompute rather than re-scanning every link for every
+  // request node on every animation frame (paintNode below used to do
+  // graphData.links.find(...) per request node per frame — O(nodes×links),
+  // and the dominant per-frame cost in a division with many requests).
+  const requestStatusByNodeId = useMemo(() => {
+    const map = new Map<string, RequestStatus>();
+    for (const link of graphData.links) {
+      if (link.requestStatus !== undefined) {
+        map.set(link.target, link.requestStatus);
+      }
+    }
+    return map;
+  }, [graphData.links]);
+
+  // Hover is tracked in both a ref (read by paintNode, which runs on every
+  // animation frame and must stay stable — see below) and state (used only
+  // to re-render the tooltip overlay and the label drawn on the hovered
+  // node itself, which DOES need a React re-render to appear/disappear).
+  const hoveredNodeRef = useRef<GraphData["nodes"][number] | null>(null);
+
   const paintNode = useCallback(
     (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
       const n = node as GraphData["nodes"][number] & { x?: number; y?: number };
@@ -311,9 +334,7 @@ export function DivisionGraphBrain({
       // never faded.
       let opacity = 1;
       if (n.kind === "request") {
-        const requestStatus = graphData.links.find(
-          (l) => l.target === n.id && l.requestStatus !== undefined
-        )?.requestStatus;
+        const requestStatus = requestStatusByNodeId.get(n.id);
         const faded = requestStatus ? !isRequestStatusVisible(requestStatus, filters) : false;
         opacity = fadeOpacity(1, faded, "multiplicative");
       } else if (n.kind === "task") {
@@ -374,7 +395,7 @@ export function DivisionGraphBrain({
 
       ctx.restore();
 
-      const isHovered = hoveredNode?.id === n.id;
+      const isHovered = hoveredNodeRef.current?.id === n.id;
       if ((n.kind === "dashboard" || n.kind === "subscription") && isHovered) {
         const fontSize = Math.max(8, Math.min(16, 12 / globalScale));
         ctx.font = `${fontSize}px Inter, sans-serif`;
@@ -384,7 +405,10 @@ export function DivisionGraphBrain({
         ctx.fillText(n.label, x, y + n.val + 4);
       }
     },
-    [textColor, hoveredNode, isEntityNodeFaded, filters, graphData.links]
+    // hoveredNodeRef intentionally omitted — it's a ref, read fresh on every
+    // call without needing to appear in the dependency array or invalidate
+    // this callback's identity when the hovered node changes.
+    [textColor, isEntityNodeFaded, filters, requestStatusByNodeId]
   );
 
   const handleNodeClick = useCallback(
@@ -398,7 +422,25 @@ export function DivisionGraphBrain({
 
   const handleNodeHover = useCallback((node: any) => {
     const n = node as GraphData["nodes"][number] | null;
-    setHoveredNode(n && (n.kind === "dashboard" || n.kind === "subscription") ? n : null);
+    const next = n && (n.kind === "dashboard" || n.kind === "subscription") ? n : null;
+    hoveredNodeRef.current = next;
+    setHoveredNode(next);
+  }, []);
+
+  const nodeLabel = useCallback((node: any) => {
+    const n = node as GraphData["nodes"][number];
+    if (n.kind === "task") {
+      // Show the assignee in the tooltip so it's clear who owns a task,
+      // especially one on a dashboard you don't own / when viewing another
+      // analyst's galaxy.
+      const escapeHtml = (s: string) =>
+        s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const owner = n.taskOwnerName
+        ? `<div style="opacity:0.7;margin-top:2px">Assigned to ${escapeHtml(n.taskOwnerName)}</div>`
+        : "";
+      return `<div>${escapeHtml(n.label)}${owner}</div>`;
+    }
+    return n.kind === "request" ? n.label : "";
   }, []);
 
   function daysSince(dateString: string): number {
@@ -441,21 +483,7 @@ export function DivisionGraphBrain({
             nodeCanvasObject={paintNode}
             onNodeClick={handleNodeClick}
             onNodeHover={handleNodeHover}
-            nodeLabel={(node: any) => {
-              const n = node as GraphData["nodes"][number];
-              if (n.kind === "task") {
-                // Show the assignee in the tooltip so it's clear who owns a
-                // task, especially one on a dashboard you don't own / when
-                // viewing another analyst's galaxy.
-                const escapeHtml = (s: string) =>
-                  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-                const owner = n.taskOwnerName
-                  ? `<div style="opacity:0.7;margin-top:2px">Assigned to ${escapeHtml(n.taskOwnerName)}</div>`
-                  : "";
-                return `<div>${escapeHtml(n.label)}${owner}</div>`;
-              }
-              return n.kind === "request" ? n.label : "";
-            }}
+            nodeLabel={nodeLabel}
           />
         )}
         {hoveredNode && (

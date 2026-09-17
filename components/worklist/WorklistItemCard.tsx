@@ -11,7 +11,7 @@ interface WorklistItemCardProps {
   counts: string;
   prioritySuggestions: string[];
   statusSuggestions: string[];
-  onPatch: (kind: WorklistItemKind, id: number, patch: Record<string, unknown>) => void;
+  onPatch: (kind: WorklistItemKind, id: number, patch: Record<string, unknown>) => Promise<boolean>;
   onToggle: (kind: WorklistItemKind, id: number) => void;
   onRemove: (id: number) => void;
   children?: React.ReactNode; // expanded task detail, rendered when isOpen

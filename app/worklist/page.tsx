@@ -84,6 +84,18 @@ function getIsoMonday(date: Date): string {
   return `${year}-${month}-${dayOfMonth}`;
 }
 
+// Reads `{ error }` from a failed response's JSON body when present, falling
+// back to a generic message when the body isn't JSON or has no `error`.
+async function readErrorMessage(res: Response, fallback: string): Promise<string> {
+  try {
+    const data = await res.json();
+    if (data && typeof data.error === "string" && data.error.trim()) return data.error;
+  } catch {
+    // Body wasn't JSON — fall through to the generic message.
+  }
+  return fallback;
+}
+
 // Natural sort for free-form priority strings: numeric values first
 // (ascending), then non-numeric values alphabetically, nulls/empties last.
 function comparePriority(a: string | null, b: string | null): number {
@@ -112,7 +124,11 @@ export default function WorklistPage() {
   // Meetings banner
   const [meetings, setMeetings] = useState<string>("");
   const [meetingsLoaded, setMeetingsLoaded] = useState(false);
-  const weekStart = useMemo(() => getIsoMonday(new Date()), []);
+  const meetingsRef = useRef<HTMLDivElement>(null);
+  // Recomputed (not a one-time useMemo) so a tab left open past Monday
+  // doesn't keep saving meetings to last week's note — see the
+  // visibilitychange/focus effect below.
+  const [weekStart, setWeekStart] = useState<string>(() => getIsoMonday(new Date()));
 
   // Reminders: persistent private note, not week-scoped, not in the weekly update
   const [reminders, setReminders] = useState<string>("");
@@ -177,6 +193,26 @@ export default function WorklistPage() {
     return () => clearTimeout(timer);
   }, [notice]);
 
+  // Recompute weekStart whenever the tab regains focus/visibility, so a tab
+  // left open past Monday doesn't keep saving meetings to last week's note.
+  // Only updates state (and thus only triggers a meetings refetch) when the
+  // Monday actually changed, to avoid needless refetch loops.
+  useEffect(() => {
+    const recompute = () => {
+      const next = getIsoMonday(new Date());
+      setWeekStart((prev) => (prev === next ? prev : next));
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") recompute();
+    };
+    window.addEventListener("focus", recompute);
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      window.removeEventListener("focus", recompute);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, []);
+
   const handleSelectAnalyst = useCallback((id: number, name: string) => {
     setAnalystId(id);
     setAnalystName(name);
@@ -240,16 +276,28 @@ export default function WorklistPage() {
   }, [refetchMeetings]);
 
   const handleMeetingsBlur = useCallback(
-    async (value: string) => {
+    async (value: string, previousValue: string) => {
       if (analystId === null) return;
+      const revert = () => {
+        setMeetings(previousValue);
+        // The div is uncontrolled (edited directly by the browser), so
+        // restoring React state alone won't update what's on screen if the
+        // text didn't otherwise change — set it imperatively too.
+        if (meetingsRef.current) meetingsRef.current.innerText = previousValue;
+      };
       try {
-        await fetch("/api/weekly-notes", {
+        const res = await fetch("/api/weekly-notes", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ analystId, weekStart, meetings: value.trim() ? value.trim() : null }),
         });
+        if (!res.ok) {
+          revert();
+          setNotice(await readErrorMessage(res, "Couldn't save your change. Please try again."));
+        }
       } catch {
-        // Non-critical
+        revert();
+        setNotice("Couldn't save your change. Please try again.");
       }
     },
     [analystId, weekStart]
@@ -418,7 +466,7 @@ export default function WorklistPage() {
   );
 
   const patchItem = useCallback(
-    async (kind: WorklistItemKind, id: number, body: Record<string, unknown>) => {
+    async (kind: WorklistItemKind, id: number, body: Record<string, unknown>): Promise<boolean> => {
       try {
         const endpoint = kind === "dashboard" ? `/api/dashboards/${id}` : `/api/report-subscriptions/${id}`;
         const res = await fetch(endpoint, {
@@ -426,16 +474,20 @@ export default function WorklistPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
-        if (res.ok) {
-          const updated = await res.json();
-          if (kind === "dashboard") {
-            setDashboards((prev) => prev.map((d) => (d.id === id ? { ...d, ...updated } : d)));
-          } else {
-            setSubscriptions((prev) => prev.map((s) => (s.id === id ? { ...s, ...updated } : s)));
-          }
+        if (!res.ok) {
+          setNotice(await readErrorMessage(res, "Couldn't save your change. Please try again."));
+          return false;
         }
+        const updated = await res.json();
+        if (kind === "dashboard") {
+          setDashboards((prev) => prev.map((d) => (d.id === id ? { ...d, ...updated } : d)));
+        } else {
+          setSubscriptions((prev) => prev.map((s) => (s.id === id ? { ...s, ...updated } : s)));
+        }
+        return true;
       } catch {
-        // Non-critical; UI will simply not reflect the change until refetch.
+        setNotice("Couldn't save your change. Please try again.");
+        return false;
       }
     },
     []
@@ -449,15 +501,17 @@ export default function WorklistPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
-        if (res.ok) {
-          const updated = await res.json();
-          setTasksByItem((prev) => ({
-            ...prev,
-            [key]: (prev[key] ?? []).map((t) => (t.id === taskId ? updated : t)),
-          }));
+        if (!res.ok) {
+          setNotice(await readErrorMessage(res, "Couldn't save your change. Please try again."));
+          return;
         }
+        const updated = await res.json();
+        setTasksByItem((prev) => ({
+          ...prev,
+          [key]: (prev[key] ?? []).map((t) => (t.id === taskId ? updated : t)),
+        }));
       } catch {
-        // Non-critical
+        setNotice("Couldn't save your change. Please try again.");
       }
     },
     []
@@ -470,9 +524,13 @@ export default function WorklistPage() {
       if (!window.confirm("Delete this task? This cannot be undone and removes it from the galaxy.")) return;
       try {
         const res = await fetch(`/api/tasks/${taskId}`, { method: "DELETE" });
-        if (res.ok) onSuccess();
+        if (!res.ok) {
+          setNotice(await readErrorMessage(res, "Couldn't delete this task. Please try again."));
+          return;
+        }
+        onSuccess();
       } catch {
-        // Non-critical
+        setNotice("Couldn't delete this task. Please try again.");
       }
     },
     []
@@ -522,14 +580,16 @@ export default function WorklistPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
-        if (res.ok) {
-          const updated = await res.json();
-          setAssignedTasks((prev) =>
-            prev.map((t) => (t.id === taskId ? { ...t, ...updated } : t))
-          );
+        if (!res.ok) {
+          setNotice(await readErrorMessage(res, "Couldn't save your change. Please try again."));
+          return;
         }
+        const updated = await res.json();
+        setAssignedTasks((prev) =>
+          prev.map((t) => (t.id === taskId ? { ...t, ...updated } : t))
+        );
       } catch {
-        // Non-critical
+        setNotice("Couldn't save your change. Please try again.");
       }
     },
     []
@@ -578,15 +638,17 @@ export default function WorklistPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
-        if (res.ok) {
-          const updated = await res.json();
-          setTasksByPsq((prev) => ({
-            ...prev,
-            [psqId]: (prev[psqId] ?? []).map((t) => (t.id === taskId ? updated : t)),
-          }));
+        if (!res.ok) {
+          setNotice(await readErrorMessage(res, "Couldn't save your change. Please try again."));
+          return;
         }
+        const updated = await res.json();
+        setTasksByPsq((prev) => ({
+          ...prev,
+          [psqId]: (prev[psqId] ?? []).map((t) => (t.id === taskId ? updated : t)),
+        }));
       } catch {
-        // Non-critical
+        setNotice("Couldn't save your change. Please try again.");
       }
     },
     []
@@ -606,19 +668,23 @@ export default function WorklistPage() {
     [tasksByPsq]
   );
 
-  const patchPsq = useCallback(async (id: number, body: Record<string, unknown>) => {
+  const patchPsq = useCallback(async (id: number, body: Record<string, unknown>): Promise<boolean> => {
     try {
       const res = await fetch(`/api/psqs/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      if (res.ok) {
-        const updated = await res.json();
-        setPsqs((prev) => prev.map((p) => (p.id === id ? updated : p)));
+      if (!res.ok) {
+        setNotice(await readErrorMessage(res, "Couldn't save your change. Please try again."));
+        return false;
       }
+      const updated = await res.json();
+      setPsqs((prev) => prev.map((p) => (p.id === id ? updated : p)));
+      return true;
     } catch {
-      // Non-critical
+      setNotice("Couldn't save your change. Please try again.");
+      return false;
     }
   }, []);
 
@@ -630,12 +696,14 @@ export default function WorklistPage() {
           `/api/worklist-dashboards?analystId=${analystId}&dashboardId=${dashboardId}`,
           { method: "DELETE" }
         );
-        if (res.ok) {
-          setDashboards((prev) => prev.filter((d) => d.id !== dashboardId));
-          if (expandedKey === itemKey("dashboard", dashboardId)) setExpandedKey(null);
+        if (!res.ok) {
+          setNotice(await readErrorMessage(res, "Couldn't remove this dashboard. Please try again."));
+          return;
         }
+        setDashboards((prev) => prev.filter((d) => d.id !== dashboardId));
+        if (expandedKey === itemKey("dashboard", dashboardId)) setExpandedKey(null);
       } catch {
-        // Non-critical
+        setNotice("Couldn't remove this dashboard. Please try again.");
       }
     },
     [analystId, expandedKey]
@@ -648,33 +716,42 @@ export default function WorklistPage() {
       if (!window.confirm("Delete this PSQ and its tasks? This cannot be undone.")) return;
       try {
         const res = await fetch(`/api/psqs/${psqId}`, { method: "DELETE" });
-        if (res.ok) {
-          setPsqs((prev) => prev.filter((p) => p.id !== psqId));
-          if (expandedPsqId === psqId) setExpandedPsqId(null);
+        if (!res.ok) {
+          setNotice(await readErrorMessage(res, "Couldn't delete this PSQ. Please try again."));
+          return;
         }
+        setPsqs((prev) => prev.filter((p) => p.id !== psqId));
+        if (expandedPsqId === psqId) setExpandedPsqId(null);
       } catch {
-        // Non-critical
+        setNotice("Couldn't delete this PSQ. Please try again.");
       }
     },
     [expandedPsqId]
   );
 
+  const [addingPsq, setAddingPsq] = useState(false);
+
   const handleAddPsq = useCallback(async () => {
-    if (analystId === null) return;
+    if (analystId === null || addingPsq) return;
+    setAddingPsq(true);
     try {
       const res = await fetch("/api/psqs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ analystId, name: "New PSQ", year: new Date().getFullYear(), summary: null }),
       });
-      const data = await res.json();
-      if (res.ok) {
-        setPsqs((prev) => [data, ...prev]);
+      if (!res.ok) {
+        setNotice(await readErrorMessage(res, "Couldn't create the PSQ. Please try again."));
+        return;
       }
+      const data = await res.json();
+      setPsqs((prev) => [data, ...prev]);
     } catch {
-      // Non-critical
+      setNotice("Couldn't create the PSQ. Please try again.");
+    } finally {
+      setAddingPsq(false);
     }
-  }, [analystId]);
+  }, [analystId, addingPsq]);
 
   // Unified list of dashboards + report subscriptions for the main section.
   const items = useMemo<WorklistItem[]>(() => {
@@ -1233,12 +1310,14 @@ export default function WorklistPage() {
               </label>
               {meetingsLoaded ? (
                 <div
+                  ref={meetingsRef}
                   contentEditable
                   suppressContentEditableWarning
                   onBlur={(e) => {
                     const value = e.currentTarget.innerText;
+                    const previousValue = meetings;
                     setMeetings(value);
-                    handleMeetingsBlur(value);
+                    handleMeetingsBlur(value, previousValue);
                   }}
                   className="mt-1.5 text-sm text-primary whitespace-pre-wrap break-words outline-none rounded-md px-2 py-1.5 border border-transparent hover:border-theme hover:bg-secondary-glass focus:border-brand-500 focus:bg-secondary-glass transition-colors min-h-[1.5em]"
                 >
@@ -1285,7 +1364,7 @@ export default function WorklistPage() {
 
             {/* My Dashboards / Report Subscriptions */}
             <section className="mt-6">
-              <div className="flex items-center gap-3 mb-2.5">
+              <div className="flex items-center gap-3 gap-y-2 flex-wrap mb-2.5">
                 <button
                   type="button"
                   onClick={() => setDashboardsExpanded((e) => !e)}
@@ -1585,15 +1664,16 @@ export default function WorklistPage() {
 
             {/* PSQ */}
             <section className="mt-6">
-              <div className="flex items-center gap-3 mb-2.5">
+              <div className="flex items-center gap-3 gap-y-2 flex-wrap mb-2.5">
                 <h2 className="text-sm font-semibold text-primary">PSQ — Performance &amp; Service Quality</h2>
                 <span className="text-xs text-secondary bg-panel border border-theme rounded-full px-2 py-0.5">
                   showing {sortedPsqs.length} of {psqs.length} PSQ{psqs.length === 1 ? "" : "s"}
                 </span>
                 <button
                   type="button"
+                  disabled={addingPsq}
                   onClick={handleAddPsq}
-                  className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors"
+                  className="ml-auto flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <Plus className="w-3 h-3" />
                   PSQ

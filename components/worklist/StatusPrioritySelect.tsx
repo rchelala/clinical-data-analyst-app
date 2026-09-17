@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useCallback, useRef, useEffect } from "react";
+import { memo, useMemo, useState, useCallback, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown } from "lucide-react";
 
@@ -59,17 +59,18 @@ function labelFor(value: string): string {
 
 const ADD_NEW = "__add_new__";
 
-export function StatusPrioritySelect({ kind, value, suggestions, onChange }: StatusPrioritySelectProps) {
+function StatusPrioritySelectImpl({ kind, value, suggestions, onChange }: StatusPrioritySelectProps) {
   const [open, setOpen] = useState(false);
   const [addingNew, setAddingNew] = useState(false);
   const [customValue, setCustomValue] = useState("");
   // Fixed-position coordinates for the portal menu, measured from the trigger.
   const [pos, setPos] = useState<{ top: number; left: number; openUp: boolean }>({ top: 0, left: 0, openUp: false });
-  const [mounted, setMounted] = useState(false);
+  // No mount-effect/SSR guard needed for the portal target: `open` starts
+  // false and can only become true from a client-side click, by which point
+  // `document.body` always exists — this page is client-only ("use client"
+  // at the top) and never opens the menu during the initial render.
   const containerRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => setMounted(true), []);
 
   const close = useCallback(() => {
     setOpen(false);
@@ -138,7 +139,7 @@ export function StatusPrioritySelect({ kind, value, suggestions, onChange }: Sta
     close();
   }, [customValue, onChange, close]);
 
-  const menu = open && mounted
+  const menu = open
     ? createPortal(
         <div
           ref={menuRef}
@@ -227,3 +228,8 @@ export function StatusPrioritySelect({ kind, value, suggestions, onChange }: Sta
     </div>
   );
 }
+
+// Memoized: this renders once per task/item/PSQ row, so avoiding a re-render
+// when its own props haven't changed matters when the page re-renders for
+// unrelated reasons (e.g. editing one row's note or another field).
+export const StatusPrioritySelect = memo(StatusPrioritySelectImpl);

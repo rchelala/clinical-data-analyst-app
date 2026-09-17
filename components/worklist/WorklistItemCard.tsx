@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { ChevronRight, X } from "lucide-react";
 import { StatusPrioritySelect } from "@/components/worklist/StatusPrioritySelect";
 import { EditableCell } from "@/components/worklist/EditableCell";
@@ -21,7 +22,7 @@ interface WorklistItemCardProps {
 // Subscriptions" worklist row. Mirrors the controls used in the desktop
 // table row 1:1 (same StatusPrioritySelect invocations, same EditableCell
 // fields, same remove action) so the two stay visually/functionally in sync.
-export function WorklistItemCard({
+function WorklistItemCardImpl({
   item,
   isOpen,
   counts,
@@ -123,3 +124,8 @@ export function WorklistItemCard({
     </div>
   );
 }
+
+// Memoized: one card per worklist item on mobile. onPatch/onToggle/onRemove
+// are stable (useCallback in the page), so this mostly re-renders only when
+// its own item/isOpen/counts/children actually change.
+export const WorklistItemCard = memo(WorklistItemCardImpl);

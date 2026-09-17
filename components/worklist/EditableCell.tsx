@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { memo, useRef, useState } from "react";
 
 interface EditableCellProps {
   value: string | null;
@@ -14,7 +14,7 @@ interface EditableCellProps {
 // contentEditable on focus, saves on blur — but only when the value actually
 // changed, and reverts the displayed text if the save fails. Matches the
 // mockup's .edit-cell affordance.
-export function EditableCell({ value, placeholder, onSave }: EditableCellProps) {
+function EditableCellImpl({ value, placeholder, onSave }: EditableCellProps) {
   // Bumped on a failed save to force React to remount the contentEditable
   // element (via key) instead of mutating its DOM text node directly —
   // direct mutation (innerText = ...) desyncs the node from React's vdom, so
@@ -53,3 +53,8 @@ export function EditableCell({ value, placeholder, onSave }: EditableCellProps) 
     </div>
   );
 }
+
+// Memoized: dozens render per table (one per editable field per row), and
+// most don't change when an unrelated row/field is edited elsewhere on the
+// page.
+export const EditableCell = memo(EditableCellImpl);

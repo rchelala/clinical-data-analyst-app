@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 
 interface TaskResolutionNoteProps {
   value: string | null;
@@ -16,7 +16,7 @@ interface TaskResolutionNoteProps {
 // blocks completion: it opens after the checkbox click, saves on blur/Enter,
 // and Escape backs out with no save (and no follow-up save from the blur
 // that Escape triggers — see escapedRef below).
-export function TaskResolutionNote({
+function TaskResolutionNoteImpl({
   value,
   editing,
   visible,
@@ -96,3 +96,6 @@ export function TaskResolutionNote({
     </button>
   );
 }
+
+// Memoized: one instance per completed task across every list on the page.
+export const TaskResolutionNote = memo(TaskResolutionNoteImpl);

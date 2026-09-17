@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (analystName !== undefined && typeof analystName !== "string") {
+    if (analystName != null && typeof analystName !== "string") {
       return NextResponse.json({ error: "Invalid analyst name." }, { status: 400 });
     }
 

@@ -4,7 +4,6 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { getClientIp } from "@/lib/get-client-ip";
 import { sql } from "@/lib/db";
 import { appendRowsToTracker, readTrackerRows } from "@/lib/cmio-tracker";
-import { sanitizeFilename } from "@/lib/content-disposition";
 
 export const maxDuration = 26;
 
@@ -12,6 +11,18 @@ const XLSX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreads
 const DEFAULT_FILENAME = "CMIO_Weekly_Review.xlsx";
 const MAX_DECODED_BYTES = 10 * 1024 * 1024;
 const MAX_FILENAME_LENGTH = 200;
+
+// Strips control characters (including CR/LF, which could otherwise break
+// the Content-Disposition header if this value were ever interpolated
+// unsafely elsewhere) without mangling the rest of the name — punctuation,
+// spaces, and non-ASCII characters are all kept as-is so "Tracker (2).xlsx"
+// and non-English filenames still display and re-download correctly.
+// Header-injection safety for the actual download response is handled
+// separately by attachmentContentDisposition in lib/content-disposition.ts.
+function stripControlChars(filename: string): string {
+  // eslint-disable-next-line no-control-regex
+  return filename.replace(/[\x00-\x1F\x7F]/g, "");
+}
 
 // Caps filename length while keeping the extension (e.g. ".xlsx") intact,
 // trimming from the end of the base name instead of the tail of the string.
@@ -95,7 +106,8 @@ export async function POST(req: NextRequest) {
     const dataBase64 = typeof payload.dataBase64 === "string" ? payload.dataBase64 : "";
     const rawFilename =
       typeof payload.filename === "string" && payload.filename.trim() ? payload.filename.trim() : DEFAULT_FILENAME;
-    const filename = capFilenameLength(sanitizeFilename(rawFilename, DEFAULT_FILENAME), MAX_FILENAME_LENGTH);
+    const cleanedFilename = stripControlChars(rawFilename).trim() || DEFAULT_FILENAME;
+    const filename = capFilenameLength(cleanedFilename, MAX_FILENAME_LENGTH);
 
     if (!dataBase64) {
       return NextResponse.json({ error: "Please provide the tracker file." }, { status: 400 });

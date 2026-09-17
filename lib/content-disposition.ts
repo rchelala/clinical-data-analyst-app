@@ -25,11 +25,13 @@ export function attachmentContentDisposition(filename: string, fallback = "downl
 
 /**
  * Replaces anything outside a safe ASCII filename charset with "_" (CR/LF
- * included), trims, and falls back if the result is empty. Useful for
- * sanitizing a filename before it's persisted, not just before it's put in
- * a header.
+ * included), trims, and falls back if the result is empty. Only used to
+ * build the ASCII `filename=` fallback param above — not exported, since
+ * callers that just want to persist a filename should keep the original
+ * name (see stripControlChars in app/api/cmio-review/tracker/route.ts)
+ * and only rely on attachmentContentDisposition for header safety.
  */
-export function sanitizeFilename(filename: string, fallback = "download"): string {
+function sanitizeFilename(filename: string, fallback = "download"): string {
   const stripped = filename.replace(/[\r\n]/g, "");
   return stripped.replace(/[^A-Za-z0-9._ -]/g, "_").trim() || fallback;
 }

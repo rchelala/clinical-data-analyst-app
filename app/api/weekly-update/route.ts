@@ -16,7 +16,10 @@ const MAX_ANALYST_NAME_LENGTH = 200;
 
 export async function POST(req: NextRequest) {
   try {
-    const { allowed, retryAfterSeconds } = await checkRateLimit(getClientIp(req));
+    // Namespaced so this route gets its own rate-limit budget instead of
+    // sharing one bucket with every other LLM route on the same client IP
+    // (hospital users often sit behind one shared NAT IP).
+    const { allowed, retryAfterSeconds } = await checkRateLimit(`weekly-update:${getClientIp(req)}`);
     if (!allowed) {
       return NextResponse.json(
         { error: `Too many requests. Try again in ${retryAfterSeconds} seconds.` },

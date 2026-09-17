@@ -23,7 +23,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const blob = await put(`${REQUEST_ATTACHMENT_PREFIX}${crypto.randomUUID()}-${file.name}`, file, {
+    // isRequestAttachmentPathname (lib/request-attachments.ts) rejects any
+    // pathname containing a backslash or "/" segment, but file.name is
+    // whatever the client sent — so a name with one of those characters
+    // would upload fine here and then fail every later lookup/delete.
+    // Sanitize just the pathname we store under; the original name is
+    // still returned as `filename` for display.
+    const safeNameForPathname = file.name.replace(/[/\\]/g, '_');
+
+    const blob = await put(`${REQUEST_ATTACHMENT_PREFIX}${crypto.randomUUID()}-${safeNameForPathname}`, file, {
       access: 'private',
     });
 

@@ -3,11 +3,27 @@ import Anthropic from "@anthropic-ai/sdk";
 import { GoogleGenAI } from "@google/genai";
 import { buildWeeklyUpdatePrompt } from "@/lib/prompts";
 import { AIProvider } from "@/lib/providers";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { getClientIp } from "@/lib/get-client-ip";
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// The structured worklist markdown this route summarizes is generated
+// client-side from a bounded set of items (one analyst's week), so normal
+// usage is nowhere near this — it exists to cap worst-case LLM spend/latency.
+const MAX_MARKDOWN_LENGTH = 100_000;
+const MAX_ANALYST_NAME_LENGTH = 200;
+
 export async function POST(req: NextRequest) {
   try {
+    const { allowed, retryAfterSeconds } = await checkRateLimit(getClientIp(req));
+    if (!allowed) {
+      return NextResponse.json(
+        { error: `Too many requests. Try again in ${retryAfterSeconds} seconds.` },
+        { status: 429, headers: { "Retry-After": String(retryAfterSeconds) } }
+      );
+    }
+
     const body = await req.json();
     const { markdown, analystName, provider = "claude" } = body as {
       markdown: string;
@@ -15,8 +31,26 @@ export async function POST(req: NextRequest) {
       provider?: AIProvider;
     };
 
-    if (!markdown?.trim()) {
+    if (typeof markdown !== "string" || !markdown.trim()) {
       return NextResponse.json({ error: "No worklist data provided." }, { status: 400 });
+    }
+
+    if (markdown.length > MAX_MARKDOWN_LENGTH) {
+      return NextResponse.json(
+        { error: `Input too large. Please keep worklist data under ${MAX_MARKDOWN_LENGTH.toLocaleString()} characters.` },
+        { status: 400 }
+      );
+    }
+
+    if (analystName !== undefined && typeof analystName !== "string") {
+      return NextResponse.json({ error: "Invalid analyst name." }, { status: 400 });
+    }
+
+    if (analystName && analystName.length > MAX_ANALYST_NAME_LENGTH) {
+      return NextResponse.json(
+        { error: `Analyst name too long. Please keep it under ${MAX_ANALYST_NAME_LENGTH} characters.` },
+        { status: 400 }
+      );
     }
 
     const prompt = buildWeeklyUpdatePrompt(markdown, analystName ?? "");
@@ -60,7 +94,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ summary: result.text });
   } catch (err: unknown) {
     console.error("Weekly update API error:", err);
-    const message = err instanceof Error ? err.message : "An unexpected error occurred.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: "Something went wrong processing your request. Please try again." },
+      { status: 500 }
+    );
   }
 }

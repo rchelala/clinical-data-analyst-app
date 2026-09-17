@@ -1122,7 +1122,11 @@ export default function WorklistPage() {
       const res = await fetch(`/api/tasks?ownerAnalystId=${analystId}&scope=worklist`);
       const json = await res.json();
       if (isStaleAnalyst(requestAnalystId)) return;
-      const allTasks: Task[] = res.ok ? (json as Task[]) : [];
+      if (!res.ok) {
+        setWeeklyUpdateError(json?.error ?? "Could not compile weekly update.");
+        return;
+      }
+      const allTasks: Task[] = json as Task[];
 
       const tasksByDashboardId = new Map<number, Task[]>();
       const tasksBySubscriptionId = new Map<number, Task[]>();

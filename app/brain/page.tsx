@@ -18,7 +18,7 @@ import { AddEntityForm } from "@/components/brain/AddEntityForm";
 import { AddDivisionForm } from "@/components/brain/AddDivisionForm";
 import { DeleteDivisionModal } from "@/components/brain/DeleteDivisionModal";
 import { FilterRail } from "@/components/brain/FilterRail";
-import { useBrainData, ZoomState } from "@/hooks/useBrainData";
+import { useBrainData, RefreshScope, ZoomState } from "@/hooks/useBrainData";
 import {
   Analyst,
   BrainEntityKind,
@@ -90,6 +90,21 @@ export default function BrainPage() {
   // move) — see graphRefreshKey below for the lighter-weight path used by
   // in-place request status changes, which don't need this.
   const [refreshKey, setRefreshKey] = useState(0);
+  // Paired with refreshKey: tells useBrainData how much of its cache a given
+  // bump can invalidate. "entity-data" (the default) only busts the
+  // currently-viewed zoom's own cache entry plus 'galaxy' — safe for
+  // same-scope refreshes (status/count changes) that can't affect what any
+  // OTHER analyst or division has cached. "structure" clears the whole
+  // cache, for edits that can — entity/division created, deleted,
+  // converted, moved, or reassigned to a different analyst. Set together
+  // with setRefreshKey (both in the same handler, so React batches them)
+  // rather than as a persisted setting, since each bump can carry a
+  // different scope.
+  const [refreshScope, setRefreshScope] = useState<RefreshScope>("entity-data");
+  const triggerRefresh = useCallback((scope: RefreshScope) => {
+    setRefreshScope(scope);
+    setRefreshKey((k) => k + 1);
+  }, []);
   // Bumping this tells the currently-rendered DivisionGraphBrain to refetch
   // just its own two batch calls (requests + tasks) in place, without
   // unmounting the graph or touching any of the broader page/cache state.
@@ -119,7 +134,7 @@ export default function BrainPage() {
     []
   );
 
-  const brainData = useBrainData(zoom, refreshKey);
+  const brainData = useBrainData(zoom, refreshKey, refreshScope);
 
   // Shared fetch-and-parse logic for /api/dashboards, used by the unscoped
   // "all dashboards" fetch below.
@@ -381,13 +396,20 @@ export default function BrainPage() {
     );
   }, []);
 
-  // Bumps only the division-graph-local refresh counter (see graphRefreshKey
-  // above), not the page-wide refreshKey — a request status change doesn't
-  // touch any entity/division data or aggregate counts, only how that one
-  // request node is colored/dashed inside the currently-rendered graph.
+  // Bumps the division-graph-local refresh counter (see graphRefreshKey
+  // above) so the currently-rendered graph recolors/redashes the affected
+  // request node in place, AND the page-wide refreshKey (narrow
+  // "entity-data" scope) so useBrainData's entity rows — which drive node
+  // size, the hover tooltip, and urgency colour via openRequestCount /
+  // inProgressRequestCount / oldestOpenRequestAgeDays — stop being stale
+  // too. This is safe to do without unmounting the graph: a refreshKey bump
+  // at the same zoom level sets useBrainData's `isRefreshing` (not
+  // `loading`), and rendering below only gates on `loading`, so the canvas
+  // stays mounted while the refetch happens in the background (7eed502).
   const handleRequestStatusChanged = useCallback(() => {
     setGraphRefreshKey((k) => k + 1);
-  }, []);
+    triggerRefresh("entity-data");
+  }, [triggerRefresh]);
 
   const viewedAnalystName = useMemo(() => {
     if (viewedAnalystId === null) return null;
@@ -647,7 +669,7 @@ export default function BrainPage() {
           onEntityDeleted={() => {
             setSelectedEntity(null);
             setSelectedRequestId(undefined);
-            setRefreshKey((k) => k + 1);
+            triggerRefresh("structure");
           }}
           onNavigateToEntity={(kind, id) => {
             setSelectedEntity({ kind, id });
@@ -663,9 +685,9 @@ export default function BrainPage() {
             // would reintroduce a real race where the old entity's data is
             // shown mislabeled under the new id.
             setSelectedEntity(newIdentity);
-            setRefreshKey((k) => k + 1);
+            triggerRefresh("structure");
           }}
-          onRequestsChanged={() => setRefreshKey((k) => k + 1)}
+          onRequestsChanged={() => triggerRefresh("entity-data")}
           onRequestStatusChanged={handleRequestStatusChanged}
         />
       )}
@@ -677,7 +699,12 @@ export default function BrainPage() {
           currentAnalystId={viewerAnalystId}
           onCreated={() => {
             setShowAddRequestForm(false);
-            setRefreshKey((k) => k + 1);
+            // This form can target any dashboard/subscription org-wide
+            // (allDashboards/allSubscriptions), including one owned by an
+            // analyst other than the one currently viewed — a narrow
+            // invalidation could leave that other analyst's cached counts
+            // stale, so clear the whole cache.
+            triggerRefresh("structure");
           }}
           onCancel={() => setShowAddRequestForm(false)}
         />
@@ -688,7 +715,7 @@ export default function BrainPage() {
           currentAnalystId={viewerAnalystId}
           onCreated={() => {
             setShowAddDivisionForm(false);
-            setRefreshKey((k) => k + 1);
+            triggerRefresh("structure");
           }}
           onCancel={() => setShowAddDivisionForm(false)}
         />
@@ -701,7 +728,7 @@ export default function BrainPage() {
           dashboardsInDivision={divisionDashboards.map((d) => ({ id: d.id, name: d.name }))}
           onCreated={() => {
             setShowAddEntityForm(false);
-            setRefreshKey((k) => k + 1);
+            triggerRefresh("structure");
           }}
           onCancel={() => setShowAddEntityForm(false)}
         />
@@ -723,7 +750,7 @@ export default function BrainPage() {
           onDeleted={() => {
             setShowDeleteDivision(false);
             handleZoomOut();
-            setRefreshKey((k) => k + 1);
+            triggerRefresh("structure");
           }}
           onCancel={() => setShowDeleteDivision(false)}
         />

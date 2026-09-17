@@ -13,7 +13,6 @@
 // No new dependency — this is a hand-rolled in-flight-promise + resolved-
 // value cache, not SWR/TanStack Query.
 
-import { useEffect, useState } from "react";
 import { Analyst, Division, Tag } from "@/lib/brain-types";
 
 type ReferenceKind = "analysts" | "divisions" | "tags";
@@ -100,44 +99,4 @@ export function invalidateReferenceData(kind?: ReferenceKind): void {
     caches[k].value = null;
     caches[k].promise = null;
   });
-}
-
-// Small hook for the common "fetch once on mount, degrade silently on
-// error, set loading/data" pattern that most reference-list call sites use.
-// Unmount-safe: a resolve/reject after the component has unmounted is
-// ignored rather than calling setState on an unmounted component.
-export function useReferenceList<T>(fetcher: () => Promise<T[]>): {
-  data: T[];
-  loading: boolean;
-  error: string | null;
-} {
-  const [data, setData] = useState<T[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-
-    fetcher()
-      .then((result) => {
-        if (cancelled) return;
-        setData(result);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Network error — could not reach the server.");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  return { data, loading, error };
 }

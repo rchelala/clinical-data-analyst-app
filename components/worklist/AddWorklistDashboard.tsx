@@ -40,10 +40,9 @@ export function AddWorklistDashboard({
       setLoading(true);
       setError(null);
       try {
-        const [mineRes, allRes, divisionsData] = await Promise.all([
+        const [mineRes, allRes] = await Promise.all([
           fetch("/api/dashboards", { headers: { "x-analyst-id": String(currentAnalystId) } }),
           fetch("/api/dashboards"),
-          fetchDivisions(),
         ]);
         const [mineData, allData] = await Promise.all([
           mineRes.json(),
@@ -53,21 +52,27 @@ export function AddWorklistDashboard({
 
         if (!mineRes.ok) {
           setError(mineData.error ?? "Could not load your dashboards.");
-          return;
-        }
-        if (!allRes.ok) {
+        } else if (!allRes.ok) {
           setError(allData.error ?? "Could not load dashboards.");
-          return;
+        } else {
+          setMyDashboards(mineData);
+          setAllDashboards(allData);
         }
-
-        setMyDashboards(mineData);
-        setAllDashboards(allData);
-        setDivisions(divisionsData);
       } catch {
         if (!cancelled) setError("Network error — could not reach the server.");
-      } finally {
-        if (!cancelled) setLoading(false);
       }
+
+      // Divisions are fetched separately from the dashboard lists above: a
+      // failure here shouldn't discard dashboards that loaded successfully,
+      // nor clobber their more specific error message with this one.
+      try {
+        const divisionsData = await fetchDivisions();
+        if (!cancelled) setDivisions(divisionsData);
+      } catch {
+        if (!cancelled) setError((prev) => prev ?? "Could not load divisions.");
+      }
+
+      if (!cancelled) setLoading(false);
     })();
     return () => {
       cancelled = true;

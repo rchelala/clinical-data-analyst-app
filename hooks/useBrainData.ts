@@ -88,14 +88,25 @@ async function fetchAnalystScopedData(analystId: number): Promise<{
   };
 }
 
+export type RefreshScope = "entity-data" | "structure";
+
 /**
  * Fetches the data needed for a given zoom level, caching results in-memory
  * for the lifetime of the component tree so re-entering a previously visited
  * zoom level doesn't refetch. Passing a `refreshKey` that changes (e.g. after
- * a save in the Brain side panel) busts only the cache entries that could
- * plausibly be stale — the current zoom's own entry, plus the 'galaxy' entry
- * (which aggregates across every analyst/division and so could be affected
- * by any edit) — leaving every OTHER analyst's cached entry untouched.
+ * a save in the Brain side panel) busts cache entries according to
+ * `refreshScope`:
+ *
+ * - "entity-data" (the default) busts only the current zoom's own entry,
+ *   plus the 'galaxy' entry (which aggregates across every analyst/division
+ *   and so could be affected by any edit) — leaving every OTHER analyst's
+ *   cached entry untouched. Use this for same-scope refreshes like a request
+ *   status change or count update that can't affect any other analyst's or
+ *   division's cached view.
+ * - "structure" clears the entire cache. Use this for structural edits —
+ *   an entity (dashboard/subscription) or division created, deleted,
+ *   converted, moved, or reassigned to a different analyst — any of which
+ *   can leave some OTHER analyst's or division's cached entry stale.
  *
  * A refetch triggered purely by a refreshKey bump (same zoom level as
  * before, data previously loaded) sets `isRefreshing` instead of `loading`,
@@ -103,7 +114,11 @@ async function fetchAnalystScopedData(analystId: number): Promise<{
  * than unmounting it — only the very first fetch for a given zoom level
  * (or a genuine navigation to a not-yet-cached zoom level) sets `loading`.
  */
-export function useBrainData(zoom: ZoomState, refreshKey?: number): GalaxyData | AnalystData {
+export function useBrainData(
+  zoom: ZoomState,
+  refreshKey?: number,
+  refreshScope: RefreshScope = "entity-data"
+): GalaxyData | AnalystData {
   const cacheRef = useRef<Map<string | number, CacheEntry>>(new Map());
   const prevRefreshKeyRef = useRef(refreshKey);
   const prevCacheKeyRef = useRef<string | number | undefined>(undefined);
@@ -129,8 +144,16 @@ export function useBrainData(zoom: ZoomState, refreshKey?: number): GalaxyData |
     prevRefreshKeyRef.current = refreshKey;
 
     if (refreshKeyChanged) {
-      cache.delete(cacheKey);
-      if (cacheKey !== "galaxy") cache.delete("galaxy");
+      if (refreshScope === "structure") {
+        // A structural edit (entity/division created, deleted, converted,
+        // moved, or reassigned) can affect any OTHER analyst's or
+        // division's cached view, not just the one currently on screen —
+        // clear everything rather than guessing which entries are safe.
+        cache.clear();
+      } else {
+        cache.delete(cacheKey);
+        if (cacheKey !== "galaxy") cache.delete("galaxy");
+      }
     }
 
     const cached = cache.get(cacheKey);

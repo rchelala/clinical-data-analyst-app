@@ -74,6 +74,19 @@ export function DivisionGraphBrain({
   const [hoveredNode, setHoveredNode] = useState<GraphData["nodes"][number] | null>(null);
   const { resolvedTheme } = useTheme();
 
+  // The literal family name "Inter" no longer resolves to anything once
+  // next/font is in play — next/font self-hosts the font under a hashed
+  // family name and exposes it only via the --font-inter CSS variable, which
+  // a canvas `ctx.font` string can't reference with var(...) the way a
+  // regular CSS/DOM font-family can. Read the actual resolved name once
+  // (it's static for the life of the page) and reuse it on every frame,
+  // falling back to sans-serif if the variable isn't set for some reason.
+  const interFontFamilyRef = useRef("sans-serif");
+  useEffect(() => {
+    const value = getComputedStyle(document.documentElement).getPropertyValue("--font-inter").trim();
+    interFontFamilyRef.current = value ? `${value}, sans-serif` : "sans-serif";
+  }, []);
+
   // Track container size so the graph fills the available space and resizes
   // with the window/sidebar, instead of being hardcoded to a fixed box.
   useEffect(() => {
@@ -398,7 +411,7 @@ export function DivisionGraphBrain({
       const isHovered = hoveredNodeRef.current?.id === n.id;
       if ((n.kind === "dashboard" || n.kind === "subscription") && isHovered) {
         const fontSize = Math.max(8, Math.min(16, 12 / globalScale));
-        ctx.font = `${fontSize}px Inter, sans-serif`;
+        ctx.font = `${fontSize}px ${interFontFamilyRef.current}`;
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
         ctx.fillStyle = textColor;

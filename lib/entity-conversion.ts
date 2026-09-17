@@ -33,14 +33,34 @@ export interface ConvertEntityFields {
 // directly into the UPDATE/DELETE that follow it in the same statement —
 // which is exactly the "read the row I just inserted" dependency this
 // conversion needs, with no separate result-shuttling required.
+//
+// Besides `requests`, two other tables reference dashboards/report_subscriptions
+// without ON DELETE CASCADE semantics that would preserve them, so each
+// conversion also repoints: `tasks` (dashboard_id/subscription_id, which
+// otherwise CASCADE-deletes every task on the entity when the original row
+// is deleted) and `intake_requests` (fulfilled_entity_kind/fulfilled_entity_id,
+// a soft pointer with no FK, which would otherwise silently dangle). Two
+// other references are intentionally NOT repointed and are left to their
+// existing DB behavior: `psqs.dashboard_id` has ON DELETE SET NULL, and
+// dashboard→subscription conversion drops any `worklist_dashboards` rows for
+// non-owner ("covering") analysts, since subscriptions have no equivalent
+// membership table — only the owner's worklist membership is re-created (see
+// the ins_worklist CTE in convertSubscriptionToDashboard).
 
 /**
  * Converts a dashboard into a report subscription: inserts a new
  * report_subscriptions row (copying the dashboard's fields, with `fields`
- * overriding where provided), repoints every requests row that referenced
- * the dashboard onto the new subscription, and deletes the original
- * dashboard row. Returns the new subscription, or null if no dashboard with
- * `dashboardId` exists.
+ * overriding where provided), repoints every requests, tasks, and
+ * intake_requests row that referenced the dashboard onto the new
+ * subscription, and deletes the original dashboard row. Returns the new
+ * subscription, or null if no dashboard with `dashboardId` exists.
+ *
+ * Not carried over: `worklist_dashboards` rows for analysts other than the
+ * owner (covering analysts who added the dashboard to their own worklist) —
+ * subscriptions have no equivalent membership table, so those rows are
+ * dropped by ON DELETE CASCADE when the dashboard row is deleted. Any
+ * `psqs.dashboard_id` pointing at the dashboard is cleared to NULL by its
+ * existing ON DELETE SET NULL.
  */
 export async function convertDashboardToSubscription(
   dashboardId: number,
@@ -82,13 +102,32 @@ export async function convertDashboardToSubscription(
       WHERE dashboard_id = ${dashboardId}
       RETURNING id
     ),
-    -- del's WHERE clause references repoint's row count so Postgres is forced
-    -- to materialize repoint before del runs. Without this dependency the two
-    -- CTEs have no defined execution order, and del running first would
-    -- ON DELETE CASCADE away the very requests rows repoint exists to save.
+    -- Without this, tasks.dashboard_id's ON DELETE CASCADE would silently
+    -- delete every task on the dashboard when del below runs.
+    repoint_tasks AS (
+      UPDATE tasks
+      SET dashboard_id = NULL, subscription_id = (SELECT id FROM ins)
+      WHERE dashboard_id = ${dashboardId}
+      RETURNING id
+    ),
+    -- intake_requests.fulfilled_entity_id is a soft pointer (no FK), so it
+    -- wouldn't be touched by the DELETE at all if left unrepointed here —
+    -- it would just dangle, pointing at a dashboard id that no longer exists.
+    repoint_intake AS (
+      UPDATE intake_requests
+      SET fulfilled_entity_kind = 'subscription', fulfilled_entity_id = (SELECT id FROM ins)
+      WHERE fulfilled_entity_kind = 'dashboard' AND fulfilled_entity_id = ${dashboardId}
+      RETURNING id
+    ),
+    -- del's WHERE clause references every repoint CTE's row count so
+    -- Postgres is forced to materialize them all before del runs. Without
+    -- this dependency the CTEs have no defined execution order, and del
+    -- running first would ON DELETE CASCADE away the very requests/tasks
+    -- rows the repoint CTEs exist to save.
     del AS (
       DELETE FROM dashboards
-      WHERE id = ${dashboardId} AND (SELECT count(*) FROM repoint) >= 0
+      WHERE id = ${dashboardId}
+        AND (SELECT count(*) FROM repoint) + (SELECT count(*) FROM repoint_tasks) + (SELECT count(*) FROM repoint_intake) >= 0
     )
     SELECT id, name, division_id, analyst_id, stakeholder, status, jira_ticket_id, last_touched_date, created_date
     FROM ins
@@ -108,8 +147,12 @@ export async function convertDashboardToSubscription(
 
 /**
  * Converts a report subscription into a dashboard: mirrors
- * convertDashboardToSubscription in the opposite direction. Returns the new
- * dashboard, or null if no subscription with `subscriptionId` exists.
+ * convertDashboardToSubscription in the opposite direction, also repointing
+ * tasks and intake_requests, plus (since dashboards, unlike subscriptions,
+ * appear on a worklist via `worklist_dashboards` membership rather than
+ * ownership alone) re-adding the new dashboard to its owner's worklist so it
+ * doesn't disappear from where the subscription used to show. Returns the
+ * new dashboard, or null if no subscription with `subscriptionId` exists.
  */
 export async function convertSubscriptionToDashboard(
   subscriptionId: number,
@@ -148,13 +191,44 @@ export async function convertSubscriptionToDashboard(
       WHERE subscription_id = ${subscriptionId}
       RETURNING id
     ),
-    -- del's WHERE clause references repoint's row count so Postgres is forced
-    -- to materialize repoint before del runs. Without this dependency the two
-    -- CTEs have no defined execution order, and del running first would
-    -- ON DELETE CASCADE away the very requests rows repoint exists to save.
+    -- Without this, tasks.subscription_id's ON DELETE CASCADE would silently
+    -- delete every task on the subscription when del below runs.
+    repoint_tasks AS (
+      UPDATE tasks
+      SET subscription_id = NULL, dashboard_id = (SELECT id FROM ins)
+      WHERE subscription_id = ${subscriptionId}
+      RETURNING id
+    ),
+    -- intake_requests.fulfilled_entity_id is a soft pointer (no FK), so it
+    -- wouldn't be touched by the DELETE at all if left unrepointed here —
+    -- it would just dangle, pointing at a subscription id that no longer
+    -- exists.
+    repoint_intake AS (
+      UPDATE intake_requests
+      SET fulfilled_entity_kind = 'dashboard', fulfilled_entity_id = (SELECT id FROM ins)
+      WHERE fulfilled_entity_kind = 'subscription' AND fulfilled_entity_id = ${subscriptionId}
+      RETURNING id
+    ),
+    -- Subscriptions appear on the owner's worklist purely via
+    -- report_subscriptions.analyst_id (no membership table); dashboards
+    -- appear via worklist_dashboards rows instead. Re-add the new dashboard
+    -- to its owner's worklist so it doesn't vanish from where the
+    -- subscription used to show. ON CONFLICT DO NOTHING covers the (rare)
+    -- case where the owner already has a worklist_dashboards row for it.
+    ins_worklist AS (
+      INSERT INTO worklist_dashboards (analyst_id, dashboard_id)
+      SELECT analyst_id, id FROM ins WHERE analyst_id IS NOT NULL
+      ON CONFLICT DO NOTHING
+    ),
+    -- del's WHERE clause references every repoint CTE's row count so
+    -- Postgres is forced to materialize them all before del runs. Without
+    -- this dependency the CTEs have no defined execution order, and del
+    -- running first would ON DELETE CASCADE away the very requests/tasks
+    -- rows the repoint CTEs exist to save.
     del AS (
       DELETE FROM report_subscriptions
-      WHERE id = ${subscriptionId} AND (SELECT count(*) FROM repoint) >= 0
+      WHERE id = ${subscriptionId}
+        AND (SELECT count(*) FROM repoint) + (SELECT count(*) FROM repoint_tasks) + (SELECT count(*) FROM repoint_intake) >= 0
     )
     SELECT id, name, division_id, analyst_id, stakeholder, status, jira_ticket_id, last_touched_date, created_date
     FROM ins

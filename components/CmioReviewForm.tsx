@@ -171,6 +171,12 @@ export function CmioReviewForm({ provider: _provider }: CmioReviewFormProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const replaceInputRef = useRef<HTMLInputElement>(null);
 
+  // Tracks whether we've completed the first successful tracker load — after
+  // that, loadTracker (e.g. from the manual Refresh button) must not clobber
+  // the user's chosen mode, except to fall back out of "append" if the held
+  // tracker disappeared out from under them.
+  const initialLoadDoneRef = useRef(false);
+
   const loadTracker = useCallback(async () => {
     setTrackerLoading(true);
     try {
@@ -178,7 +184,12 @@ export function CmioReviewForm({ provider: _provider }: CmioReviewFormProps) {
       const data = await res.json();
       if (res.ok) {
         setTracker(data);
-        setMode(data.held ? "append" : "standalone");
+        if (!initialLoadDoneRef.current) {
+          initialLoadDoneRef.current = true;
+          setMode(data.held ? "append" : "standalone");
+        } else {
+          setMode((m) => (m === "append" && !data.held ? "standalone" : m));
+        }
       } else {
         setTracker({ held: false });
       }
@@ -281,7 +292,17 @@ export function CmioReviewForm({ provider: _provider }: CmioReviewFormProps) {
       const { jobId, chunksTotal } = await startRes.json();
       setProgress({ done: 0, total: chunksTotal });
 
+      const POLL_BACKOFF_MS = 1500;
+      const MAX_POLL_MS = 15 * 60 * 1000;
+      const pollStart = Date.now();
+      let lastDone = 0;
+
       for (;;) {
+        if (Date.now() - pollStart > MAX_POLL_MS) {
+          setError("Generating the tracker is taking too long. Please try again.");
+          return;
+        }
+
         const stepRes = await fetch("/api/cmio-review/step", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -315,6 +336,15 @@ export function CmioReviewForm({ provider: _provider }: CmioReviewFormProps) {
         }
 
         setProgress({ done: stepData.chunksDone, total: stepData.chunksTotal });
+
+        // Normal path: each call advances a chunk, so don't slow it down. Only
+        // back off when the server reported "processing" without progress
+        // (e.g. still working on the same chunk) to avoid spinning back-to-back.
+        if (stepData.chunksDone <= lastDone) {
+          await new Promise((resolve) => setTimeout(resolve, POLL_BACKOFF_MS));
+        } else {
+          lastDone = stepData.chunksDone;
+        }
       }
     } catch {
       setError("Network error — could not reach the server.");

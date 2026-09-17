@@ -22,13 +22,23 @@ export function loadHistory(): HistoryEntry[] {
   }
 }
 
+// Persists entries, trimming from the oldest end (the array is newest-first)
+// and retrying if the write fails — e.g. QuotaExceededError. This runs inside
+// a setHistory functional updater in app/page.tsx, so it must never throw:
+// an uncaught error here would crash render.
 export function saveHistory(entries: HistoryEntry[]): void {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(entries));
-  } catch {
-    // storage full — drop oldest and retry
-    const trimmed = entries.slice(0, MAX_ENTRIES - 1);
-    localStorage.setItem(KEY, JSON.stringify(trimmed));
+  let toSave = entries;
+  for (;;) {
+    try {
+      localStorage.setItem(KEY, JSON.stringify(toSave));
+      return;
+    } catch {
+      if (toSave.length === 0) {
+        console.warn("saveHistory: could not persist history — storage unavailable even when empty.");
+        return;
+      }
+      toSave = toSave.slice(0, toSave.length - 1);
+    }
   }
 }
 
@@ -85,11 +95,18 @@ export function loadFieldHistory(): FieldRequestEntry[] {
 }
 
 export function saveFieldHistory(entries: FieldRequestEntry[]): void {
-  try {
-    localStorage.setItem(FIELD_KEY, JSON.stringify(entries));
-  } catch {
-    const trimmed = entries.slice(0, FIELD_MAX - 1);
-    localStorage.setItem(FIELD_KEY, JSON.stringify(trimmed));
+  let toSave = entries;
+  for (;;) {
+    try {
+      localStorage.setItem(FIELD_KEY, JSON.stringify(toSave));
+      return;
+    } catch {
+      if (toSave.length === 0) {
+        console.warn("saveFieldHistory: could not persist field history — storage unavailable even when empty.");
+        return;
+      }
+      toSave = toSave.slice(0, toSave.length - 1);
+    }
   }
 }
 

@@ -12,6 +12,7 @@ import {
   markFieldHistoryEntryAttached,
 } from "@/lib/history";
 import { AIProvider } from "@/lib/providers";
+import { toLocalDateString } from "@/lib/dates";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -116,7 +117,7 @@ function createRow(id: number, cols: ColumnDef[]): GenericRow {
 
 export function FieldRequestForm({ provider = "claude" }: { provider?: AIProvider }) {
   const [templateType, setTemplateType]   = useState<TemplateType>("general");
-  const [date, setDate]                   = useState(new Date().toISOString().split("T")[0]);
+  const [date, setDate]                   = useState(toLocalDateString());
   const [tableName, setTableName]         = useState("");
   const [rows, setRows]                   = useState<GenericRow[]>(() => [createRow(1, GENERAL_COLUMNS)]);
   const [nextId, setNextId]               = useState(2);
@@ -356,9 +357,11 @@ export function FieldRequestForm({ provider = "claude" }: { provider?: AIProvide
 
   // ─── Save As — opens native file picker ──────────────────────────────────────
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
+    setSaveError(null);
     try {
       const { buffer, filename } = await buildWorkbook();
 
@@ -391,6 +394,7 @@ export function FieldRequestForm({ provider = "claude" }: { provider?: AIProvide
       // AbortError = user clicked Cancel in the dialog — not an actual error
       if ((err as DOMException)?.name !== "AbortError") {
         console.error("Save failed:", err);
+        setSaveError("Could not save the file. Please try again.");
       }
     } finally {
       setSaving(false);
@@ -398,7 +402,7 @@ export function FieldRequestForm({ provider = "claude" }: { provider?: AIProvide
   }, [buildWorkbook, saveToHistory]);
 
   const handleReset = useCallback(() => {
-    setDate(new Date().toISOString().split("T")[0]);
+    setDate(toLocalDateString());
     setTableName("");
     setRows([createRow(1, getColumns(templateType))]);
     setNextId(2);
@@ -645,6 +649,13 @@ export function FieldRequestForm({ provider = "claude" }: { provider?: AIProvide
             {sqlError && (
               <div className="px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-400">
                 {sqlError}
+              </div>
+            )}
+
+            {/* Save As error */}
+            {saveError && (
+              <div className="px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/30 text-sm text-red-400">
+                {saveError}
               </div>
             )}
 

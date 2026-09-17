@@ -16,8 +16,12 @@ function pad2(n: number): string {
   return String(n).padStart(2, "0");
 }
 
-// Formats a Date's LOCAL date parts as "YYYY-MM-DD".
-function toLocalDateString(d: Date): string {
+// Formats a Date's LOCAL date parts as "YYYY-MM-DD". Exported so callers that
+// need "today" as a form default (e.g. FieldRequestForm) don't reach for
+// `new Date().toISOString().split("T")[0]`, which reads UTC date parts — in
+// US timezones (behind UTC) that shows tomorrow's date in the evening, since
+// local "today" is already past midnight UTC.
+export function toLocalDateString(d: Date = new Date()): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 

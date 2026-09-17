@@ -19,6 +19,7 @@ import {
   IntakeRequestWithNames,
   IntakeStatus,
 } from "@/lib/brain-types";
+import { formatDateOnly } from "@/lib/dates";
 
 const STATUS_LABELS: Record<IntakeStatus, string> = {
   not_started: "Not started",
@@ -41,13 +42,6 @@ const STATUS_OPTIONS: IntakeStatus[] = [
 ];
 
 const PRIORITY_OPTIONS: IntakePriority[] = ["low", "medium", "high"];
-
-function formatDate(value: string | null): string {
-  if (!value) return "—";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleDateString();
-}
 
 type InlineField = "priority" | "divisionId" | "analystId" | "status";
 
@@ -212,7 +206,7 @@ export function IntakeRequestsTable({
                 )}
               </td>
               <td className="px-3 py-2 text-primary whitespace-nowrap">
-                {formatDate(r.dateReceived)}
+                {formatDateOnly(r.dateReceived)}
               </td>
               <td className="px-3 py-2 text-primary">
                 <select
@@ -300,7 +294,7 @@ export function IntakeRequestsTable({
                 {r.internalComments ?? "—"}
               </td>
               <td className="px-3 py-2 text-primary whitespace-nowrap">
-                {formatDate(r.createdDate)}
+                {formatDateOnly(r.createdDate)}
               </td>
               <td className="px-3 py-2 text-primary whitespace-nowrap">
                 {r.status === "fulfilled" ? (

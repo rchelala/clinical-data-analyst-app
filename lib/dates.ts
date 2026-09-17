@@ -78,6 +78,46 @@ export function trailingDayRange(
   };
 }
 
+// Formats a date-only value (a Postgres `date` column, which Neon may
+// serialise as a bare "YYYY-MM-DD" string or as an ISO timestamp at local
+// midnight, e.g. "2026-07-12T07:00:00.000Z") for display, WITHOUT the
+// timezone shift `new Date(value).toLocaleDateString()` introduces — in a US
+// browser (behind UTC), parsing that timestamp as UTC and then formatting in
+// local time rolls the date back a day. Only the "YYYY-MM-DD" portion is
+// read (via `.slice(0, 10)` for strings, or UTC getters for a `Date`), then
+// a LOCAL Date is constructed from those y/m/d parts and formatted — so the
+// displayed calendar date always matches the stored one, regardless of the
+// viewer's timezone. Pass `options` to customize the display format (default
+// mirrors bare `toLocaleDateString()`); returns "—" for a missing/invalid
+// value.
+export function formatDateOnly(
+  value: string | Date | null | undefined,
+  options?: Intl.DateTimeFormatOptions
+): string {
+  if (!value) return "—";
+
+  let year: number;
+  let month: number; // 0-indexed, matches Date constructor
+  let day: number;
+
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return "—";
+    year = value.getUTCFullYear();
+    month = value.getUTCMonth();
+    day = value.getUTCDate();
+  } else {
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value));
+    if (!match) return "—";
+    year = Number(match[1]);
+    month = Number(match[2]) - 1;
+    day = Number(match[3]);
+  }
+
+  const d = new Date(year, month, day);
+  if (Number.isNaN(d.getTime())) return "—";
+  return options ? d.toLocaleDateString("en-US", options) : d.toLocaleDateString();
+}
+
 // Returns the inclusive start date and exclusive end date of a calendar
 // month given as "YYYY-MM". Handy for reports that window by month rather
 // than by ISO week (e.g. an upcoming Monthly Summary feature).

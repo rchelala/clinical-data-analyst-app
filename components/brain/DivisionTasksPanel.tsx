@@ -3,18 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { X, Loader2, ListTodo } from "lucide-react";
 import { Analyst, Task } from "@/lib/brain-types";
+import { formatDateOnly } from "@/lib/dates";
 
 interface DivisionTasksPanelProps {
   divisionId: number;
   divisionName: string;
   onClose: () => void;
-}
-
-function formatDate(dateString: string | null): string {
-  if (!dateString) return "—";
-  const d = new Date(dateString);
-  if (Number.isNaN(d.getTime())) return dateString;
-  return d.toLocaleDateString();
 }
 
 // Lightweight status->dot-color mapping for the read-only task chips in this
@@ -166,7 +160,7 @@ export function DivisionTasksPanel({ divisionId, divisionName, onClose }: Divisi
                         : "Unassigned"}
                     </span>
                     <span>·</span>
-                    <span>Created: {formatDate(task.createdDate)}</span>
+                    <span>Created: {formatDateOnly(task.createdDate)}</span>
                   </div>
                 </div>
               ))}

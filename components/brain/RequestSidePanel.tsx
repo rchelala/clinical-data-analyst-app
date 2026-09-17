@@ -7,6 +7,7 @@ import { AttachFieldRequestForm } from "@/components/brain/AttachFieldRequestFor
 import { EditEntityForm } from "@/components/brain/EditEntityForm";
 import { RequestTagEditor } from "./RequestTagEditor";
 import { RequestLinkPicker } from "./RequestLinkPicker";
+import { formatDateOnly } from "@/lib/dates";
 
 export interface RequestSidePanelEntity {
   kind: BrainEntityKind;
@@ -42,13 +43,6 @@ const STATUS_LABELS: Record<RequestStatus, string> = {
   in_progress: "In progress",
   done: "Done",
 };
-
-function formatDate(dateString: string | null): string {
-  if (!dateString) return "—";
-  const d = new Date(dateString);
-  if (Number.isNaN(d.getTime())) return dateString;
-  return d.toLocaleDateString();
-}
 
 // Lightweight status->dot-color mapping for the read-only task chips in this
 // panel. Intentionally not reusing StatusPrioritySelect's full color system
@@ -658,7 +652,7 @@ export function RequestSidePanel({
                             : "Unassigned"}
                         </span>
                         <span>·</span>
-                        <span>Created: {formatDate(task.createdDate)}</span>
+                        <span>Created: {formatDateOnly(task.createdDate)}</span>
                       </div>
                     </div>
                   ))}
@@ -812,9 +806,9 @@ export function RequestSidePanel({
                   </div>
 
                   <div className="text-xs text-secondary mt-1">
-                    Created: {formatDate(request.createdDate)}
+                    Created: {formatDateOnly(request.createdDate)}
                     {request.status === "done" && (
-                      <> · Completed: {formatDate(request.completedDate)}</>
+                      <> · Completed: {formatDateOnly(request.completedDate)}</>
                     )}
                   </div>
 

@@ -31,15 +31,15 @@ import {
   DivisionMonthlySummary,
   MonthlyGroup,
 } from "@/lib/brain-types";
+import { formatDateOnly } from "@/lib/dates";
 import { KpiCard } from "@/components/overview/KpiCard";
 import { TaskStatusBadge, OwnerChip } from "@/components/overview/StatusBadge";
 import { TH_CLASS, TD_CLASS } from "@/components/overview/DetailSection";
 
+const DATE_FORMAT_OPTIONS: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric" };
+
 function formatDate(value: string | null): string {
-  if (!value) return "—";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return formatDateOnly(value, DATE_FORMAT_OPTIONS);
 }
 
 function yearOf(month: string): string {

@@ -70,13 +70,38 @@ export async function GET(req: NextRequest) {
     }
 
     if (hasDivisionId) {
-      const rows = await sql`
-        SELECT t.id, t.dashboard_id, t.subscription_id, t.division_id, t.psq_id, t.owner_analyst_id, t.created_by_id, t.title, t.description, t.status, t.priority, t.created_date, t.completed_date, t.resolution_comment, owner.name AS owner_name
-        FROM tasks t
-        LEFT JOIN analysts owner ON owner.id = t.owner_analyst_id
-        WHERE t.division_id = ${divisionId}
-        ORDER BY t.created_date DESC
-      `;
+      // Batch mode: the division's own (standalone) tasks plus every task on
+      // its dashboards and subscriptions, in one query, instead of the
+      // caller fetching per-entity then separately fetching division tasks.
+      // psq tasks are intentionally excluded here (as they were before) —
+      // they don't have dashboard_id/subscription_id/division_id set, so
+      // they're naturally left out of the OR below.
+      const includeEntities = req.nextUrl.searchParams.get('includeEntities') === '1';
+
+      if (includeEntities && !Number.isInteger(divisionId)) {
+        return NextResponse.json(
+          { error: 'divisionId must be an integer.' },
+          { status: 400 }
+        );
+      }
+
+      const rows = includeEntities
+        ? await sql`
+            SELECT t.id, t.dashboard_id, t.subscription_id, t.division_id, t.psq_id, t.owner_analyst_id, t.created_by_id, t.title, t.description, t.status, t.priority, t.created_date, t.completed_date, t.resolution_comment, owner.name AS owner_name
+            FROM tasks t
+            LEFT JOIN analysts owner ON owner.id = t.owner_analyst_id
+            WHERE t.division_id = ${divisionId}
+               OR t.dashboard_id IN (SELECT id FROM dashboards WHERE division_id = ${divisionId})
+               OR t.subscription_id IN (SELECT id FROM report_subscriptions WHERE division_id = ${divisionId})
+            ORDER BY t.created_date DESC
+          `
+        : await sql`
+            SELECT t.id, t.dashboard_id, t.subscription_id, t.division_id, t.psq_id, t.owner_analyst_id, t.created_by_id, t.title, t.description, t.status, t.priority, t.created_date, t.completed_date, t.resolution_comment, owner.name AS owner_name
+            FROM tasks t
+            LEFT JOIN analysts owner ON owner.id = t.owner_analyst_id
+            WHERE t.division_id = ${divisionId}
+            ORDER BY t.created_date DESC
+          `;
 
       return NextResponse.json(rows.map(mapTaskRow));
     }

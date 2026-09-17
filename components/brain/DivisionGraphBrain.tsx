@@ -77,91 +77,96 @@ export function DivisionGraphBrain({
     return () => observer.disconnect();
   }, []);
 
-  // Fetch each entity's requests up front so they can render as graph nodes
-  // immediately, rather than lazily on click (today's RequestSidePanel
-  // behavior). Re-runs whenever the division's entity lists change.
+  // Stable key derived from the entity ids actually in scope (not the
+  // dashboards/subscriptions array *references*, which change identity on
+  // every parent re-render even when the entity list itself hasn't
+  // changed). Effects below key off this string so a new array from the
+  // parent doesn't force a refetch, but adding/removing an entity does.
+  const entityKey = useMemo(() => {
+    const ids = [
+      ...dashboards.map((d) => `d${d.id}`),
+      ...subscriptions.map((s) => `s${s.id}`),
+    ];
+    return ids.sort().join(",");
+  }, [dashboards, subscriptions]);
+
+  // Fetch this division's requests and tasks up front, in two batch calls
+  // (one row set each, grouped client-side), so they can render as graph
+  // nodes immediately rather than lazily on click (today's RequestSidePanel
+  // behavior). Previously this issued one /api/requests and one /api/tasks
+  // call PER dashboard/subscription plus a division-tasks call — up to ~41
+  // requests for a 20-entity division. Re-runs when the division or its
+  // entity membership changes (entityKey), not on every parent re-render.
   useEffect(() => {
-    let cancelled = false;
+    const controller = new AbortController();
     setRequestsLoading(true);
     setRequestsError(null);
 
-    const entities: { kind: BrainEntityKind; id: number }[] = [
-      ...dashboards.map((d) => ({ kind: "dashboard" as const, id: d.id })),
-      ...subscriptions.map((s) => ({ kind: "subscription" as const, id: s.id })),
-    ];
-
     (async () => {
       try {
-        const results = await Promise.all(
-          entities.map(async ({ kind, id }) => {
-            const param = kind === "dashboard" ? `dashboardId=${id}` : `subscriptionId=${id}`;
-            const res = await fetch(`/api/requests?${param}`);
-            const data = await res.json();
-            if (!res.ok) {
-              throw new Error(data.error ?? "Could not load requests.");
-            }
-            return [`${kind}-${id}`, data as RequestWithCreator[]] as const;
-          })
-        );
+        const [requestsRes, tasksRes] = await Promise.all([
+          fetch(`/api/requests?divisionId=${division.id}`, { signal: controller.signal }),
+          fetch(`/api/tasks?divisionId=${division.id}&includeEntities=1`, {
+            signal: controller.signal,
+          }),
+        ]);
 
-        if (cancelled) return;
-        setRequestsByEntity(new Map(results));
-      } catch (err) {
-        if (!cancelled) {
-          setRequestsError(
-            err instanceof Error ? err.message : "Network error — could not reach the server."
-          );
+        const requestsData = await requestsRes.json();
+        if (!requestsRes.ok) {
+          throw new Error(requestsData.error ?? "Could not load requests.");
         }
-      } finally {
-        if (!cancelled) setRequestsLoading(false);
-      }
-    })();
 
-    return () => {
-      cancelled = true;
-    };
-  }, [dashboards, subscriptions]);
+        const groupedRequests = new Map<string, RequestWithCreator[]>();
+        for (const request of requestsData as RequestWithCreator[]) {
+          const key =
+            request.dashboardId != null
+              ? `dashboard-${request.dashboardId}`
+              : `subscription-${request.subscriptionId}`;
+          const bucket = groupedRequests.get(key);
+          if (bucket) {
+            bucket.push(request);
+          } else {
+            groupedRequests.set(key, [request]);
+          }
+        }
+        setRequestsByEntity(groupedRequests);
 
-  // Fetch each entity's tasks, plus the division's standalone tasks (no
-  // dashboard/subscription parent), so they can render as graph nodes
-  // alongside requests. Mirrors the requests effect above but degrades
-  // gracefully on error rather than surfacing a blocking error banner —
-  // tasks are supplementary to the requests-driven view.
-  useEffect(() => {
-    let cancelled = false;
-
-    const entities: { kind: BrainEntityKind; id: number }[] = [
-      ...dashboards.map((d) => ({ kind: "dashboard" as const, id: d.id })),
-      ...subscriptions.map((s) => ({ kind: "subscription" as const, id: s.id })),
-    ];
-
-    (async () => {
-      try {
-        const entityResults = await Promise.all(
-          entities.map(async ({ kind, id }) => {
-            const param = kind === "dashboard" ? `dashboardId=${id}` : `subscriptionId=${id}`;
-            const res = await fetch(`/api/tasks?${param}`);
-            if (!res.ok) return [`${kind}-${id}`, [] as Task[]] as const;
-            const data = await res.json();
-            return [`${kind}-${id}`, data as Task[]] as const;
-          })
+        // Tasks are supplementary to the requests-driven view — degrade
+        // gracefully (skip) on a non-OK response or parse failure rather
+        // than surfacing a blocking error banner, matching prior behavior.
+        if (tasksRes.ok) {
+          const tasksData = (await tasksRes.json()) as Task[];
+          const groupedTasks = new Map<string, Task[]>();
+          for (const task of tasksData) {
+            const key =
+              task.dashboardId != null
+                ? `dashboard-${task.dashboardId}`
+                : task.subscriptionId != null
+                ? `subscription-${task.subscriptionId}`
+                : "center";
+            const bucket = groupedTasks.get(key);
+            if (bucket) {
+              bucket.push(task);
+            } else {
+              groupedTasks.set(key, [task]);
+            }
+          }
+          setTasksByEntity(groupedTasks);
+        }
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        setRequestsError(
+          err instanceof Error ? err.message : "Network error — could not reach the server."
         );
-
-        const centerRes = await fetch(`/api/tasks?divisionId=${division.id}`);
-        const centerTasks: Task[] = centerRes.ok ? await centerRes.json() : [];
-
-        if (cancelled) return;
-        setTasksByEntity(new Map([...entityResults, ["center", centerTasks] as const]));
-      } catch {
-        // Tasks are supplementary — silently skip on network error rather
-        // than blocking the requests-driven graph from rendering.
+      } finally {
+        if (!controller.signal.aborted) setRequestsLoading(false);
       }
     })();
 
     return () => {
-      cancelled = true;
+      controller.abort();
     };
-  }, [dashboards, subscriptions, division.id]);
+  }, [division.id, entityKey]);
 
   const graphData: GraphData = useMemo(
     () =>

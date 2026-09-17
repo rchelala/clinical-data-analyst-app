@@ -24,7 +24,10 @@ const config: Config = {
         },
       },
       fontFamily: {
-        mono: ["'JetBrains Mono'", "ui-monospace", "monospace"],
+        // --font-jetbrains-mono is set by next/font on <html> in
+        // app/layout.tsx; the literal family name stays as a fallback for
+        // any context where that CSS variable isn't in scope.
+        mono: ["var(--font-jetbrains-mono)", "'JetBrains Mono'", "ui-monospace", "monospace"],
       },
       animation: {
         "spin-slow": "spin 2s linear infinite",

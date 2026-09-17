@@ -48,7 +48,7 @@ export function CodePanel({ value, onChange, language, readOnly = false, placeho
           options={{
             readOnly,
             fontSize: 13,
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: "var(--font-jetbrains-mono), 'JetBrains Mono', monospace",
             fontLigatures: true,
             lineNumbers: "on",
             minimap: { enabled: false },

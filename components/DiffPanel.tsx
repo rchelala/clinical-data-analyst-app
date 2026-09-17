@@ -72,7 +72,7 @@ export function DiffPanel({ original, modified, language }: Props) {
         options={{
           readOnly: true,
           fontSize: 13,
-          fontFamily: "'JetBrains Mono', monospace",
+          fontFamily: "var(--font-jetbrains-mono), 'JetBrains Mono', monospace",
           fontLigatures: true,
           lineNumbers: "on",
           minimap: { enabled: false },

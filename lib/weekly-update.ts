@@ -50,11 +50,13 @@ function formatTitleDate(date: Date): string {
   return date.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
 }
 
-// Builds a copy-ready Markdown weekly status update from compiled worklist
-// data. Pure/deterministic aside from reading "now" for the title date and
-// the recent-completion window — no network calls, no AI cost.
-export function buildStructuredUpdate(data: WeeklyUpdateData): string {
-  const { analystName, meetings, dashboards, subscriptions, assignedTasks, psqs } = data;
+// Builds the Markdown body (everything after the "# Weekly Update — name" /
+// generated-date title lines) from compiled worklist data. Split out from
+// buildStructuredUpdate so a staleness fingerprint can be computed from the
+// data content alone — see buildFingerprintSource below — without the
+// title's generated date making every fingerprint change at midnight.
+function buildBody(data: WeeklyUpdateData): string {
+  const { meetings, dashboards, subscriptions, assignedTasks, psqs } = data;
 
   // "This week" for completions = the trailing 7 days ending today (today plus
   // the prior six), so a report written on any day — including a Monday —
@@ -99,7 +101,7 @@ export function buildStructuredUpdate(data: WeeklyUpdateData): string {
     return `**${name}** — ${status ?? "—"}${priorityLabel}`;
   };
 
-  let out = `# Weekly Update — ${analystName}\n_${formatTitleDate(new Date())}_\n\n`;
+  let out = "";
 
   // Every section below prints its heading unconditionally, even when empty.
   // The AI rewrite mirrors this structure verbatim, and a fixed set of headings
@@ -163,4 +165,21 @@ export function buildStructuredUpdate(data: WeeklyUpdateData): string {
   }
 
   return out;
+}
+
+// Builds a copy-ready Markdown weekly status update from compiled worklist
+// data. Pure/deterministic aside from reading "now" for the title date and
+// the recent-completion window — no network calls, no AI cost.
+export function buildStructuredUpdate(data: WeeklyUpdateData): string {
+  const title = `# Weekly Update — ${data.analystName}\n_${formatTitleDate(new Date())}_\n\n`;
+  return title + buildBody(data);
+}
+
+// Serializes the data content used for a saved-summary staleness fingerprint,
+// deliberately excluding the title's generated date (see buildStructuredUpdate)
+// so a summary saved yesterday doesn't look stale today purely because the
+// calendar day changed — only real changes to the underlying worklist data
+// should flip the fingerprint.
+export function buildFingerprintSource(data: WeeklyUpdateData): string {
+  return buildBody(data);
 }

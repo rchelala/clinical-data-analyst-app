@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import { X, Loader2, Sparkles, ClipboardCheck, Clipboard, RefreshCw } from "lucide-react";
-import { buildStructuredUpdate, WeeklyUpdateData } from "@/lib/weekly-update";
+import { buildStructuredUpdate, buildFingerprintSource, WeeklyUpdateData } from "@/lib/weekly-update";
 import { loadProvider } from "@/lib/providers";
 import {
   loadWeeklySummary,
@@ -45,9 +45,12 @@ export function WeeklyUpdateDrawer({ data, analystId, onClose }: WeeklyUpdateDra
   const [editorEpoch, setEditorEpoch] = useState(0);
 
   const structuredMarkdown = useMemo(() => buildStructuredUpdate(data), [data]);
+  // Fingerprint from the data content only (excludes the title's generated
+  // date), so a saved summary doesn't look stale just because a new day
+  // started — see buildFingerprintSource in lib/weekly-update.ts.
   const sourceFingerprint = useMemo(
-    () => computeSourceFingerprint(structuredMarkdown),
-    [structuredMarkdown]
+    () => computeSourceFingerprint(buildFingerprintSource(data)),
+    [data]
   );
   const isStale = savedAt !== null && savedFingerprint !== sourceFingerprint;
 

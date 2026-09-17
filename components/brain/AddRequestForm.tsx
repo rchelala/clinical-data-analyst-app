@@ -11,6 +11,7 @@ import {
   parseFieldRequestExcel,
   generateTitleFromParsedRows,
   generateDescriptionFromParsedRows,
+  type ParseFieldRequestResult,
 } from "@/lib/parseFieldRequestExcel";
 
 interface AddRequestFormProps {
@@ -49,6 +50,7 @@ export function AddRequestForm({
   const [dragging, setDragging] = useState(false);
   const [titleAutoFilled, setTitleAutoFilled] = useState(false);
   const [parseNote, setParseNote] = useState<string | null>(null);
+  const [parsedResult, setParsedResult] = useState<ParseFieldRequestResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const latestFileRef = useRef<File | null>(null);
 
@@ -64,6 +66,7 @@ export function AddRequestForm({
       }
       setError(null);
       setParseNote(null);
+      setParsedResult(null);
       setAttachmentFile(f);
       latestFileRef.current = f;
 
@@ -71,6 +74,7 @@ export function AddRequestForm({
       if (latestFileRef.current !== f) return; // a newer file was accepted while this parse was in flight — discard stale result
 
       if (result && result.rows.length > 0) {
+        setParsedResult(result);
         if (title.trim() === "" || titleAutoFilled) {
           setTitle(generateTitleFromParsedRows(result));
           setDescription(generateDescriptionFromParsedRows(result));
@@ -114,6 +118,7 @@ export function AddRequestForm({
   const handleRemoveAttachment = useCallback(() => {
     setAttachmentFile(null);
     setParseNote(null);
+    setParsedResult(null);
     latestFileRef.current = null;
     if (fileInputRef.current) fileInputRef.current.value = "";
   }, []);
@@ -158,6 +163,10 @@ export function AddRequestForm({
           attachmentFilename = uploadData.filename;
         }
 
+        const fieldNames = parsedResult
+          ? parsedResult.rows.map((r) => r.fieldName.trim()).filter(Boolean)
+          : undefined;
+
         const res = await fetch("/api/requests", {
           method: "POST",
           headers: {
@@ -172,6 +181,7 @@ export function AddRequestForm({
             requestType,
             attachmentUrl,
             attachmentFilename,
+            fieldNames: fieldNames && fieldNames.length > 0 ? fieldNames : undefined,
           }),
         });
         const data = await res.json();
@@ -188,7 +198,7 @@ export function AddRequestForm({
         setSubmitting(false);
       }
     },
-    [entityValue, title, description, requestType, attachmentFile, currentAnalystId, onCreated]
+    [entityValue, title, description, requestType, attachmentFile, parsedResult, currentAnalystId, onCreated]
   );
 
   return (

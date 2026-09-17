@@ -34,10 +34,22 @@ const HEADER_ALIASES: Record<LogicalColumn, string[]> = {
 const MAX_HEADER_SCAN_ROWS = 10;
 const MAX_DATA_ROWS = 2000;
 const MIN_HEADER_MATCHES = 3;
+const MAX_CONSECUTIVE_BLANK_ROWS = 20;
 
-/** Normalize a string for alias comparison: trim, collapse internal whitespace, lowercase. */
+/**
+ * Normalize a header string for alias comparison: strip parenthetical
+ * suffixes (e.g. "Tooltip (Description of field)" -> "Tooltip"), strip a
+ * trailing required-field marker ("Field Name*" -> "Field Name"), collapse
+ * internal whitespace, trim, and lowercase.
+ */
 function normalizeHeaderText(text: string): string {
-  return text.trim().replace(/\s+/g, " ").toLowerCase();
+  return text
+    .replace(/\([^)]*\)/g, "")
+    .trim()
+    .replace(/\*+$/, "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
 }
 
 /** Find the logical column (if any) whose alias list contains the normalized text exactly. */
@@ -51,30 +63,53 @@ function matchLogicalColumn(normalizedText: string): LogicalColumn | null {
   return null;
 }
 
-/** Extract plain text from an ExcelJS cell, handling strings, numbers, dates, rich text, and blanks. */
-function cellText(cell: ExcelJS.Cell): string {
-  const value = cell.value;
+/**
+ * Recursively resolve an ExcelJS cell value to plain text. Handles plain
+ * strings/numbers/booleans/dates, rich text runs, formula cells (reads
+ * `.result`, which is itself resolved recursively since a formula can
+ * resolve to a date, another rich-text run, etc.), hyperlink cells (reads
+ * `.text`, also resolved recursively), and error values (returns "").
+ * ExcelJS dates are stored as UTC midnight, so formatting with the local
+ * timezone would show the previous day in zones west of UTC — always
+ * format in UTC to match the date the workbook actually encodes.
+ */
+function valueToText(value: ExcelJS.CellValue): string {
   if (value === null || value === undefined) {
     return "";
   }
   if (typeof value === "string") {
     return value;
   }
-  if (typeof value === "number") {
+  if (typeof value === "number" || typeof value === "boolean") {
     return String(value);
   }
   if (value instanceof Date) {
-    return value.toLocaleDateString();
+    return value.toLocaleDateString(undefined, { timeZone: "UTC" });
   }
-  if (
-    typeof value === "object" &&
-    "richText" in value &&
-    Array.isArray((value as { richText?: unknown }).richText)
-  ) {
-    const richText = (value as { richText: Array<{ text: string }> }).richText;
-    return richText.map((part) => part.text).join("");
+  if (typeof value === "object") {
+    if ("error" in value) {
+      // CellErrorValue, e.g. { error: "#REF!" }
+      return "";
+    }
+    if ("richText" in value && Array.isArray((value as { richText?: unknown }).richText)) {
+      const richText = (value as { richText: Array<{ text: string }> }).richText;
+      return richText.map((part) => part.text).join("");
+    }
+    if ("result" in value) {
+      // CellFormulaValue (regular or shared formula) — resolve the computed result.
+      return valueToText((value as { result?: ExcelJS.CellValue }).result as ExcelJS.CellValue);
+    }
+    if ("hyperlink" in value && "text" in value) {
+      // CellHyperlinkValue
+      return valueToText((value as { text: ExcelJS.CellValue }).text);
+    }
   }
   return "";
+}
+
+/** Extract plain text from an ExcelJS cell. */
+function cellText(cell: ExcelJS.Cell): string {
+  return valueToText(cell.value);
 }
 
 interface HeaderDetectionResult {
@@ -129,6 +164,7 @@ function extractRows(
   const rows: ParsedFieldRow[] = [];
   let lastDate = "";
   let lastTable = "";
+  let consecutiveBlankRows = 0;
 
   const firstDataRow = headerRowNumber + 1;
   const lastDataRow = Math.min(ws.rowCount, headerRowNumber + MAX_DATA_ROWS);
@@ -151,12 +187,22 @@ function extractRows(
         !formatText.trim() &&
         !tooltipText.trim();
       if (otherCellsBlank) {
-        // End of data block.
-        break;
+        // A single blank row (or a short run of them) is often just visual
+        // spacing between sections — skip it and keep scanning rather than
+        // silently dropping every row after it. Only give up once we've
+        // seen a long enough run of blanks to be confident the data ended.
+        consecutiveBlankRows++;
+        if (consecutiveBlankRows >= MAX_CONSECUTIVE_BLANK_ROWS) {
+          break;
+        }
+        continue;
       }
       // Stray formatting artifact row; skip but keep scanning.
+      consecutiveBlankRows = 0;
       continue;
     }
+
+    consecutiveBlankRows = 0;
 
     if (dateText.trim()) {
       lastDate = dateText;

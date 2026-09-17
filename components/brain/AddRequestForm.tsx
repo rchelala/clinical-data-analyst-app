@@ -54,8 +54,12 @@ export function AddRequestForm({
 
   const acceptFile = useCallback(
     async (f: File) => {
-      if (!/\.(xlsx|xls)$/i.test(f.name)) {
-        setError("Please attach a .xlsx or .xls file.");
+      if (/\.xls$/i.test(f.name)) {
+        setError("This is an old .xls file — please save it as .xlsx and try again.");
+        return;
+      }
+      if (!/\.xlsx$/i.test(f.name)) {
+        setError("Please attach a .xlsx file.");
         return;
       }
       setError(null);
@@ -295,7 +299,7 @@ export function AddRequestForm({
             <input
               ref={fileInputRef}
               type="file"
-              accept=".xlsx,.xls"
+              accept=".xlsx"
               className="hidden"
               onChange={handleFileInputChange}
             />

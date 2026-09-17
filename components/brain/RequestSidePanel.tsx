@@ -33,7 +33,16 @@ interface RequestSidePanelProps {
   onEntityUpdated: (newIdentity: { kind: BrainEntityKind; id: number }) => void;
   onEntityDeleted: () => void;
   onNavigateToEntity: (kind: BrainEntityKind, id: number) => void;
+  // Called after a create/delete-shaped request-list change (attach field
+  // request, delete request) — these can add/remove a graph node, so the
+  // caller does a full page refresh.
   onRequestsChanged?: () => void;
+  // Called after a request's status changes in place (PATCH response
+  // already merged into local `requests` state above). This never adds or
+  // removes a request, only how it's colored/dashed in the division graph,
+  // so the caller can do a much lighter graph-only refresh instead of a
+  // full page refresh.
+  onRequestStatusChanged?: () => void;
 }
 
 const STATUS_OPTIONS: RequestStatus[] = ["open", "in_progress", "done"];
@@ -99,6 +108,7 @@ export function RequestSidePanel({
   onEntityDeleted,
   onNavigateToEntity,
   onRequestsChanged,
+  onRequestStatusChanged,
 }: RequestSidePanelProps) {
   const [requests, setRequests] = useState<RequestWithCreator[]>([]);
   const [loading, setLoading] = useState(false);
@@ -333,7 +343,13 @@ export function RequestSidePanel({
         setRequests((prev) =>
           prev.map((r) => (r.id === requestId ? { ...r, ...data } : r))
         );
-        onRequestsChanged?.();
+        // Status change only — the PATCH response above already updated
+        // this panel's own `requests` state, so there's no need to bump the
+        // page-wide refreshKey (which would unmount/remount the whole
+        // graph). The division graph still needs to know, since request
+        // nodes are colored/dashed by status — that's the lighter-weight
+        // graph-only refresh.
+        onRequestStatusChanged?.();
       } catch {
         setStatusErrors((prev) => ({
           ...prev,
@@ -347,7 +363,7 @@ export function RequestSidePanel({
         });
       }
     },
-    [onRequestsChanged]
+    [onRequestStatusChanged]
   );
 
   const handleDownloadAttachment = useCallback(

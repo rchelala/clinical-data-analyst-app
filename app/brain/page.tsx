@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Loader2, ClipboardPlus, ArrowLeft, Home, FolderPlus, ClipboardList, ListTodo, HelpCircle, Trash2, Inbox, Building2 } from "lucide-react";
 import { MobileNav } from "@/components/MobileNav";
@@ -35,6 +35,15 @@ interface SelectedEntity {
   id: number;
 }
 
+// Stable empty-array constants for the "not at this zoom level" fallback
+// below, so that branch doesn't hand out a brand-new [] reference on every
+// render — a fresh reference there would break the referential equality
+// that divisionNodes/divisionDashboards/divisionSubscriptions' useMemo calls
+// rely on, forcing them to recompute every render even when nothing changed.
+const EMPTY_DIVISIONS: Division[] = [];
+const EMPTY_DASHBOARDS: DashboardWithUrgency[] = [];
+const EMPTY_SUBSCRIPTIONS: ReportSubscriptionWithUrgency[] = [];
+
 // Resolves a subscription's linkedDashboardId to the {id, name} shape the
 // side panel needs, looking the dashboard up in the unscoped "all" list so
 // this keeps working regardless of the current zoom's scoped data.
@@ -68,10 +77,24 @@ export default function BrainPage() {
   const [showDeleteDivision, setShowDeleteDivision] = useState(false);
   const [showUrgencyInfo, setShowUrgencyInfo] = useState(false);
   // Bumping this re-runs the unscoped "all" fetch below, letting us refresh
-  // urgency/counts after a new request is created.
+  // urgency/counts after a new request is created. Reserved for edits that
+  // change entities/divisions themselves (create/delete/convert/rename/
+  // move) — see graphRefreshKey below for the lighter-weight path used by
+  // in-place request status changes, which don't need this.
   const [refreshKey, setRefreshKey] = useState(0);
+  // Bumping this tells the currently-rendered DivisionGraphBrain to refetch
+  // just its own two batch calls (requests + tasks) in place, without
+  // unmounting the graph or touching any of the broader page/cache state.
+  // Used for request status changes made in the side panel, which affect
+  // only how a request node is colored/dashed in the graph — nothing about
+  // entities, divisions, or aggregate urgency/counts.
+  const [graphRefreshKey, setGraphRefreshKey] = useState(0);
   const [filters, setFilters] = useState<BrainFilters>(createDefaultFilters());
   const [searchQuery, setSearchQuery] = useState("");
+  // Deferred so typing stays responsive — resolveSearchResults and the
+  // re-renders it triggers (including the FilterRail dropdown) run at lower
+  // priority than the input's own value update.
+  const deferredSearchQuery = useDeferredValue(searchQuery);
 
   const handleSelectAnalyst = useCallback(
     (analystId: number, _analystName: string, isManualSwitch: boolean) => {
@@ -166,9 +189,9 @@ export default function BrainPage() {
   // Data for the analyst/division levels, sourced from useBrainData. Empty
   // arrays when at the galaxy level (useBrainData returns galaxySummaries
   // instead).
-  const divisions = "divisions" in brainData ? brainData.divisions : [];
-  const dashboards = "dashboards" in brainData ? brainData.dashboards : [];
-  const subscriptions = "subscriptions" in brainData ? brainData.subscriptions : [];
+  const divisions = "divisions" in brainData ? brainData.divisions : EMPTY_DIVISIONS;
+  const dashboards = "dashboards" in brainData ? brainData.dashboards : EMPTY_DASHBOARDS;
+  const subscriptions = "subscriptions" in brainData ? brainData.subscriptions : EMPTY_SUBSCRIPTIONS;
 
   // Group dashboards+subscriptions by divisionId to build the top-level
   // division nodes, each positioned at the min radius across its children.
@@ -287,19 +310,66 @@ export default function BrainPage() {
   // whenever the query or any of that underlying data changes.
   const searchResults = useMemo<SearchResult[]>(
     () =>
-      resolveSearchResults(searchQuery, {
+      resolveSearchResults(deferredSearchQuery, {
         allDashboards,
         allSubscriptions,
         allDivisions,
         analysts,
         viewerAnalystId,
       }),
-    [searchQuery, allDashboards, allSubscriptions, allDivisions, analysts, viewerAnalystId]
+    [deferredSearchQuery, allDashboards, allSubscriptions, allDivisions, analysts, viewerAnalystId]
   );
 
   const handleSelectSearchResult = useCallback((result: SearchResult) => {
     setZoom(result.targetZoom);
     setSearchQuery("");
+  }, []);
+
+  // Stable callbacks passed down into GalaxyCanvas's children (GalaxyView /
+  // SolarSystemView / PlanetView / DivisionGraphBrain). Each used to be
+  // declared inline in the JSX below, handing out a new function identity
+  // every render — harmless for cheap components, but the actual props these
+  // land on eventually reach paintNode/DivisionGraphBrain's memoized
+  // callbacks, so keeping them referentially stable here avoids needlessly
+  // invalidating those deeper memos. Each reads the CURRENT zoom via the
+  // setZoom updater form rather than closing over `zoom` directly, so none
+  // of them need zoom as a dependency.
+  const handleSelectAnalystNode = useCallback((analystId: number) => {
+    setZoom({ level: "analyst", analystId });
+  }, []);
+
+  const handleSelectDivision = useCallback((divisionId: number) => {
+    setZoom((current) =>
+      current.level === "analyst"
+        ? { level: "division", analystId: current.analystId, divisionId }
+        : current
+    );
+  }, []);
+
+  const handleSelectEntity = useCallback(
+    (kind: BrainEntityKind, id: number, focusRequestId?: number) => {
+      setSelectedEntity({ kind, id });
+      setSelectedRequestId(focusRequestId);
+    },
+    []
+  );
+
+  const handleAddEntity = useCallback(() => setShowAddEntityForm(true), []);
+
+  const handleJumpToAnalyst = useCallback((otherAnalystId: number) => {
+    setZoom((current) =>
+      current.level === "division"
+        ? { level: "division", analystId: otherAnalystId, divisionId: current.divisionId }
+        : current
+    );
+  }, []);
+
+  // Bumps only the division-graph-local refresh counter (see graphRefreshKey
+  // above), not the page-wide refreshKey — a request status change doesn't
+  // touch any entity/division data or aggregate counts, only how that one
+  // request node is colored/dashed inside the currently-rendered graph.
+  const handleRequestStatusChanged = useCallback(() => {
+    setGraphRefreshKey((k) => k + 1);
   }, []);
 
   const viewedAnalystName = useMemo(() => {
@@ -485,7 +555,7 @@ export default function BrainPage() {
                 summaries={"galaxySummaries" in brainData ? brainData.galaxySummaries : []}
                 viewerAnalystId={viewerAnalystId}
                 filters={filters}
-                onSelectAnalyst={(analystId) => setZoom({ level: "analyst", analystId })}
+                onSelectAnalyst={handleSelectAnalystNode}
               />
             </GalaxyCanvas>
           )}
@@ -517,9 +587,7 @@ export default function BrainPage() {
                   viewedAnalystId={zoom.analystId}
                   viewerAnalystId={viewerAnalystId}
                   filters={filters}
-                  onSelectDivision={(divisionId) =>
-                    setZoom({ level: "division", analystId: zoom.analystId, divisionId })
-                  }
+                  onSelectDivision={handleSelectDivision}
                 />
               </GalaxyCanvas>
             )}
@@ -537,15 +605,11 @@ export default function BrainPage() {
                   filters={filters}
                   centerLabel={viewedAnalystName ?? ""}
                   isViewerCenter={zoom.level === "division" && zoom.analystId === viewerAnalystId}
-                  onSelectEntity={(kind, id, focusRequestId) => {
-                    setSelectedEntity({ kind, id });
-                    setSelectedRequestId(focusRequestId);
-                  }}
-                  onAddEntity={() => setShowAddEntityForm(true)}
+                  onSelectEntity={handleSelectEntity}
+                  onAddEntity={handleAddEntity}
                   viewedAnalystId={zoom.analystId}
-                  onJumpToAnalyst={(otherAnalystId) =>
-                    setZoom({ level: "division", analystId: otherAnalystId, divisionId: selectedDivision.id })
-                  }
+                  onJumpToAnalyst={handleJumpToAnalyst}
+                  refreshKey={graphRefreshKey}
                 />
               </GalaxyCanvas>
             )}
@@ -585,6 +649,7 @@ export default function BrainPage() {
             setRefreshKey((k) => k + 1);
           }}
           onRequestsChanged={() => setRefreshKey((k) => k + 1)}
+          onRequestStatusChanged={handleRequestStatusChanged}
         />
       )}
 

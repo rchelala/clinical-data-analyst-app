@@ -16,6 +16,7 @@ export type ZoomState =
 interface GalaxyData {
   galaxySummaries: AnalystSummary[];
   loading: boolean;
+  isRefreshing: boolean;
   error: string | null;
 }
 
@@ -24,6 +25,7 @@ interface AnalystData {
   dashboards: DashboardWithUrgency[];
   subscriptions: ReportSubscriptionWithUrgency[];
   loading: boolean;
+  isRefreshing: boolean;
   error: string | null;
 }
 
@@ -90,21 +92,28 @@ async function fetchAnalystScopedData(analystId: number): Promise<{
  * Fetches the data needed for a given zoom level, caching results in-memory
  * for the lifetime of the component tree so re-entering a previously visited
  * zoom level doesn't refetch. Passing a `refreshKey` that changes (e.g. after
- * a create-action) busts the entire cache and forces a refetch for whatever
- * zoom level is currently active — this is intentionally a blunt, whole-cache
- * invalidation rather than per-key, since refreshes are rare (only on
- * create-actions) and the cost of one extra refetch on the next zoom
- * navigation is negligible.
+ * a save in the Brain side panel) busts only the cache entries that could
+ * plausibly be stale — the current zoom's own entry, plus the 'galaxy' entry
+ * (which aggregates across every analyst/division and so could be affected
+ * by any edit) — leaving every OTHER analyst's cached entry untouched.
+ *
+ * A refetch triggered purely by a refreshKey bump (same zoom level as
+ * before, data previously loaded) sets `isRefreshing` instead of `loading`,
+ * so callers can keep rendering the existing data/canvas in place rather
+ * than unmounting it — only the very first fetch for a given zoom level
+ * (or a genuine navigation to a not-yet-cached zoom level) sets `loading`.
  */
 export function useBrainData(zoom: ZoomState, refreshKey?: number): GalaxyData | AnalystData {
   const cacheRef = useRef<Map<string | number, CacheEntry>>(new Map());
   const prevRefreshKeyRef = useRef(refreshKey);
+  const prevCacheKeyRef = useRef<string | number | undefined>(undefined);
 
   const [galaxySummaries, setGalaxySummaries] = useState<AnalystSummary[]>([]);
   const [divisions, setDivisions] = useState<Division[]>([]);
   const [dashboards, setDashboards] = useState<DashboardWithUrgency[]>([]);
   const [subscriptions, setSubscriptions] = useState<ReportSubscriptionWithUrgency[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const cacheKey = zoom.level === "galaxy" ? "galaxy" : zoom.analystId;
@@ -113,9 +122,15 @@ export function useBrainData(zoom: ZoomState, refreshKey?: number): GalaxyData |
     let cancelled = false;
     const cache = cacheRef.current;
 
-    if (refreshKey !== prevRefreshKeyRef.current) {
-      prevRefreshKeyRef.current = refreshKey;
-      cache.clear();
+    const cacheKeyChanged = cacheKey !== prevCacheKeyRef.current;
+    prevCacheKeyRef.current = cacheKey;
+
+    const refreshKeyChanged = refreshKey !== prevRefreshKeyRef.current;
+    prevRefreshKeyRef.current = refreshKey;
+
+    if (refreshKeyChanged) {
+      cache.delete(cacheKey);
+      if (cacheKey !== "galaxy") cache.delete("galaxy");
     }
 
     const cached = cache.get(cacheKey);
@@ -129,10 +144,19 @@ export function useBrainData(zoom: ZoomState, refreshKey?: number): GalaxyData |
       }
       setError(null);
       setLoading(false);
+      setIsRefreshing(false);
       return;
     }
 
-    setLoading(true);
+    // Stale-while-refresh only applies when we're refetching the SAME zoom
+    // level in response to a refreshKey bump — a genuine navigation to a
+    // not-yet-cached zoom level always blocks with `loading`, since there's
+    // no relevant existing data to keep showing meanwhile.
+    if (!cacheKeyChanged && refreshKeyChanged) {
+      setIsRefreshing(true);
+    } else {
+      setLoading(true);
+    }
     setError(null);
 
     (async () => {
@@ -155,7 +179,10 @@ export function useBrainData(zoom: ZoomState, refreshKey?: number): GalaxyData |
           setError(err instanceof Error ? err.message : "Network error — could not reach the server.");
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+          setIsRefreshing(false);
+        }
       }
     })();
 
@@ -166,8 +193,8 @@ export function useBrainData(zoom: ZoomState, refreshKey?: number): GalaxyData |
   }, [cacheKey, zoom.level, refreshKey]);
 
   if (zoom.level === "galaxy") {
-    return { galaxySummaries, loading, error };
+    return { galaxySummaries, loading, isRefreshing, error };
   }
 
-  return { divisions, dashboards, subscriptions, loading, error };
+  return { divisions, dashboards, subscriptions, loading, isRefreshing, error };
 }

@@ -34,6 +34,10 @@ interface DivisionGraphBrainProps {
   onAddEntity?: () => void;
   viewedAnalystId: number;
   onJumpToAnalyst: (analystId: number) => void;
+  // Bumped by the page to refetch just this division's requests/tasks in
+  // place (e.g. after a request status change in the side panel), without
+  // unmounting this component or losing zoom/pan/layout.
+  refreshKey?: number;
 }
 
 export function DivisionGraphBrain({
@@ -47,6 +51,7 @@ export function DivisionGraphBrain({
   onAddEntity,
   viewedAnalystId,
   onJumpToAnalyst,
+  refreshKey,
 }: DivisionGraphBrainProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -166,7 +171,10 @@ export function DivisionGraphBrain({
     return () => {
       controller.abort();
     };
-  }, [division.id, entityKey]);
+    // refreshKey is intentionally included so a bump refetches in place
+    // (same effect, same component instance — no unmount) rather than
+    // requiring the parent to remount this component.
+  }, [division.id, entityKey, refreshKey]);
 
   const graphData: GraphData = useMemo(
     () =>

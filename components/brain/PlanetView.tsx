@@ -25,6 +25,10 @@ interface PlanetViewProps {
   onAddEntity?: () => void;
   viewedAnalystId: number;
   onJumpToAnalyst: (analystId: number) => void;
+  // Bumped by the page to ask DivisionGraphBrain to refetch just its two
+  // batch calls (requests + tasks) in place, without unmounting — see
+  // app/brain/page.tsx's graphRefreshKey.
+  refreshKey?: number;
 }
 
 export function PlanetView(props: PlanetViewProps) {

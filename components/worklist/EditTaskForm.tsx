@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Pencil } from "lucide-react";
 import { Analyst, Task } from "@/lib/brain-types";
 import { StatusPrioritySelect } from "@/components/worklist/StatusPrioritySelect";
+import { toLocalDateString } from "@/lib/dates";
 
 interface EditTaskFormProps {
   task: Task; // whole row — supplies id + every initial value
@@ -86,6 +87,13 @@ export function EditTaskForm({
         status: status !== task.status ? status : undefined,
         priority: nextPriority !== (task.priority ?? null) ? nextPriority : undefined,
         ownerAnalystId: nextOwner !== (task.ownerAnalystId ?? null) ? nextOwner : undefined,
+        // Mirrors statusPatchBody() in app/worklist/page.tsx: the server stamps
+        // CURRENT_DATE in ITS timezone (UTC on Netlify), which can be the wrong
+        // calendar day for the user, so a transition into 'done' must carry the
+        // client's local date. Only sent on the transition — the route ignores
+        // completedDate unless the row's old status was not already 'done'.
+        completedDate:
+          status !== task.status && status === "done" ? toLocalDateString(new Date()) : undefined,
       };
 
       // Nothing changed: skip the round-trip. The route 400s on an empty body

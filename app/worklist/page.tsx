@@ -665,7 +665,10 @@ export default function WorklistPage() {
         // longer belongs here — refetch rather than leave a ghost.
         if (updated.ownerAnalystId !== analystId) fetchTasksForItem(target.kind, target.id);
         refetchDashboards(); // active_task_count depends on status <> 'done'
-        refetchAssigned();
+        // No refetchAssigned() here: the assigned query excludes tasks targeting
+        // this analyst's own worklist dashboards/subscriptions, so an item-scope
+        // task can never be in that list. Calling it would only flip
+        // assignedLoading and make the whole section flicker out and back.
       } else if (target.scope === "psq") {
         setTasksByPsq((prev) => ({
           ...prev,

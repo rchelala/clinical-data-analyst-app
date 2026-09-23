@@ -10,6 +10,7 @@ import {
   Plus,
   X,
   Trash2,
+  Pencil,
   Loader2,
   CalendarDays,
   BrainCircuit,
@@ -18,6 +19,7 @@ import {
 import { MobileNav } from "@/components/MobileNav";
 import { AnalystSelector } from "@/components/brain/AnalystSelector";
 import { AddTaskForm } from "@/components/worklist/AddTaskForm";
+import { EditTaskForm } from "@/components/worklist/EditTaskForm";
 import { AddWorklistDashboard } from "@/components/worklist/AddWorklistDashboard";
 import { StatusPrioritySelect } from "@/components/worklist/StatusPrioritySelect";
 import { StatusFilterDropdown } from "@/components/worklist/StatusFilterDropdown";
@@ -46,6 +48,16 @@ interface WorklistSubscriptionItem extends ReportSubscription {
   activeTaskCount: number;
   totalTaskCount: number;
 }
+
+// Which task the edit modal is open for, plus enough context to merge the
+// saved row back into the right collection. UI-only state, so it lives here
+// rather than in lib/brain-types.ts. The item variant carries `kind` and `id`
+// (not just the composite key string) because a reassignment save has to call
+// fetchTasksForItem(kind, id).
+type EditTaskTarget =
+  | { scope: "item"; kind: WorklistItemKind; id: number; targetLabel: string; task: Task }
+  | { scope: "psq"; psqId: number; targetLabel: string; task: Task }
+  | { scope: "assigned"; targetLabel: string; task: TaskWithContext };
 
 // Composite key so dashboard and subscription ids (separate sequences that can
 // collide numerically) never clash in the per-item task maps / expanded state.
@@ -191,6 +203,7 @@ export default function WorklistPage() {
   // instead of overwriting the new analyst's state.
   const currentAnalystIdRef = useRef<number | null>(null);
   const isStaleAnalyst = useCallback((requestAnalystId: number) => currentAnalystIdRef.current !== requestAnalystId, []);
+  const [showEditTaskFor, setShowEditTaskFor] = useState<EditTaskTarget | null>(null);
 
   useEffect(() => {
     if (notice === null) return;
@@ -637,6 +650,39 @@ export default function WorklistPage() {
     []
   );
 
+  // Merges an already-PATCHed row returned by <EditTaskForm> into whichever
+  // collection it came from. Deliberately merge-only: the modal owns the fetch
+  // so it can show saving/error state, unlike the patch* wrappers above.
+  const applyTaskEdit = useCallback(
+    (target: EditTaskTarget, updated: Task) => {
+      if (target.scope === "item") {
+        const key = itemKey(target.kind, target.id);
+        setTasksByItem((prev) => ({
+          ...prev,
+          [key]: (prev[key] ?? []).map((t) => (t.id === updated.id ? updated : t)),
+        }));
+        // The list is fetched with ownerAnalystId=<me>, so a reassigned row no
+        // longer belongs here — refetch rather than leave a ghost.
+        if (updated.ownerAnalystId !== analystId) fetchTasksForItem(target.kind, target.id);
+        refetchDashboards(); // active_task_count depends on status <> 'done'
+        refetchAssigned();
+      } else if (target.scope === "psq") {
+        setTasksByPsq((prev) => ({
+          ...prev,
+          [target.psqId]: (prev[target.psqId] ?? []).map((t) => (t.id === updated.id ? updated : t)),
+        }));
+        if (updated.ownerAnalystId !== analystId) fetchTasksForPsq(target.psqId);
+        refetchPsqs();
+      } else {
+        // Spread-merge, matching patchAssignedTask: `updated` is a plain Task
+        // and would otherwise drop contextType/contextName/contextOwnerName.
+        setAssignedTasks((prev) => prev.map((t) => (t.id === updated.id ? { ...t, ...updated } : t)));
+        if (updated.ownerAnalystId !== analystId) refetchAssigned();
+      }
+    },
+    [analystId, fetchTasksForItem, fetchTasksForPsq, refetchDashboards, refetchPsqs, refetchAssigned]
+  );
+
   const psqTaskCounts = useCallback(
     (psq: PsqWithTaskCount) => {
       // Live fetched list when expanded, otherwise the list-endpoint counts so
@@ -881,6 +927,22 @@ export default function WorklistPage() {
               </div>
               <button
                 type="button"
+                onClick={() =>
+                  setShowEditTaskFor({
+                    scope: "psq",
+                    psqId: p.id,
+                    targetLabel: `PSQ: ${p.name}`,
+                    task,
+                  })
+                }
+                title="Edit task"
+                aria-label="Edit task"
+                className="mt-0.5 text-secondary hover:text-brand-500 transition-colors flex-shrink-0"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
                 onClick={() => deletePsqTask(p.id, task.id)}
                 title="Delete task"
                 className="mt-0.5 text-secondary hover:text-red-500 transition-colors flex-shrink-0"
@@ -908,6 +970,7 @@ export default function WorklistPage() {
       statusSuggestions,
       prioritySuggestions,
       setShowAddTaskForPsq,
+      setShowEditTaskFor,
       noteEditingTaskId,
     ]
   );
@@ -1074,6 +1137,23 @@ export default function WorklistPage() {
                 </div>
                 <button
                   type="button"
+                  onClick={() =>
+                    setShowEditTaskFor({
+                      scope: "item",
+                      kind: item.kind,
+                      id: item.id,
+                      targetLabel: `${item.kind === "dashboard" ? "Dashboard" : "Report Subscription"}: ${item.name}`,
+                      task,
+                    })
+                  }
+                  title="Edit task"
+                  aria-label="Edit task"
+                  className="mt-0.5 text-secondary hover:text-brand-500 transition-colors flex-shrink-0"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
                   onClick={() => deleteItemTask(key, task.id)}
                   title="Delete task"
                   className="mt-0.5 text-secondary hover:text-red-500 transition-colors flex-shrink-0"
@@ -1102,6 +1182,7 @@ export default function WorklistPage() {
       statusSuggestions,
       prioritySuggestions,
       setShowAddTaskFor,
+      setShowEditTaskFor,
       noteEditingTaskId,
     ]
   );
@@ -1643,6 +1724,28 @@ export default function WorklistPage() {
                         />
                         <button
                           type="button"
+                          onClick={() =>
+                            setShowEditTaskFor({
+                              scope: "assigned",
+                              targetLabel:
+                                task.contextType === "dashboard"
+                                  ? `Dashboard: ${task.contextName}`
+                                  : task.contextType === "subscription"
+                                    ? `Report Subscription: ${task.contextName}`
+                                    : task.contextType === "division"
+                                      ? `Division: ${task.contextName}`
+                                      : `PSQ: ${task.contextName}`,
+                              task,
+                            })
+                          }
+                          title="Edit task"
+                          aria-label="Edit task"
+                          className="text-secondary hover:text-brand-500 transition-colors flex-shrink-0"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => deleteAssignedTask(task.id)}
                           title="Delete task"
                           className="text-secondary hover:text-red-500 transition-colors flex-shrink-0"
@@ -2041,6 +2144,26 @@ export default function WorklistPage() {
             refetchAssigned();
           }}
           onCancel={() => setShowAddTopLevelTask(false)}
+        />
+      )}
+
+      {/* One mount serves all three task lists — unlike AddTaskForm, EditTaskForm
+          takes a uniform task + targetLabel and the scope only matters in onSaved.
+          `key` forces a remount so the modal's props-seeded state re-initializes
+          when it's reopened on a different task. */}
+      {showEditTaskFor !== null && (
+        <EditTaskForm
+          key={showEditTaskFor.task.id}
+          task={showEditTaskFor.task}
+          targetLabel={showEditTaskFor.targetLabel}
+          statusSuggestions={statusSuggestions}
+          prioritySuggestions={prioritySuggestions}
+          onSaved={(updated) => {
+            const target = showEditTaskFor;
+            setShowEditTaskFor(null);
+            applyTaskEdit(target, updated);
+          }}
+          onCancel={() => setShowEditTaskFor(null)}
         />
       )}
 

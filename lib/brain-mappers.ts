@@ -8,6 +8,7 @@ export function mapAnalystRow(row: any): Analyst {
   return {
     id: row.id,
     name: row.name,
+    isActive: row.is_active,
   };
 }
 

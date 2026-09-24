@@ -16,3 +16,13 @@ export function loadAnalystId(): number | null {
 export function saveAnalystId(analystId: number): void {
   localStorage.setItem(ANALYST_STORAGE_KEY, String(analystId));
 }
+
+// Called when a stored id no longer resolves to an analyst on the roster —
+// they were retired (by someone else, in another browser) or the row is gone.
+// Clearing it here rather than at each reader matters: /worklist reads this key
+// itself, independently of AnalystSelector, and would otherwise keep running
+// with an id it can't name.
+export function clearAnalystId(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(ANALYST_STORAGE_KEY);
+}

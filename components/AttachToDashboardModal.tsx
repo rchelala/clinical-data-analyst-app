@@ -48,13 +48,18 @@ export function AttachToDashboardModal({
 
         setAnalysts(loadedAnalysts);
 
+        // Only preselect the stored identity if it's still on the roster. No
+        // fallback to the first analyst: this field is "Who are you", so
+        // guessing would file the work under someone else's name. Leaving it
+        // empty lets the existing required-field check force a real choice.
         const storedAnalystId = loadAnalystId();
-        const preselectedAnalyst =
-          storedAnalystId !== null &&
-          loadedAnalysts.some((a) => a.id === storedAnalystId)
-            ? storedAnalystId
-            : loadedAnalysts[0]?.id;
-        setAnalystId(preselectedAnalyst !== undefined ? String(preselectedAnalyst) : "");
+        // Only preselect the stored identity if it's still on the roster. No
+        // fallback to the first analyst: this field is "Who are you", so
+        // guessing would file the work under someone else's name. Leaving it
+        // empty lets the existing required-field check force a real choice.
+        const storedIsOnRoster =
+          storedAnalystId !== null && loadedAnalysts.some((a) => a.id === storedAnalystId);
+        setAnalystId(storedIsOnRoster ? String(storedAnalystId) : "");
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : "Network error — could not reach the server.");
@@ -195,6 +200,11 @@ export function AttachToDashboardModal({
                 <option value="">
                   {analystsLoading ? "Loading analysts…" : "No analysts available"}
                 </option>
+              )}
+              {/* Placeholder rather than a blank select when there's no stored
+                  identity, or when the stored one is no longer on the roster. */}
+              {analysts.length > 0 && analystId === "" && (
+                <option value="">— Select your name —</option>
               )}
               {analysts.map((a) => (
                 <option key={a.id} value={a.id}>

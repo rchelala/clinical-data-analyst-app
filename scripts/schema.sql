@@ -2,9 +2,16 @@
 -- Run manually against the target Neon Postgres instance.
 
 CREATE TABLE analysts (
-   id    serial PRIMARY KEY,
-   name  text NOT NULL UNIQUE
+   id         serial PRIMARY KEY,
+   name       text NOT NULL UNIQUE,
+   -- Retired analysts stay in the table so every FK that points at them keeps
+   -- resolving; they just drop out of the pickers. See migration 018.
+   is_active  boolean NOT NULL DEFAULT true
 );
+
+-- Stops "Becca" and "becca" becoming two people: name is the only identity
+-- this app has, so a casing split would be permanent.
+CREATE UNIQUE INDEX analysts_name_lower_key ON analysts (lower(name));
 
 CREATE TABLE divisions (
    id                    serial PRIMARY KEY,

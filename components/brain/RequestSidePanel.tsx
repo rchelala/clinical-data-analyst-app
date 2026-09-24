@@ -8,7 +8,7 @@ import { EditEntityForm } from "@/components/brain/EditEntityForm";
 import { RequestTagEditor } from "./RequestTagEditor";
 import { RequestLinkPicker } from "./RequestLinkPicker";
 import { formatDateOnly, toLocalDateString } from "@/lib/dates";
-import { fetchAnalysts, fetchTags } from "@/lib/reference-data";
+import { fetchAllAnalysts, fetchTags } from "@/lib/reference-data";
 
 export interface RequestSidePanelEntity {
   kind: BrainEntityKind;
@@ -281,7 +281,7 @@ export function RequestSidePanel({
 
     (async () => {
       try {
-        const data = await fetchAnalysts();
+        const data = await fetchAllAnalysts();
         if (!cancelled) setAllAnalysts(data);
       } catch {
         // Silently degrade — assignee names just won't resolve.

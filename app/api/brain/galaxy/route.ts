@@ -13,7 +13,7 @@ export async function GET() {
     // These four queries are independent of one another — run them
     // concurrently instead of paying for four sequential round trips.
     const [analystRows, divisionRows, dashboardRows, subscriptionRows] = await Promise.all([
-      sql`SELECT id, name FROM analysts ORDER BY name`,
+      sql`SELECT id, name, is_active FROM analysts ORDER BY name`,
       sql`SELECT id, created_by_analyst_id FROM divisions`,
       // Unscoped (org-wide) rows — same shared query used by the per-analyst
       // routes in app/api/dashboards/route.ts and app/api/report-subscriptions/route.ts.
@@ -79,14 +79,30 @@ export async function GET() {
       }
     });
 
-    const summaries: AnalystSummary[] = analysts.map((analyst) => ({
-      id: analyst.id,
-      name: analyst.name,
-      divisionCount: divisionIdsByAnalyst.get(analyst.id)?.size ?? 0,
-      dashboardCount: dashboardCountByAnalyst.get(analyst.id) ?? 0,
-      subscriptionCount: subscriptionCountByAnalyst.get(analyst.id) ?? 0,
-      highUrgencyCount: highUrgencyCountByAnalyst.get(analyst.id) ?? 0,
-    }));
+    // A retired analyst keeps their star only while they still own something
+    // here, so un-reassigned work never silently vanishes from the org view.
+    // Note these counts cover divisions/dashboards/subscriptions and NOT tasks,
+    // so someone who owned only tasks drops off the Galaxy — their tasks still
+    // show their name everywhere else.
+    const summaries: AnalystSummary[] = [];
+
+    for (const analyst of analysts) {
+      const summary: AnalystSummary = {
+        id: analyst.id,
+        name: analyst.name,
+        divisionCount: divisionIdsByAnalyst.get(analyst.id)?.size ?? 0,
+        dashboardCount: dashboardCountByAnalyst.get(analyst.id) ?? 0,
+        subscriptionCount: subscriptionCountByAnalyst.get(analyst.id) ?? 0,
+        highUrgencyCount: highUrgencyCountByAnalyst.get(analyst.id) ?? 0,
+      };
+
+      const ownsSomething =
+        summary.divisionCount > 0 ||
+        summary.dashboardCount > 0 ||
+        summary.subscriptionCount > 0;
+
+      if (analyst.isActive || ownsSomething) summaries.push(summary);
+    }
 
     return NextResponse.json(summaries);
   } catch (err: unknown) {

@@ -22,7 +22,7 @@ import {
 import { IntakeRequestsTable } from "@/components/brain/IntakeRequestsTable";
 import { AddIntakeRequestForm } from "@/components/brain/AddIntakeRequestForm";
 import { AddEntityForm } from "@/components/brain/AddEntityForm";
-import { fetchAnalysts, fetchDivisions } from "@/lib/reference-data";
+import { fetchAllAnalysts, fetchDivisions } from "@/lib/reference-data";
 
 const STATUS_OPTIONS: { value: IntakeStatus; label: string }[] = [
   { value: "not_started", label: "Not started" },
@@ -46,6 +46,9 @@ export default function UnassignedIntakePage() {
 
   const [divisions, setDivisions] = useState<Division[]>([]);
   const [analysts, setAnalysts] = useState<Analyst[]>([]);
+  // Retired analysts stay in `analysts` so existing assignments still resolve;
+  // a form creating something new only ever offers the current team.
+  const activeAnalysts = useMemo(() => analysts.filter((a) => a.isActive), [analysts]);
 
   const [showAddForm, setShowAddForm] = useState(false);
 
@@ -71,7 +74,7 @@ export default function UnassignedIntakePage() {
       // previous per-response res.ok handling.
       const [divisionsResult, analystsResult] = await Promise.allSettled([
         fetchDivisions(),
-        fetchAnalysts(),
+        fetchAllAnalysts(),
       ]);
       if (cancelled) return;
       if (divisionsResult.status === "fulfilled") setDivisions(divisionsResult.value);
@@ -315,7 +318,7 @@ export default function UnassignedIntakePage() {
               <option value="all">All</option>
               {analysts.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {a.name}
+                  {a.isActive ? a.name : `${a.name} (retired)`}
                 </option>
               ))}
             </select>
@@ -397,7 +400,7 @@ export default function UnassignedIntakePage() {
       {showAddForm && (
         <AddIntakeRequestForm
           divisions={divisions}
-          analysts={analysts}
+          analysts={activeAnalysts}
           onCreated={() => {
             setShowAddForm(false);
             loadRequests();

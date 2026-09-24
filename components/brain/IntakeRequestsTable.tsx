@@ -237,8 +237,8 @@ export function IntakeRequestsTable({
                 >
                   <option value="">Unassigned</option>
                   {analysts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.name}
+                    <option key={a.id} value={a.id} disabled={!a.isActive}>
+                      {a.isActive ? a.name : `${a.name} (retired)`}
                     </option>
                   ))}
                 </select>

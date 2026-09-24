@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Pencil } from "lucide-react";
+import { fetchAllAnalysts } from "@/lib/reference-data";
 import { Analyst, Task } from "@/lib/brain-types";
 import { StatusPrioritySelect } from "@/components/worklist/StatusPrioritySelect";
 import { toLocalDateString } from "@/lib/dates";
@@ -50,9 +51,11 @@ export function EditTaskForm({
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/analysts");
-        const data = await res.json();
-        if (!cancelled && res.ok) setAnalysts(data);
+        // Includes retired analysts: this select is seeded from the task's
+        // existing owner, and an active-only list would render a retired one
+        // as a blank option — indistinguishable from "— Unassigned —".
+        const data = await fetchAllAnalysts();
+        if (!cancelled) setAnalysts(data);
       } catch {
         // Non-critical; assignee dropdown will just show the default option.
       }
@@ -226,8 +229,8 @@ export function EditTaskForm({
             >
               <option value="">— Unassigned —</option>
               {analysts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
+                <option key={a.id} value={a.id} disabled={!a.isActive}>
+                  {a.isActive ? a.name : `${a.name} (retired)`}
                 </option>
               ))}
             </select>

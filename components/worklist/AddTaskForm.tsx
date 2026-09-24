@@ -5,7 +5,7 @@ import { ClipboardPlus } from "lucide-react";
 import { Analyst, Task } from "@/lib/brain-types";
 import { StatusPrioritySelect } from "@/components/worklist/StatusPrioritySelect";
 import { toLocalDateString } from "@/lib/dates";
-import { fetchAnalysts } from "@/lib/reference-data";
+import { fetchAllAnalysts } from "@/lib/reference-data";
 
 interface AddTaskFormProps {
   currentAnalystId: number;
@@ -82,7 +82,7 @@ export function AddTaskForm({
     let cancelled = false;
     (async () => {
       try {
-        const data = await fetchAnalysts();
+        const data = await fetchAllAnalysts();
         if (!cancelled) setAnalysts(data);
       } catch {
         // Non-critical; assignee dropdown will just show the default option.
@@ -399,8 +399,8 @@ export function AddTaskForm({
                 <option value={currentAnalystId}>Me</option>
               )}
               {analysts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
+                <option key={a.id} value={a.id} disabled={!a.isActive}>
+                  {a.isActive ? a.name : `${a.name} (retired)`}
                 </option>
               ))}
             </select>

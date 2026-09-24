@@ -15,7 +15,7 @@
 
 import { Analyst, Division, Tag } from "@/lib/brain-types";
 
-type ReferenceKind = "analysts" | "divisions" | "tags";
+type ReferenceKind = "analysts" | "analystsWithRetired" | "divisions" | "tags";
 
 interface CacheEntry<T> {
   // Non-null while a fetch for this kind is in flight, so concurrent callers
@@ -32,10 +32,12 @@ function makeEntry<T>(): CacheEntry<T> {
 
 const caches: {
   analysts: CacheEntry<Analyst[]>;
+  analystsWithRetired: CacheEntry<Analyst[]>;
   divisions: CacheEntry<Division[]>;
   tags: CacheEntry<Tag[]>;
 } = {
   analysts: makeEntry(),
+  analystsWithRetired: makeEntry(),
   divisions: makeEntry(),
   tags: makeEntry(),
 };
@@ -73,8 +75,17 @@ function getOrFetch<T>(kind: ReferenceKind, url: string): Promise<T> {
   return promise;
 }
 
+// The current team — for pickers choosing who does something next.
 export function fetchAnalysts(): Promise<Analyst[]> {
   return getOrFetch<Analyst[]>("analysts", "/api/analysts");
+}
+
+// Everyone, including retired analysts. For resolving an id to a name on
+// work that already exists, and for selects pre-seeded from stored data: an
+// active-only list renders those blank or "Unknown". Cached separately from
+// fetchAnalysts() because it is a different response.
+export function fetchAllAnalysts(): Promise<Analyst[]> {
+  return getOrFetch<Analyst[]>("analystsWithRetired", "/api/analysts?includeInactive=1");
 }
 
 export function fetchDivisions(): Promise<Division[]> {
@@ -93,6 +104,13 @@ export function invalidateReferenceData(kind?: ReferenceKind): void {
   if (kind) {
     caches[kind].value = null;
     caches[kind].promise = null;
+    // The two analyst lists are the same rows under different filters, so
+    // adding, renaming or retiring someone invalidates both.
+    if (kind === "analysts" || kind === "analystsWithRetired") {
+      const other = kind === "analysts" ? "analystsWithRetired" : "analysts";
+      caches[other].value = null;
+      caches[other].promise = null;
+    }
     return;
   }
   (Object.keys(caches) as ReferenceKind[]).forEach((k) => {

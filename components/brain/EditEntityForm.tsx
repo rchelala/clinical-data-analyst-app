@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Pencil } from "lucide-react";
 import { BrainEntityKind, DashboardStatus, Division, Analyst, UrgencyBucket } from "@/lib/brain-types";
-import { fetchAnalysts } from "@/lib/reference-data";
+import { fetchAllAnalysts } from "@/lib/reference-data";
 
 interface EditEntityFormProps {
   kind: BrainEntityKind;
@@ -82,7 +82,7 @@ export function EditEntityForm({
     let cancelled = false;
     (async () => {
       try {
-        const data = await fetchAnalysts();
+        const data = await fetchAllAnalysts();
         if (!cancelled) setAnalysts(data);
       } catch {
         /* non-fatal */
@@ -314,8 +314,12 @@ export function EditEntityForm({
             >
               <option value="">— Unassigned —</option>
               {analysts.map((analyst) => (
-                <option key={analyst.id} value={String(analyst.id)}>
-                  {analyst.name}
+                <option
+                  key={analyst.id}
+                  value={String(analyst.id)}
+                  disabled={!analyst.isActive}
+                >
+                  {analyst.isActive ? analyst.name : `${analyst.name} (retired)`}
                 </option>
               ))}
             </select>

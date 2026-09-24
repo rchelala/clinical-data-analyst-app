@@ -5,6 +5,9 @@
 export interface Analyst {
   id: number;
   name: string;
+  // Retired analysts keep every row that points at them; they just stop
+  // appearing in pickers. Only sent when the caller asks for them.
+  isActive: boolean;
 }
 
 export type UrgencyBucket = 'high' | 'med' | 'low';

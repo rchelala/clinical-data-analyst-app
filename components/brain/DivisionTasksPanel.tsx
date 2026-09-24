@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { X, Loader2, ListTodo } from "lucide-react";
 import { Analyst, Task } from "@/lib/brain-types";
 import { formatDateOnly } from "@/lib/dates";
-import { fetchAnalysts } from "@/lib/reference-data";
+import { fetchAllAnalysts } from "@/lib/reference-data";
 
 interface DivisionTasksPanelProps {
   divisionId: number;
@@ -77,7 +77,7 @@ export function DivisionTasksPanel({ divisionId, divisionName, onClose }: Divisi
 
     (async () => {
       try {
-        const data = await fetchAnalysts();
+        const data = await fetchAllAnalysts();
         if (!cancelled) setAllAnalysts(data);
       } catch {
         // Silently degrade — assignee names just won't resolve.

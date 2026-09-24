@@ -30,7 +30,7 @@ import { MAX_RADIUS } from "@/lib/urgency";
 import { BrainFilters, createDefaultFilters } from "@/lib/filters";
 import { resolveSearchResults, SearchResult } from "@/lib/brain-search";
 import { loadAnalystId } from "@/lib/analyst-identity";
-import { fetchAnalysts, fetchDivisions } from "@/lib/reference-data";
+import { fetchAllAnalysts, fetchDivisions } from "@/lib/reference-data";
 
 interface SelectedEntity {
   kind: BrainEntityKind;
@@ -75,7 +75,10 @@ export default function BrainPage() {
   // All divisions (org-wide, not scoped to any one analyst) — used by the
   // FilterRail search typeahead to match against division names.
   const [allDivisions, setAllDivisions] = useState<Division[]>([]);
+  // Fetched with retired analysts included so the viewed-analyst title and
+  // search still resolve their name; the FilterRail only offers the current team.
   const [analysts, setAnalysts] = useState<Analyst[]>([]);
+  const activeAnalysts = useMemo(() => analysts.filter((a) => a.isActive), [analysts]);
   const [selectedEntity, setSelectedEntity] = useState<SelectedEntity | null>(null);
   const [selectedRequestId, setSelectedRequestId] = useState<number | undefined>(undefined);
   const [showAddRequestForm, setShowAddRequestForm] = useState(false);
@@ -196,7 +199,7 @@ export default function BrainPage() {
       // that only refetches if invalidateReferenceData() was actually
       // called (see AddDivisionForm/DeleteDivisionModal).
       try {
-        const analystsData = await fetchAnalysts();
+        const analystsData = await fetchAllAnalysts();
         if (!cancelled) setAnalysts(analystsData);
       } catch {
         // Non-critical — search/hover breakdown just won't resolve names.
@@ -214,6 +217,20 @@ export default function BrainPage() {
       cancelled = true;
     };
   }, [viewerAnalystId, refreshKey, fetchDashboards, fetchSubscriptions]);
+
+  useEffect(() => {
+    if (activeAnalysts.length === 0) return;
+    setFilters((prev) => {
+      if (prev.analystFocus.length === 0) return prev;
+      const stillActive = prev.analystFocus.filter((id) =>
+        activeAnalysts.some((a) => a.id === id)
+      );
+      if (stillActive.length === prev.analystFocus.length) return prev;
+      // Someone in the focus filter was retired — drop them, or they'd keep
+      // filtering the Galaxy with no checkbox left to switch off.
+      return { ...prev, analystFocus: stillActive };
+    });
+  }, [activeAnalysts]);
 
   const viewedAnalystId =
     zoom.level === "analyst" || zoom.level === "division" ? zoom.analystId : null;
@@ -549,7 +566,10 @@ export default function BrainPage() {
               Delete Division
             </button>
           )}
-          <AnalystSelector onSelect={handleSelectAnalyst} />
+          <AnalystSelector
+              onSelect={handleSelectAnalyst}
+              onRosterChanged={() => setRefreshKey((k) => k + 1)}
+            />
           <button
             onClick={() => setShowUrgencyInfo(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-theme bg-panel text-secondary hover:text-primary hover:bg-panel/80 transition-colors"
@@ -565,7 +585,7 @@ export default function BrainPage() {
           <FilterRail
             filters={filters}
             onFiltersChange={setFilters}
-            analysts={analysts}
+            analysts={activeAnalysts}
             showAnalystFocus={zoom.level === "galaxy"}
             searchQuery={searchQuery}
             onSearchQueryChange={setSearchQuery}
